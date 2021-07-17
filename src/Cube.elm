@@ -4,6 +4,7 @@ module Cube exposing
     , applyAlgorithm
     , viewUFRWithLetters, viewUFRNoLetters, viewUBLWithLetters
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
+    , animateAlgorithm, handleAnimationMsg, noAnimation, viewAnimatable
     )
 
 {-|
@@ -41,6 +42,50 @@ in the context of having a cube, so they belong here and not in the Algorithm mo
 import Algorithm exposing (Algorithm)
 import Cube.Advanced
 import Html exposing (Html)
+
+
+type alias AnimationState =
+    Cube.Advanced.AnimationState
+
+
+{-| Placeholder
+-}
+type alias AnimationMsg =
+    Cube.Advanced.AnimationMsg
+
+
+{-| Placeholder
+-}
+viewAnimatable : { cube : Cube, size : Int, animationState : AnimationState, toMsg : AnimationMsg -> msg, animationDoneMsg : msg } -> Html msg
+viewAnimatable arguments =
+    Cube.Advanced.viewAnimatable
+        { cube = arguments.cube
+        , animationState = arguments.animationState
+        , toMsg = arguments.toMsg
+        , animationDoneMsg = arguments.animationDoneMsg
+        , size = arguments.size
+        }
+
+
+{-| Placeholder
+-}
+noAnimation : AnimationState
+noAnimation =
+    Cube.Advanced.noAnimation
+
+
+{-| Placeholder
+-}
+handleAnimationMsg : AnimationState -> AnimationMsg -> ( AnimationState, Cmd AnimationMsg )
+handleAnimationMsg =
+    Cube.Advanced.handleAnimationMsg
+
+
+{-| Placeholder
+-}
+animateAlgorithm : Algorithm -> AnimationState
+animateAlgorithm =
+    Cube.Advanced.animateAlgorithm
 
 
 {-| This type represents a 3x3 Rubik's Cube that can be displayed.
