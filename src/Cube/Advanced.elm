@@ -6,7 +6,7 @@ module Cube.Advanced exposing (render)
 
 -}
 
-import Cube exposing (Cube(..))
+import Cube exposing (Cube)
 import Cube.Advanced.Types exposing (Rendering)
 import Internal.Cube
 
@@ -14,5 +14,5 @@ import Internal.Cube
 {-| Placeholder
 -}
 render : Cube -> Rendering
-render (Cube cube) =
+render cube =
     Internal.Cube.render cube

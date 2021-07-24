@@ -1,4 +1,4 @@
-module Cube exposing (Cube(..), applyAlgorithm, solved, viewUBLWithLetters, viewUFRNoLetters, viewUFRWithLetters, algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation)
+module Cube exposing (Cube, applyAlgorithm, solved, viewUBLWithLetters, viewUFRNoLetters, viewUFRWithLetters, algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation)
 
 {-| Documentation to come
 
@@ -14,50 +14,43 @@ import List.Nonempty
 
 {-| Placeholder
 -}
-type Cube
-    = Cube Internal.Cube.Cube
-
-
-{-| Placeholder
--}
-map : (Internal.Cube.Cube -> Internal.Cube.Cube) -> Cube -> Cube
-map fn (Cube cube) =
-    Cube <| fn cube
+type alias Cube =
+    Internal.Cube.Cube
 
 
 {-| Placeholder
 -}
 applyAlgorithm : Algorithm -> Cube -> Cube
-applyAlgorithm algorithm =
-    map <| Internal.Cube.applyAlgorithm algorithm
+applyAlgorithm =
+    Internal.Cube.applyAlgorithm
 
 
 {-| Placeholder
 -}
 solved : Cube
 solved =
-    Cube Internal.Cube.solved
+    Internal.Cube.solved
 
 
 {-| Placeholder
 -}
 viewUBLWithLetters : List (Html.Attribute msg) -> Int -> Cube -> Html.Html msg
-viewUBLWithLetters attributes size (Cube cube) =
-    Internal.Cube.viewUBLWithLetters attributes size cube
+viewUBLWithLetters =
+    Internal.Cube.viewUBLWithLetters
 
 
 {-| Placeholder
 -}
 viewUFRNoLetters : List (Html.Attribute msg) -> Int -> Cube -> Html.Html msg
-viewUFRNoLetters attributes size (Cube cube) =
-    Internal.Cube.viewUFRNoLetters attributes size cube
+viewUFRNoLetters =
+    Internal.Cube.viewUFRNoLetters
 
 
 {-| Placeholder
 -}
 viewUFRWithLetters : List (Html.Attribute msg) -> Int -> Cube -> Html.Html msg
-viewUFRWithLetters attributes size (Cube cube) =
-    Internal.Cube.viewUFRWithLetters attributes size cube
+viewUFRWithLetters =
+    Internal.Cube.viewUFRWithLetters
 
 
 {-| Placeholder
