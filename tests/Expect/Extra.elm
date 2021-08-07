@@ -1,6 +1,6 @@
 module Expect.Extra exposing (equalCubeRenderings, equalListMembers, equalNonEmptyListMembers)
 
-import Cube.Advanced.Types as CubeTypes
+import Cube.Advanced
 import Expect
 import List.Nonempty
 import TestHelpers.Cube
@@ -47,7 +47,7 @@ equalNonEmptyListMembers (List.Nonempty.Nonempty expectedHead expectedTail) (Lis
         equalListMembers expectedTail actualTail
 
 
-equalCubeRenderings : CubeTypes.Rendering -> CubeTypes.Rendering -> Expect.Expectation
+equalCubeRenderings : Cube.Advanced.Rendering -> Cube.Advanced.Rendering -> Expect.Expectation
 equalCubeRenderings expected actual =
     if expected == actual then
         Expect.pass

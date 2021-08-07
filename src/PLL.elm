@@ -30,7 +30,6 @@ import AUF
 import Algorithm exposing (Algorithm)
 import Cube
 import Cube.Advanced
-import Cube.Advanced.Types
 import List.Nonempty
 import Utils.Enumerator
 
@@ -278,7 +277,7 @@ solvedBy algorithm pll =
             , ( l.l, Algorithm.L )
             , ( r.r, Algorithm.R )
             ]
-                |> List.filter (Tuple.first >> (==) Cube.Advanced.Types.UpColor)
+                |> List.filter (Tuple.first >> (==) Cube.Advanced.UpColor)
                 |> List.head
                 |> Maybe.map Tuple.second
                 |> Maybe.withDefault Algorithm.U

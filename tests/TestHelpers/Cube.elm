@@ -1,11 +1,11 @@
 module TestHelpers.Cube exposing (compareCubeRenderings, cubeFuzzer, plainCubie, solvedCubeRendering)
 
 import Cube
-import Cube.Advanced.Types as CubeTypes exposing (Color(..))
+import Cube.Advanced exposing (Color(..))
 import Fuzz
 
 
-compareCubeRenderings : CubeTypes.Rendering -> CubeTypes.Rendering -> String
+compareCubeRenderings : Cube.Advanced.Rendering -> Cube.Advanced.Rendering -> String
 compareCubeRenderings a b =
     if a == b then
         "There are no differences"
@@ -45,7 +45,7 @@ compareCubeRenderings a b =
         "{ " ++ String.join "\n, " diffs ++ "\n}"
 
 
-compareCubieRenderings : String -> CubeTypes.CubieRendering -> CubeTypes.CubieRendering -> Maybe String
+compareCubieRenderings : String -> Cube.Advanced.CubieRendering -> Cube.Advanced.CubieRendering -> Maybe String
 compareCubieRenderings prefix a b =
     if a == b then
         Nothing
@@ -65,7 +65,7 @@ compareCubieRenderings prefix a b =
         Just <| prefix ++ "{ " ++ String.join ", " diffs ++ " }"
 
 
-compareCubieFaces : String -> CubeTypes.Color -> CubeTypes.Color -> Maybe String
+compareCubieFaces : String -> Cube.Advanced.Color -> Cube.Advanced.Color -> Maybe String
 compareCubieFaces prefix a b =
     if a == b then
         Nothing
@@ -74,7 +74,7 @@ compareCubieFaces prefix a b =
         Just <| prefix ++ Debug.toString a ++ " != " ++ Debug.toString b
 
 
-solvedCubeRendering : CubeTypes.Rendering
+solvedCubeRendering : Cube.Advanced.Rendering
 solvedCubeRendering =
     { -- U Corners
       ufr = { plainCubie | u = UpColor, f = FrontColor, r = RightColor }
@@ -116,7 +116,7 @@ solvedCubeRendering =
     }
 
 
-plainCubie : CubeTypes.CubieRendering
+plainCubie : Cube.Advanced.CubieRendering
 plainCubie =
     { u = PlasticColor, d = PlasticColor, f = PlasticColor, b = PlasticColor, l = PlasticColor, r = PlasticColor }
 

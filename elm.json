@@ -4,14 +4,7 @@
   "summary": "Models and html displays for speedcubing puzzles and algorithm sets",
   "license": "MIT",
   "version": "5.2.0",
-  "exposed-modules": [
-    "Algorithm",
-    "AUF",
-    "Cube",
-    "Cube.Advanced",
-    "Cube.Advanced.Types",
-    "PLL"
-  ],
+  "exposed-modules": ["Algorithm", "AUF", "Cube", "Cube.Advanced", "PLL"],
   "elm-version": "0.19.0 <= v < 0.20.0",
   "dependencies": {
     "elm/core": "1.0.0 <= v < 2.0.0",

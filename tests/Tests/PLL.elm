@@ -3,8 +3,7 @@ module Tests.PLL exposing (getAlgorithmTests, referenceAlgTests, solvedByTests)
 import AUF
 import Algorithm
 import Cube
-import Cube.Advanced
-import Cube.Advanced.Types as CubeTypes exposing (Color(..))
+import Cube.Advanced exposing (Color(..))
 import Expect
 import Fuzz
 import List.Nonempty
@@ -375,7 +374,7 @@ solvedByTests =
         ]
 
 
-expectEqualDisregardingAUF : CubeTypes.Rendering -> Algorithm.Algorithm -> Expect.Expectation
+expectEqualDisregardingAUF : Cube.Advanced.Rendering -> Algorithm.Algorithm -> Expect.Expectation
 expectEqualDisregardingAUF expectedRendering alg =
     let
         aufAlgorithms =
@@ -407,7 +406,7 @@ expectEqualDisregardingAUF expectedRendering alg =
             )
 
 
-getShortestDiff : List.Nonempty.Nonempty CubeTypes.Rendering -> CubeTypes.Rendering -> String
+getShortestDiff : List.Nonempty.Nonempty Cube.Advanced.Rendering -> Cube.Advanced.Rendering -> String
 getShortestDiff candidates expected =
     let
         diffs =
