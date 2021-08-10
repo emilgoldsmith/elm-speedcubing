@@ -4,7 +4,7 @@ module Cube exposing
     , applyAlgorithm
     , viewUFRWithLetters, viewUFRNoLetters, viewUBLWithLetters
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
-    , animateAlgorithm, handleAnimationMsg, noAnimation, viewAnimatable
+    , AnimationMsg, AnimationState, animateAlgorithm, continueAnimation, currentTurnAnimating, handleAnimationMsg, noAnimation, pauseAnimation, viewAnimatable
     )
 
 {-|
@@ -46,6 +46,21 @@ import Html exposing (Html)
 
 type alias AnimationState =
     Cube.Advanced.AnimationState
+
+
+currentTurnAnimating : AnimationState -> Maybe Algorithm.Turn
+currentTurnAnimating =
+    Cube.Advanced.currentTurnAnimating
+
+
+continueAnimation : AnimationState -> AnimationState
+continueAnimation =
+    Cube.Advanced.continueAnimation
+
+
+pauseAnimation : AnimationState -> AnimationState
+pauseAnimation =
+    Cube.Advanced.pauseAnimation
 
 
 {-| Placeholder
