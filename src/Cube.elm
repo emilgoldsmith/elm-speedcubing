@@ -3,8 +3,8 @@ module Cube exposing
     , solved
     , applyAlgorithm
     , viewUFRWithLetters, viewUFRNoLetters, viewUBLWithLetters
+    , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, AnimationState, AnimationMsg, currentTurnAnimating
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
-    , AnimationMsg, AnimationState, animateAlgorithm, continueAnimation, currentTurnAnimating, handleAnimationMsg, noAnimation, pauseAnimation, viewAnimatable
     )
 
 {-|
@@ -30,6 +30,14 @@ module Cube exposing
 @docs viewUFRWithLetters, viewUFRNoLetters, viewUBLWithLetters
 
 
+## With Animation
+
+Check out the example [on Github](https://github.com/emilgoldsmith/elm-speedcubing/blob/main/examples/src/Animation.elm) to see
+how the different functions interact with each other
+
+@docs viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, AnimationState, AnimationMsg, currentTurnAnimating
+
+
 # Algorithm Helpers
 
 Some algorithm functionality such as whether two algorithms are equivalent can only be determined
@@ -42,65 +50,6 @@ in the context of having a cube, so they belong here and not in the Algorithm mo
 import Algorithm exposing (Algorithm)
 import Cube.Advanced
 import Html exposing (Html)
-
-
-type alias AnimationState =
-    Cube.Advanced.AnimationState
-
-
-currentTurnAnimating : AnimationState -> Maybe Algorithm.Turn
-currentTurnAnimating =
-    Cube.Advanced.currentTurnAnimating
-
-
-continueAnimation : AnimationState -> AnimationState
-continueAnimation =
-    Cube.Advanced.continueAnimation
-
-
-pauseAnimation : AnimationState -> AnimationState
-pauseAnimation =
-    Cube.Advanced.pauseAnimation
-
-
-{-| Placeholder
--}
-type alias AnimationMsg =
-    Cube.Advanced.AnimationMsg
-
-
-{-| Placeholder
--}
-viewAnimatable : { cube : Cube, size : Int, animationState : AnimationState, toMsg : AnimationMsg -> msg, animationDoneMsg : msg } -> Html msg
-viewAnimatable arguments =
-    Cube.Advanced.viewAnimatable
-        { cube = arguments.cube
-        , animationState = arguments.animationState
-        , toMsg = arguments.toMsg
-        , animationDoneMsg = arguments.animationDoneMsg
-        , size = arguments.size
-        }
-
-
-{-| Placeholder
--}
-noAnimation : AnimationState
-noAnimation =
-    Cube.Advanced.noAnimation
-
-
-{-| Placeholder
--}
-handleAnimationMsg : AnimationState -> AnimationMsg -> ( AnimationState, Cmd AnimationMsg )
-handleAnimationMsg =
-    Cube.Advanced.handleAnimationMsg
-
-
-{-| Placeholder
--}
-animateAlgorithm : Algorithm -> AnimationState
-animateAlgorithm =
-    Cube.Advanced.animateAlgorithm
 
 
 {-| This type represents a 3x3 Rubik's Cube that can be displayed.
@@ -174,6 +123,76 @@ displayed on the center caps
 viewUFRWithLetters : List (Html.Attribute msg) -> Int -> Cube -> Html msg
 viewUFRWithLetters =
     Cube.Advanced.viewUFRWithLetters
+
+
+{-| Display a cube that can animate turns being applied to it.
+-}
+viewAnimatable : { cube : Cube, size : Int, animationState : AnimationState, toMsg : AnimationMsg -> msg, animationDoneMsg : msg } -> Html msg
+viewAnimatable =
+    Cube.Advanced.viewAnimatable
+
+
+{-| The function that can handle the opaque animation message type
+and output the next animation state and any commands the package needs
+to have run for it
+-}
+handleAnimationMsg : AnimationState -> AnimationMsg -> ( AnimationState, Cmd AnimationMsg )
+handleAnimationMsg =
+    Cube.Advanced.handleAnimationMsg
+
+
+{-| The animation state describing the animation of
+an algorithm. Set this in your model while viewAnimatable
+is being used and AnimationMsg is being handled and your
+cube will animate on screen
+-}
+animateAlgorithm : Algorithm -> AnimationState
+animateAlgorithm =
+    Cube.Advanced.animateAlgorithm
+
+
+{-| The animation state describing a static cube with no
+animated turns applied to it
+-}
+noAnimation : AnimationState
+noAnimation =
+    Cube.Advanced.noAnimation
+
+
+{-| Continue a paused animation. This won't have any effect if the animation is not paused
+-}
+unpauseAnimation : AnimationState -> AnimationState
+unpauseAnimation =
+    Cube.Advanced.unpauseAnimation
+
+
+{-| Pause an animation either to stop it completely or to unpause it later
+-}
+pauseAnimation : AnimationState -> AnimationState
+pauseAnimation =
+    Cube.Advanced.pauseAnimation
+
+
+{-| An opaque type that describes the internal state this package uses to
+manage the animation of turns on a cube
+-}
+type alias AnimationState =
+    Cube.Advanced.AnimationState
+
+
+{-| An opaque type describing the internal messages this package
+uses to manage the animation of a cube
+-}
+type alias AnimationMsg =
+    Cube.Advanced.AnimationMsg
+
+
+{-| A helper function that given an animation state will tell you
+which turn is currently being animated if any
+-}
+currentTurnAnimating : AnimationState -> Maybe Algorithm.Turn
+currentTurnAnimating =
+    Cube.Advanced.currentTurnAnimating
 
 
 {-| Check that two algorithms produce the exact same result when

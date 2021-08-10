@@ -3,10 +3,10 @@ module Cube.Advanced exposing
     , solved
     , applyAlgorithm
     , viewUFRWithLetters, viewUFRNoLetters, viewUBLWithLetters
+    , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, AnimationState, AnimationMsg, currentTurnAnimating
     , Rendering, CubieRendering, Color(..), render
     , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
-    , AnimationMsg, AnimationState, animateAlgorithm, continueAnimation, currentTurnAnimating, handleAnimationMsg, noAnimation, pauseAnimation, viewAnimatable
     )
 
 {-|
@@ -30,6 +30,14 @@ module Cube.Advanced exposing
 # Displayers
 
 @docs viewUFRWithLetters, viewUFRNoLetters, viewUBLWithLetters
+
+
+## With Animation
+
+Check out the example [on Github](https://github.com/emilgoldsmith/elm-speedcubing/blob/main/examples/src/Animation.elm) to see
+how the different functions interact with each other
+
+@docs viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, AnimationState, AnimationMsg, currentTurnAnimating
 
 
 # Rendering
@@ -2351,6 +2359,12 @@ algorithmResultsAreEquivalentIndependentOfFinalRotation a b =
         |> List.Nonempty.any (algorithmResultsAreEquivalent b)
 
 
+
+-- ANIMATION IMPLEMENTATIONS
+
+
+{-| See [Cube.AnimationState](Cube#AnimationState)
+-}
 type AnimationState
     = AnimationState
         { toApply : List Algorithm.Turn
@@ -2360,6 +2374,32 @@ type AnimationState
         }
 
 
+{-| See [Cube.animateAlgorithm](Cube#animateAlgorithm)
+-}
+animateAlgorithm : Algorithm -> AnimationState
+animateAlgorithm algorithm =
+    AnimationState
+        { toApply = Algorithm.toTurnList algorithm
+        , alreadyApplied = Algorithm.empty
+        , inBetweenTurns = False
+        , paused = False
+        }
+
+
+{-| See [Cube.noAnimation](Cube#noAnimation)
+-}
+noAnimation : AnimationState
+noAnimation =
+    AnimationState
+        { toApply = []
+        , alreadyApplied = Algorithm.empty
+        , inBetweenTurns = True
+        , paused = False
+        }
+
+
+{-| See [Cube.currentTurnAnimating](Cube#currentTurnAnimating)
+-}
 currentTurnAnimating : AnimationState -> Maybe Algorithm.Turn
 currentTurnAnimating (AnimationState { toApply, inBetweenTurns, paused }) =
     if inBetweenTurns || paused then
@@ -2369,11 +2409,8 @@ currentTurnAnimating (AnimationState { toApply, inBetweenTurns, paused }) =
         List.head toApply
 
 
-type AnimationMsg
-    = TurnFinished
-    | StartNextTurn
-
-
+{-| See [Cube.viewAnimatable](Cube#viewAnimatable)
+-}
 viewAnimatable :
     { cube : Cube
     , animationState : AnimationState
@@ -2394,36 +2431,29 @@ viewAnimatable { cube, size, animationState, toMsg, animationDoneMsg } =
         |> Html.map toMsg
 
 
-animateAlgorithm : Algorithm -> AnimationState
-animateAlgorithm algorithm =
-    AnimationState
-        { toApply = Algorithm.toTurnList algorithm
-        , alreadyApplied = Algorithm.empty
-        , inBetweenTurns = False
-        , paused = False
-        }
+{-| See [Cube.AnimationMsg](Cube#AnimationMsg)
+-}
+type AnimationMsg
+    = TurnFinished
+    | StartNextTurn
 
 
-noAnimation : AnimationState
-noAnimation =
-    AnimationState
-        { toApply = []
-        , alreadyApplied = Algorithm.empty
-        , inBetweenTurns = True
-        , paused = False
-        }
-
-
+{-| See [Cube.pauseAnimation](Cube#pauseAnimation)
+-}
 pauseAnimation : AnimationState -> AnimationState
 pauseAnimation (AnimationState animationState) =
     AnimationState { animationState | paused = True }
 
 
-continueAnimation : AnimationState -> AnimationState
-continueAnimation (AnimationState animationState) =
+{-| See [Cube.unpauseAnimation](Cube#unpauseAnimation)
+-}
+unpauseAnimation : AnimationState -> AnimationState
+unpauseAnimation (AnimationState animationState) =
     AnimationState { animationState | paused = False, inBetweenTurns = False }
 
 
+{-| See [Cube.handleAnimationMsg](Cube#handleAnimationMsg)
+-}
 handleAnimationMsg : AnimationState -> AnimationMsg -> ( AnimationState, Cmd AnimationMsg )
 handleAnimationMsg (AnimationState animationState) msg =
     case msg of
