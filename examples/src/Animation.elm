@@ -6,6 +6,7 @@ import Cube exposing (Cube)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
+import List.Nonempty
 import PLL
 
 
@@ -42,7 +43,9 @@ init =
 
 type Msg
     = AnimationMsg Cube.AnimationMsg
-    | StartAnimation
+    | StartAnimationFromScratch
+    | PauseAnimation
+    | ContinueAnimation
     | NoOp
 
 
@@ -59,11 +62,25 @@ update msg model =
                     )
                     (Cmd.map AnimationMsg)
 
-        StartAnimation ->
+        StartAnimationFromScratch ->
             ( { model
                 | animationState =
                     Cube.animateAlgorithm <|
-                        PLL.getAlgorithm PLL.referenceAlgorithms PLL.Ua
+                        Algorithm.fromTurnList (List.Nonempty.toList Algorithm.allTurns)
+              }
+            , Cmd.none
+            )
+
+        PauseAnimation ->
+            ( { model
+                | animationState = Cube.pauseAnimation model.animationState
+              }
+            , Cmd.none
+            )
+
+        ContinueAnimation ->
+            ( { model
+                | animationState = Cube.continueAnimation model.animationState
               }
             , Cmd.none
             )
@@ -86,12 +103,22 @@ view model =
         , style "align-items" "center"
         , style "flex-direction" "column"
         ]
-        [ Cube.viewAnimatable
+        [ text
+            (model.animationState
+                |> Cube.currentTurnAnimating
+                |> Maybe.map List.singleton
+                |> Maybe.map Algorithm.fromTurnList
+                |> Maybe.map Algorithm.toString
+                |> Maybe.withDefault ""
+            )
+        , Cube.viewAnimatable
             { cube = model.cube
             , animationState = model.animationState
             , toMsg = AnimationMsg
             , animationDoneMsg = NoOp
             , size = 500
             }
-        , button [ onClick StartAnimation ] [ text "Start Animation" ]
+        , button [ onClick StartAnimationFromScratch ] [ text "Start Animation From Scratch" ]
+        , button [ onClick PauseAnimation ] [ text "Pause Animation" ]
+        , button [ onClick ContinueAnimation ] [ text "Continue Animation" ]
         ]

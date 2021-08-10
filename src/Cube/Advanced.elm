@@ -6,7 +6,7 @@ module Cube.Advanced exposing
     , Rendering, CubieRendering, Color(..), render
     , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
-    , AnimationMsg, AnimationState, animateAlgorithm, handleAnimationMsg, noAnimation, viewAnimatable
+    , AnimationMsg, AnimationState, animateAlgorithm, continueAnimation, currentTurnAnimating, handleAnimationMsg, noAnimation, pauseAnimation, viewAnimatable
     )
 
 {-|
@@ -2351,11 +2351,18 @@ algorithmResultsAreEquivalentIndependentOfFinalRotation a b =
         |> List.Nonempty.any (algorithmResultsAreEquivalent b)
 
 
-type alias AnimationState =
-    { toApply : List Algorithm.Turn
-    , alreadyApplied : Algorithm
-    , pause : Bool
-    }
+type AnimationState
+    = AnimationState
+        { toApply : List Algorithm.Turn
+        , alreadyApplied : Algorithm
+        , inBetweenTurns : Bool
+        , paused : Bool
+        }
+
+
+currentTurnAnimating : AnimationState -> Maybe Algorithm.Turn
+currentTurnAnimating (AnimationState { toApply }) =
+    List.head toApply
 
 
 type AnimationMsg
@@ -2373,15 +2380,18 @@ viewAnimatable :
     -> Html msg
 viewAnimatable { cube, size, animationState, toMsg, animationDoneMsg } =
     let
+        (AnimationState animationStateInternal) =
+            animationState
+
         nextTurn =
-            if animationState.pause then
+            if animationStateInternal.inBetweenTurns then
                 Nothing
 
             else
-                List.head animationState.toApply
+                List.head animationStateInternal.toApply
 
         currentCube =
-            applyAlgorithm animationState.alreadyApplied cube
+            applyAlgorithm animationStateInternal.alreadyApplied cube
     in
     getCubeHtml2 ufrRotation nextTurn [] size currentCube
         |> Html.map toMsg
@@ -2389,44 +2399,67 @@ viewAnimatable { cube, size, animationState, toMsg, animationDoneMsg } =
 
 animateAlgorithm : Algorithm -> AnimationState
 animateAlgorithm algorithm =
-    { toApply = Algorithm.toTurnList algorithm
-    , alreadyApplied = Algorithm.empty
-    , pause = False
-    }
+    AnimationState
+        { toApply = Algorithm.toTurnList algorithm
+        , alreadyApplied = Algorithm.empty
+        , inBetweenTurns = False
+        , paused = False
+        }
 
 
 noAnimation : AnimationState
 noAnimation =
-    { toApply = [], alreadyApplied = Algorithm.empty, pause = True }
+    AnimationState
+        { toApply = []
+        , alreadyApplied = Algorithm.empty
+        , inBetweenTurns = True
+        , paused = False
+        }
+
+
+pauseAnimation : AnimationState -> AnimationState
+pauseAnimation (AnimationState animationState) =
+    AnimationState { animationState | paused = True }
+
+
+continueAnimation : AnimationState -> AnimationState
+continueAnimation (AnimationState animationState) =
+    AnimationState { animationState | paused = False, inBetweenTurns = False }
 
 
 handleAnimationMsg : AnimationState -> AnimationMsg -> ( AnimationState, Cmd AnimationMsg )
-handleAnimationMsg animationState msg =
+handleAnimationMsg (AnimationState animationState) msg =
     case msg of
         TurnFinished ->
-            if animationState.pause then
-                ( animationState, Cmd.none )
+            if animationState.inBetweenTurns then
+                ( AnimationState animationState, Cmd.none )
 
             else
                 case animationState.toApply of
                     [] ->
-                        ( { animationState | toApply = [], pause = True }
+                        ( AnimationState { animationState | toApply = [], inBetweenTurns = True }
                         , Task.perform (always StartNextTurn) (Process.sleep 0)
                         )
 
                     x :: xs ->
-                        ( { toApply = xs
-                          , alreadyApplied =
-                                Algorithm.append
-                                    animationState.alreadyApplied
-                                    (Algorithm.fromTurnList [ x ])
-                          , pause = True
-                          }
+                        ( AnimationState
+                            { animationState
+                                | toApply = xs
+                                , alreadyApplied =
+                                    Algorithm.append
+                                        animationState.alreadyApplied
+                                        (Algorithm.fromTurnList [ x ])
+                                , inBetweenTurns = True
+                            }
                         , Task.perform (always StartNextTurn) (Process.sleep 0)
                         )
 
         StartNextTurn ->
-            ( { animationState | pause = False }, Cmd.none )
+            if animationState.paused then
+                ( AnimationState animationState, Cmd.none )
+
+            else
+                ( AnimationState { animationState | inBetweenTurns = False }, Cmd.none )
 
 
 getCubeHtml2 : Transformation -> Maybe Algorithm.Turn -> List (Attribute AnimationMsg) -> Size -> Cube -> Html AnimationMsg
