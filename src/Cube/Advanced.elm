@@ -2361,8 +2361,12 @@ type AnimationState
 
 
 currentTurnAnimating : AnimationState -> Maybe Algorithm.Turn
-currentTurnAnimating (AnimationState { toApply }) =
-    List.head toApply
+currentTurnAnimating (AnimationState { toApply, inBetweenTurns, paused }) =
+    if inBetweenTurns || paused then
+        Nothing
+
+    else
+        List.head toApply
 
 
 type AnimationMsg
@@ -2383,17 +2387,10 @@ viewAnimatable { cube, size, animationState, toMsg, animationDoneMsg } =
         (AnimationState animationStateInternal) =
             animationState
 
-        nextTurn =
-            if animationStateInternal.inBetweenTurns then
-                Nothing
-
-            else
-                List.head animationStateInternal.toApply
-
         currentCube =
             applyAlgorithm animationStateInternal.alreadyApplied cube
     in
-    getCubeHtml2 ufrRotation nextTurn [] size currentCube
+    getCubeHtml2 ufrRotation (currentTurnAnimating animationState) [] size currentCube
         |> Html.map toMsg
 
 
@@ -2683,7 +2680,7 @@ getTurnTransformation (Algorithm.Turn turnable turnLength turnDirection) =
                     "X"
 
                 Algorithm.Z ->
-                    "X"
+                    "Z"
 
                 Algorithm.Rw ->
                     "X"
@@ -2707,7 +2704,7 @@ getTurnTransformation (Algorithm.Turn turnable turnLength turnDirection) =
                     "Z"
 
                 Algorithm.X ->
-                    "Z"
+                    "X"
 
         shouldHaveMinusSign =
             case turnable of
@@ -2715,19 +2712,19 @@ getTurnTransformation (Algorithm.Turn turnable turnLength turnDirection) =
                     turnDirection == Algorithm.Clockwise
 
                 Algorithm.E ->
-                    turnDirection == Algorithm.Clockwise
+                    turnDirection == Algorithm.CounterClockwise
 
                 Algorithm.D ->
                     turnDirection == Algorithm.CounterClockwise
 
                 Algorithm.Y ->
-                    turnDirection == Algorithm.CounterClockwise
+                    turnDirection == Algorithm.Clockwise
 
                 Algorithm.Uw ->
-                    turnDirection == Algorithm.CounterClockwise
+                    turnDirection == Algorithm.Clockwise
 
                 Algorithm.Dw ->
-                    turnDirection == Algorithm.Clockwise
+                    turnDirection == Algorithm.CounterClockwise
 
                 Algorithm.L ->
                     turnDirection == Algorithm.Clockwise
@@ -2745,7 +2742,7 @@ getTurnTransformation (Algorithm.Turn turnable turnLength turnDirection) =
                     turnDirection == Algorithm.CounterClockwise
 
                 Algorithm.Lw ->
-                    turnDirection == Algorithm.CounterClockwise
+                    turnDirection == Algorithm.Clockwise
 
                 Algorithm.F ->
                     turnDirection == Algorithm.CounterClockwise
@@ -2754,13 +2751,13 @@ getTurnTransformation (Algorithm.Turn turnable turnLength turnDirection) =
                     turnDirection == Algorithm.CounterClockwise
 
                 Algorithm.B ->
-                    turnDirection == Algorithm.CounterClockwise
+                    turnDirection == Algorithm.Clockwise
 
                 Algorithm.Fw ->
                     turnDirection == Algorithm.CounterClockwise
 
                 Algorithm.Bw ->
-                    turnDirection == Algorithm.CounterClockwise
+                    turnDirection == Algorithm.Clockwise
 
                 Algorithm.X ->
                     turnDirection == Algorithm.CounterClockwise

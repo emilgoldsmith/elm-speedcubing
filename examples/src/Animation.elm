@@ -103,14 +103,16 @@ view model =
         , style "align-items" "center"
         , style "flex-direction" "column"
         ]
-        [ text
-            (model.animationState
-                |> Cube.currentTurnAnimating
-                |> Maybe.map List.singleton
-                |> Maybe.map Algorithm.fromTurnList
-                |> Maybe.map Algorithm.toString
-                |> Maybe.withDefault ""
-            )
+        [ model.animationState
+            |> Cube.currentTurnAnimating
+            |> Maybe.map List.singleton
+            |> Maybe.map Algorithm.fromTurnList
+            |> Maybe.map Algorithm.toString
+            |> Maybe.map text
+            |> Maybe.withDefault (text "")
+            |> (List.singleton
+                    >> div [ style "height" "30px", style "font-size" "30px" ]
+               )
         , Cube.viewAnimatable
             { cube = model.cube
             , animationState = model.animationState
