@@ -2,7 +2,7 @@ module Cube.Advanced exposing
     ( Cube
     , solved
     , applyAlgorithm
-    , viewUFRWithLetters, viewUFRNoLetters, viewUBLWithLetters
+    , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
     , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, AnimationState, AnimationMsg, currentTurnAnimating
     , Rendering, CubieRendering, Color(..), render
     , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
@@ -29,7 +29,7 @@ module Cube.Advanced exposing
 
 # Displayers
 
-@docs viewUFRWithLetters, viewUFRNoLetters, viewUBLWithLetters
+@docs DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
 
 
 ## With Animation
@@ -1669,25 +1669,72 @@ centerLocations =
 -- Exports
 
 
-{-| See [Cube.viewUFRWithLetters](Cube#viewUFRWithLetters)
+{-| See [Cube.DisplayAngle](Cube#DisplayAngle)
 -}
-viewUFRWithLetters : List (Attribute msg) -> Int -> Cube -> Html msg
-viewUFRWithLetters =
-    getCubeHtml ufrRotation identity
+type DisplayAngle
+    = UFRDisplayAngle
+    | UBLDisplayAngle
 
 
-{-| See [Cube.viewUFRNoLetters](Cube#viewUFRNoLetters)
+{-| See [Cube.ufrDisplayAngle](Cube#ufrDisplayAngle)
 -}
-viewUFRNoLetters : List (Attribute msg) -> Int -> Cube -> Html msg
-viewUFRNoLetters =
-    getCubeHtml ufrRotation (always noText)
+ufrDisplayAngle : DisplayAngle
+ufrDisplayAngle =
+    UFRDisplayAngle
 
 
-{-| See [Cube.viewUBLWithLetters](Cube#viewUBLWithLetters)
+{-| See [Cube.ublDisplayAngle](Cube#ublDisplayAngle)
 -}
-viewUBLWithLetters : List (Attribute msg) -> Int -> Cube -> Html msg
-viewUBLWithLetters =
-    getCubeHtml (YRotateDegrees 180 :: ufrRotation) identity
+ublDisplayAngle : DisplayAngle
+ublDisplayAngle =
+    UBLDisplayAngle
+
+
+{-| See [Cube.view](Cube#view)
+-}
+view :
+    List (Attribute msg)
+    ->
+        { pixelSize : Int
+        , cube : Cube
+        , displayAngle : DisplayAngle
+        , annotateFaces : Bool
+        }
+    -> Html msg
+view =
+    viewHelper (\_ _ _ -> []) Nothing
+
+
+viewHelper :
+    CubieExtraStyleGenerator msg
+    -> Maybe Algorithm.Turn
+    -> List (Attribute msg)
+    ->
+        { a
+            | pixelSize : Int
+            , cube : Cube
+            , displayAngle : DisplayAngle
+            , annotateFaces : Bool
+        }
+    -> Html msg
+viewHelper generateExtraCubieStyles animatingTurn attributes { pixelSize, cube, displayAngle, annotateFaces } =
+    let
+        rotation =
+            case displayAngle of
+                UFRDisplayAngle ->
+                    ufrRotation
+
+                UBLDisplayAngle ->
+                    YRotateDegrees 180 :: ufrRotation
+
+        faceTextDisplayer =
+            if annotateFaces then
+                identity
+
+            else
+                always noText
+    in
+    getCubeHtml generateExtraCubieStyles rotation animatingTurn attributes faceTextDisplayer pixelSize cube
 
 
 
@@ -1763,8 +1810,8 @@ type alias Size =
     Int
 
 
-getCubeHtml : Transformation -> (TextOnFaces msg -> TextOnFaces msg) -> List (Attribute msg) -> Size -> Cube -> Html msg
-getCubeHtml rotation mapText attributes size cube =
+getCubeHtml : CubieExtraStyleGenerator msg -> Transformation -> Maybe Algorithm.Turn -> List (Attribute msg) -> (TextOnFaces msg -> TextOnFaces msg) -> Size -> Cube -> Html msg
+getCubeHtml generateExtraCubieStyles rotation animationTurn attributes mapText size cube =
     let
         rendering =
             render cube
@@ -1787,7 +1834,7 @@ getCubeHtml rotation mapText attributes size cube =
             , cssTransformCube rotation (wholeCubeSideLength size)
             ]
           <|
-            List.map (\( a, b, c ) -> displayCubie defaultTheme size b (mapText c) a)
+            List.map (\( a, b, c ) -> displayCubie generateExtraCubieStyles defaultTheme size b animationTurn (mapText c) a)
                 (getRenderedCorners rendering
                     |> List.Nonempty.append
                         (getRenderedEdges rendering)
@@ -1798,32 +1845,44 @@ getCubeHtml rotation mapText attributes size cube =
         ]
 
 
-displayCubie : CubeTheme -> Size -> Coordinates -> TextOnFaces msg -> CubieRendering -> Html msg
-displayCubie theme size { fromFront, fromLeft, fromTop } textOnFaces rendering =
-    div
-        [ style "position" "absolute"
-        , style "width" (px <| cubieSideLength size)
-        , style "height" (px <| cubieSideLength size)
-        , style "transform-style" "preserve-3d"
-        , style "display" "inline-block"
+type alias CubieExtraStyleGenerator msg =
+    Size -> Coordinates -> Maybe Algorithm.Turn -> List (Attribute msg)
 
-        -- Position the cubie correctly
-        , style "top" (px <| cubieSideLength size * fromTop)
-        , style "left" (px <| cubieSideLength size * fromLeft)
-        , cssTransformCube [ ZTranslatePixels <| cubieSideLength size * fromFront * -1 ] (cubieSideLength size)
-        ]
-        (faces
-            |> List.Nonempty.map
-                (\face ->
-                    displayCubieFace
-                        theme
-                        size
-                        face
-                        (getTextForFace textOnFaces face)
-                        rendering
-                )
-            |> List.Nonempty.toList
+
+displayCubie : CubieExtraStyleGenerator msg -> CubeTheme -> Size -> Coordinates -> Maybe Algorithm.Turn -> TextOnFaces msg -> CubieRendering -> Html msg
+displayCubie generateExtraStyles theme size ({ fromFront, fromLeft, fromTop } as coordinates) animationTurn textOnFaces rendering =
+    div
+        (style "transform-style" "preserve-3d"
+            :: generateExtraStyles
+                size
+                coordinates
+                animationTurn
         )
+        [ div
+            [ style "position" "absolute"
+            , style "width" (px <| cubieSideLength size)
+            , style "height" (px <| cubieSideLength size)
+            , style "transform-style" "preserve-3d"
+            , style "display" "inline-block"
+
+            -- Position the cubie correctly
+            , style "top" (px <| cubieSideLength size * fromTop)
+            , style "left" (px <| cubieSideLength size * fromLeft)
+            , cssTransformCube [ ZTranslatePixels <| cubieSideLength size * fromFront * -1 ] (cubieSideLength size)
+            ]
+            (faces
+                |> List.Nonempty.map
+                    (\face ->
+                        displayCubieFace
+                            theme
+                            size
+                            face
+                            (getTextForFace textOnFaces face)
+                            rendering
+                    )
+                |> List.Nonempty.toList
+            )
+        ]
 
 
 displayCubieFace : CubeTheme -> Size -> Face -> Maybe (String -> Html msg) -> CubieRendering -> Html msg
@@ -2398,6 +2457,20 @@ noAnimation =
         }
 
 
+{-| See [Cube.pauseAnimation](Cube#pauseAnimation)
+-}
+pauseAnimation : AnimationState -> AnimationState
+pauseAnimation (AnimationState animationState) =
+    AnimationState { animationState | paused = True }
+
+
+{-| See [Cube.unpauseAnimation](Cube#unpauseAnimation)
+-}
+unpauseAnimation : AnimationState -> AnimationState
+unpauseAnimation (AnimationState animationState) =
+    AnimationState { animationState | paused = False, inBetweenTurns = False }
+
+
 {-| See [Cube.currentTurnAnimating](Cube#currentTurnAnimating)
 -}
 currentTurnAnimating : AnimationState -> Maybe Algorithm.Turn
@@ -2412,23 +2485,51 @@ currentTurnAnimating (AnimationState { toApply, inBetweenTurns, paused }) =
 {-| See [Cube.viewAnimatable](Cube#viewAnimatable)
 -}
 viewAnimatable :
-    { cube : Cube
-    , animationState : AnimationState
-    , toMsg : AnimationMsg -> msg
-    , animationDoneMsg : msg
-    , size : Int
-    }
+    List (Attribute msg)
+    ->
+        { cube : Cube
+        , animationState : AnimationState
+        , toMsg : AnimationMsg -> msg
+        , animationDoneMsg : msg
+        , pixelSize : Int
+        , displayAngle : DisplayAngle
+        , annotateFaces : Bool
+        }
     -> Html msg
-viewAnimatable { cube, size, animationState, toMsg, animationDoneMsg } =
+viewAnimatable attributes ({ cube, animationState, toMsg } as arguments) =
     let
         (AnimationState animationStateInternal) =
             animationState
 
-        currentCube =
+        cubeIncludingAnimatedTurns =
             applyAlgorithm animationStateInternal.alreadyApplied cube
     in
-    getCubeHtml2 ufrRotation (currentTurnAnimating animationState) [] size currentCube
-        |> Html.map toMsg
+    viewHelper
+        wrappedAnimationStyle
+        (currentTurnAnimating animationState)
+        (List.map (Html.Attributes.map UserMsg) attributes)
+        { arguments | cube = cubeIncludingAnimatedTurns }
+        |> Html.map (unwrapAnimationOrUserMsg toMsg)
+
+
+wrappedAnimationStyle : Size -> Coordinates -> Maybe Algorithm.Turn -> List (Attribute (AnimationOrUserMsg msg))
+wrappedAnimationStyle a b c =
+    List.map (Html.Attributes.map AnimationMsg) (animationStyle a b c)
+
+
+type AnimationOrUserMsg msg
+    = AnimationMsg AnimationMsg
+    | UserMsg msg
+
+
+unwrapAnimationOrUserMsg : (AnimationMsg -> msg) -> AnimationOrUserMsg msg -> msg
+unwrapAnimationOrUserMsg toMsg wrappedMsg =
+    case wrappedMsg of
+        AnimationMsg animationMsg ->
+            toMsg animationMsg
+
+        UserMsg msg ->
+            msg
 
 
 {-| See [Cube.AnimationMsg](Cube#AnimationMsg)
@@ -2436,20 +2537,6 @@ viewAnimatable { cube, size, animationState, toMsg, animationDoneMsg } =
 type AnimationMsg
     = TurnFinished
     | StartNextTurn
-
-
-{-| See [Cube.pauseAnimation](Cube#pauseAnimation)
--}
-pauseAnimation : AnimationState -> AnimationState
-pauseAnimation (AnimationState animationState) =
-    AnimationState { animationState | paused = True }
-
-
-{-| See [Cube.unpauseAnimation](Cube#unpauseAnimation)
--}
-unpauseAnimation : AnimationState -> AnimationState
-unpauseAnimation (AnimationState animationState) =
-    AnimationState { animationState | paused = False, inBetweenTurns = False }
 
 
 {-| See [Cube.handleAnimationMsg](Cube#handleAnimationMsg)
@@ -2487,76 +2574,6 @@ handleAnimationMsg (AnimationState animationState) msg =
 
             else
                 ( AnimationState { animationState | inBetweenTurns = False }, Cmd.none )
-
-
-getCubeHtml2 : Transformation -> Maybe Algorithm.Turn -> List (Attribute AnimationMsg) -> Size -> Cube -> Html AnimationMsg
-getCubeHtml2 rotation animationTurn attributes size cube =
-    let
-        rendering =
-            render cube
-    in
-    div
-        ([ style "width" (px <| containerSideLength size)
-         , style "height" (px <| containerSideLength size)
-         , style "display" "flex"
-         , style "justify-content" "center"
-         , style "align-items" "center"
-         , style "perspective" "0"
-         ]
-            ++ attributes
-        )
-        [ div
-            [ style "width" (px <| wholeCubeSideLength size)
-            , style "height" (px <| wholeCubeSideLength size)
-            , style "position" "relative"
-            , style "transform-style" "preserve-3d"
-            , cssTransformCube rotation (wholeCubeSideLength size)
-            ]
-          <|
-            List.map (\( a, b, _ ) -> displayCubie2 defaultTheme size b animationTurn a)
-                (getRenderedCorners rendering
-                    |> List.Nonempty.append
-                        (getRenderedEdges rendering)
-                    |> List.Nonempty.append
-                        (getRenderedCenters rendering)
-                    |> List.Nonempty.toList
-                )
-        ]
-
-
-displayCubie2 : CubeTheme -> Size -> Coordinates -> Maybe Algorithm.Turn -> CubieRendering -> Html AnimationMsg
-displayCubie2 theme size ({ fromFront, fromLeft, fromTop } as coordinates) animationTurn rendering =
-    div
-        (animationStyle
-            size
-            coordinates
-            animationTurn
-        )
-        [ div
-            [ style "position" "absolute"
-            , style "width" (px <| cubieSideLength size)
-            , style "height" (px <| cubieSideLength size)
-            , style "transform-style" "preserve-3d"
-            , style "display" "inline-block"
-
-            -- Position the cubie correctly
-            , style "top" (px <| cubieSideLength size * fromTop)
-            , style "left" (px <| cubieSideLength size * fromLeft)
-            , cssTransformCube [ ZTranslatePixels <| cubieSideLength size * fromFront * -1 ] (cubieSideLength size)
-            ]
-            (faces
-                |> List.Nonempty.map
-                    (\face ->
-                        displayCubieFace
-                            theme
-                            size
-                            face
-                            Nothing
-                            rendering
-                    )
-                |> List.Nonempty.toList
-            )
-        ]
 
 
 animationStyle : Size -> Coordinates -> Maybe Algorithm.Turn -> List (Attribute AnimationMsg)
