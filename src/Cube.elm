@@ -125,7 +125,15 @@ the faces annotated with their respective face letters (e.g U R B).
 ![Example Image Of Cube Views](https://raw.githubusercontent.com/emilgoldmith/elm-speedcubing/7.0.0/documentation-assets/cube-views-example.png)
 
 -}
-view : List (Html.Attribute msg) -> { pixelSize : Int, cube : Cube, displayAngle : Cube.Advanced.DisplayAngle, annotateFaces : Bool } -> Html msg
+view :
+    List (Html.Attribute msg)
+    ->
+        { pixelSize : Int
+        , displayAngle : Cube.Advanced.DisplayAngle
+        , annotateFaces : Bool
+        }
+    -> Cube
+    -> Html msg
 view =
     Cube.Advanced.view
 
@@ -137,14 +145,14 @@ on [view](#view)
 viewAnimatable :
     List (Html.Attribute msg)
     ->
-        { cube : Cube
-        , animationState : AnimationState
+        { animationState : AnimationState
         , toMsg : AnimationMsg -> msg
         , animationDoneMsg : msg
         , pixelSize : Int
         , displayAngle : DisplayAngle
         , annotateFaces : Bool
         }
+    -> Cube
     -> Html msg
 viewAnimatable =
     Cube.Advanced.viewAnimatable

@@ -1696,28 +1696,32 @@ view :
     List (Attribute msg)
     ->
         { pixelSize : Int
-        , cube : Cube
         , displayAngle : DisplayAngle
         , annotateFaces : Bool
         }
+    -> Cube
     -> Html msg
 view =
-    viewHelper (\_ _ _ -> []) Nothing
+    viewHelper
+        { generateExtraCubieStyles = \_ _ _ -> []
+        , turnCurrentlyAnimating = Nothing
+        }
 
 
 viewHelper :
-    CubieExtraStyleGenerator msg
-    -> Maybe Algorithm.Turn
+    { generateExtraCubieStyles : CubieExtraStyleGenerator msg
+    , turnCurrentlyAnimating : Maybe Algorithm.Turn
+    }
     -> List (Attribute msg)
     ->
         { a
             | pixelSize : Int
-            , cube : Cube
             , displayAngle : DisplayAngle
             , annotateFaces : Bool
         }
+    -> Cube
     -> Html msg
-viewHelper generateExtraCubieStyles animatingTurn attributes { pixelSize, cube, displayAngle, annotateFaces } =
+viewHelper { generateExtraCubieStyles, turnCurrentlyAnimating } attributes { pixelSize, displayAngle, annotateFaces } cube =
     let
         rotation =
             case displayAngle of
@@ -1726,15 +1730,15 @@ viewHelper generateExtraCubieStyles animatingTurn attributes { pixelSize, cube, 
 
                 UBLDisplayAngle ->
                     YRotateDegrees 180 :: ufrRotation
-
-        faceTextDisplayer =
-            if annotateFaces then
-                identity
-
-            else
-                always noText
     in
-    getCubeHtml generateExtraCubieStyles rotation animatingTurn attributes faceTextDisplayer pixelSize cube
+    getCubeHtml attributes
+        { generateExtraCubieStyles = generateExtraCubieStyles
+        , rotation = rotation
+        , turnCurrentlyAnimating = turnCurrentlyAnimating
+        , pixelSize = pixelSize
+        , annotateFaces = annotateFaces
+        }
+        cube
 
 
 
@@ -1810,15 +1814,25 @@ type alias Size =
     Int
 
 
-getCubeHtml : CubieExtraStyleGenerator msg -> Transformation -> Maybe Algorithm.Turn -> List (Attribute msg) -> (TextOnFaces msg -> TextOnFaces msg) -> Size -> Cube -> Html msg
-getCubeHtml generateExtraCubieStyles rotation animationTurn attributes mapText size cube =
+getCubeHtml :
+    List (Attribute msg)
+    ->
+        { generateExtraCubieStyles : CubieExtraStyleGenerator msg
+        , rotation : Transformation
+        , turnCurrentlyAnimating : Maybe Algorithm.Turn
+        , pixelSize : Size
+        , annotateFaces : Bool
+        }
+    -> Cube
+    -> Html msg
+getCubeHtml attributes { generateExtraCubieStyles, rotation, turnCurrentlyAnimating, annotateFaces, pixelSize } cube =
     let
         rendering =
             render cube
     in
     div
-        ([ style "width" (px <| containerSideLength size)
-         , style "height" (px <| containerSideLength size)
+        ([ style "width" (px <| containerSideLength pixelSize)
+         , style "height" (px <| containerSideLength pixelSize)
          , style "display" "flex"
          , style "justify-content" "center"
          , style "align-items" "center"
@@ -1827,19 +1841,30 @@ getCubeHtml generateExtraCubieStyles rotation animationTurn attributes mapText s
             ++ attributes
         )
         [ div
-            [ style "width" (px <| wholeCubeSideLength size)
-            , style "height" (px <| wholeCubeSideLength size)
+            [ style "width" (px <| wholeCubeSideLength pixelSize)
+            , style "height" (px <| wholeCubeSideLength pixelSize)
             , style "position" "relative"
             , style "transform-style" "preserve-3d"
-            , cssTransformCube rotation (wholeCubeSideLength size)
+            , cssTransformCube rotation (wholeCubeSideLength pixelSize)
             ]
           <|
-            List.map (\( a, b, c ) -> displayCubie generateExtraCubieStyles defaultTheme size b animationTurn (mapText c) a)
-                (getRenderedCorners rendering
+            List.map
+                (\( cubieRendering, coordinates, extraCubieAnnotations ) ->
+                    displayCubie
+                        { generateExtraStyles = generateExtraCubieStyles
+                        , theme = defaultTheme
+                        , size = pixelSize
+                        , coordinates = coordinates
+                        , turnCurrentlyAnimating = turnCurrentlyAnimating
+                        , extraCubieAnnotations = extraCubieAnnotations
+                        }
+                        cubieRendering
+                )
+                (getRenderedCorners { annotateFaces = annotateFaces } rendering
                     |> List.Nonempty.append
-                        (getRenderedEdges rendering)
+                        (getRenderedEdges { annotateFaces = annotateFaces } rendering)
                     |> List.Nonempty.append
-                        (getRenderedCenters rendering)
+                        (getRenderedCenters { annotateFaces = annotateFaces } rendering)
                     |> List.Nonempty.toList
                 )
         ]
@@ -1849,14 +1874,27 @@ type alias CubieExtraStyleGenerator msg =
     Size -> Coordinates -> Maybe Algorithm.Turn -> List (Attribute msg)
 
 
-displayCubie : CubieExtraStyleGenerator msg -> CubeTheme -> Size -> Coordinates -> Maybe Algorithm.Turn -> TextOnFaces msg -> CubieRendering -> Html msg
-displayCubie generateExtraStyles theme size ({ fromFront, fromLeft, fromTop } as coordinates) animationTurn textOnFaces rendering =
+displayCubie :
+    { generateExtraStyles : CubieExtraStyleGenerator msg
+    , turnCurrentlyAnimating : Maybe Algorithm.Turn
+    , size : Size
+    , theme : CubeTheme
+    , extraCubieAnnotations : ExtraCubieAnnotations msg
+    , coordinates : Coordinates
+    }
+    -> CubieRendering
+    -> Html msg
+displayCubie { generateExtraStyles, theme, size, coordinates, turnCurrentlyAnimating, extraCubieAnnotations } rendering =
+    let
+        { fromTop, fromFront, fromLeft } =
+            coordinates
+    in
     div
         (style "transform-style" "preserve-3d"
             :: generateExtraStyles
                 size
                 coordinates
-                animationTurn
+                turnCurrentlyAnimating
         )
         [ div
             [ style "position" "absolute"
@@ -1877,7 +1915,7 @@ displayCubie generateExtraStyles theme size ({ fromFront, fromLeft, fromTop } as
                             theme
                             size
                             face
-                            (getTextForFace textOnFaces face)
+                            (getFaceAnnotation extraCubieAnnotations face)
                             rendering
                     )
                 |> List.Nonempty.toList
@@ -1885,7 +1923,7 @@ displayCubie generateExtraStyles theme size ({ fromFront, fromLeft, fromTop } as
         ]
 
 
-displayCubieFace : CubeTheme -> Size -> Face -> Maybe (String -> Html msg) -> CubieRendering -> Html msg
+displayCubieFace : CubeTheme -> Size -> Face -> Maybe (Size -> Html msg) -> CubieRendering -> Html msg
 displayCubieFace theme size face textOnFace rendering =
     div
         [ cssTransformCube [ getFaceRotation face ] (cubieSideLength size)
@@ -1905,7 +1943,7 @@ displayCubieFace theme size face textOnFace rendering =
         (textOnFace
             |> Maybe.map
                 (\actualTextOnFace ->
-                    [ actualTextOnFace (px <| cubieSideLength size * 63 // 100) ]
+                    [ actualTextOnFace (cubieSideLength size * 63 // 100) ]
                 )
             |> Maybe.withDefault []
         )
@@ -1920,26 +1958,26 @@ px pixels =
     String.fromInt pixels ++ "px"
 
 
-getTextForFace : TextOnFaces msg -> Face -> Maybe (String -> Html msg)
-getTextForFace textOnFaces face =
+getFaceAnnotation : ExtraCubieAnnotations msg -> Face -> Maybe (Size -> Html msg)
+getFaceAnnotation annotations face =
     case face of
         UpOrDown U ->
-            textOnFaces.u
+            annotations.u
 
         UpOrDown D ->
-            textOnFaces.d
+            annotations.d
 
         FrontOrBack F ->
-            textOnFaces.f
+            annotations.f
 
         FrontOrBack B ->
-            textOnFaces.b
+            annotations.b
 
         LeftOrRight L ->
-            textOnFaces.l
+            annotations.l
 
         LeftOrRight R ->
-            textOnFaces.r
+            annotations.r
 
 
 getFaceRotation : Face -> SingleTransformation
@@ -2102,13 +2140,13 @@ type alias Transformation =
     List SingleTransformation
 
 
-getRenderedCorners : Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates, TextOnFaces msg )
-getRenderedCorners rendering =
-    List.Nonempty.map (getRenderedCorner rendering) cornerLocations
+getRenderedCorners : { annotateFaces : Bool } -> Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
+getRenderedCorners arguments rendering =
+    List.Nonempty.map (getRenderedCorner arguments rendering) cornerLocations
 
 
-getRenderedCorner : Rendering -> CornerLocation -> ( CubieRendering, Coordinates, TextOnFaces msg )
-getRenderedCorner rendering location =
+getRenderedCorner : { annotateFaces : Bool } -> Rendering -> CornerLocation -> ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
+getRenderedCorner _ rendering location =
     let
         cornerRendering =
             case location of
@@ -2136,7 +2174,7 @@ getRenderedCorner rendering location =
                 ( D, F, L ) ->
                     rendering.dfl
     in
-    ( cornerRendering, getCornerCoordinates location, noText )
+    ( cornerRendering, getCornerCoordinates location, noAnnotations )
 
 
 getCornerCoordinates : CornerLocation -> Coordinates
@@ -2162,18 +2200,18 @@ getCornerCoordinates ( uOrD, fOrB, lOrR ) =
     }
 
 
-type alias TextOnFaces msg =
-    { u : Maybe (String -> Html msg)
-    , d : Maybe (String -> Html msg)
-    , f : Maybe (String -> Html msg)
-    , b : Maybe (String -> Html msg)
-    , l : Maybe (String -> Html msg)
-    , r : Maybe (String -> Html msg)
+type alias ExtraCubieAnnotations msg =
+    { u : Maybe (Size -> Html msg)
+    , d : Maybe (Size -> Html msg)
+    , f : Maybe (Size -> Html msg)
+    , b : Maybe (Size -> Html msg)
+    , l : Maybe (Size -> Html msg)
+    , r : Maybe (Size -> Html msg)
     }
 
 
-noText : TextOnFaces msg
-noText =
+noAnnotations : ExtraCubieAnnotations msg
+noAnnotations =
     { u = Nothing
     , d = Nothing
     , f = Nothing
@@ -2183,13 +2221,13 @@ noText =
     }
 
 
-getRenderedEdges : Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates, TextOnFaces msg )
-getRenderedEdges rendering =
-    List.Nonempty.map (getRenderedEdge rendering) edgeLocations
+getRenderedEdges : { annotateFaces : Bool } -> Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
+getRenderedEdges arguments rendering =
+    List.Nonempty.map (getRenderedEdge arguments rendering) edgeLocations
 
 
-getRenderedEdge : Rendering -> EdgeLocation -> ( CubieRendering, Coordinates, TextOnFaces msg )
-getRenderedEdge rendering location =
+getRenderedEdge : { annotateFaces : Bool } -> Rendering -> EdgeLocation -> ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
+getRenderedEdge _ rendering location =
     let
         edgeRendering =
             case location of
@@ -2229,7 +2267,7 @@ getRenderedEdge rendering location =
                 E ( B, R ) ->
                     rendering.br
     in
-    ( edgeRendering, getEdgeCoordinates location, noText )
+    ( edgeRendering, getEdgeCoordinates location, noAnnotations )
 
 
 getEdgeCoordinates : EdgeLocation -> Coordinates
@@ -2284,35 +2322,42 @@ getEdgeCoordinates location =
             }
 
 
-getRenderedCenters : Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates, TextOnFaces msg )
-getRenderedCenters rendering =
-    List.Nonempty.map (getRenderedCenter rendering) centerLocations
+getRenderedCenters : { annotateFaces : Bool } -> Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
+getRenderedCenters arguments rendering =
+    List.Nonempty.map (getRenderedCenter arguments rendering) centerLocations
 
 
-getRenderedCenter : Rendering -> CenterLocation -> ( CubieRendering, Coordinates, TextOnFaces msg )
-getRenderedCenter rendering location =
+getRenderedCenter : { annotateFaces : Bool } -> Rendering -> CenterLocation -> ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
+getRenderedCenter { annotateFaces } rendering location =
     let
-        ( centerRendering, textOnFace ) =
+        ( centerRendering, textAnnotations ) =
             case location of
                 CenterLocation (UpOrDown U) ->
-                    ( rendering.u, { noText | u = Just svgU } )
+                    ( rendering.u, { noAnnotations | u = Just (px >> svgU) } )
 
                 CenterLocation (UpOrDown D) ->
-                    ( rendering.d, { noText | d = Just svgD } )
+                    ( rendering.d, { noAnnotations | d = Just (px >> svgD) } )
 
                 CenterLocation (LeftOrRight L) ->
-                    ( rendering.l, { noText | l = Just svgL } )
+                    ( rendering.l, { noAnnotations | l = Just (px >> svgL) } )
 
                 CenterLocation (LeftOrRight R) ->
-                    ( rendering.r, { noText | r = Just svgR } )
+                    ( rendering.r, { noAnnotations | r = Just (px >> svgR) } )
 
                 CenterLocation (FrontOrBack F) ->
-                    ( rendering.f, { noText | f = Just svgF } )
+                    ( rendering.f, { noAnnotations | f = Just (px >> svgF) } )
 
                 CenterLocation (FrontOrBack B) ->
-                    ( rendering.b, { noText | b = Just svgB } )
+                    ( rendering.b, { noAnnotations | b = Just (px >> svgB) } )
     in
-    ( centerRendering, getCenterCoordinates location, textOnFace )
+    ( centerRendering
+    , getCenterCoordinates location
+    , if annotateFaces then
+        textAnnotations
+
+      else
+        noAnnotations
+    )
 
 
 svgF : String -> Html msg
@@ -2487,16 +2532,16 @@ currentTurnAnimating (AnimationState { toApply, inBetweenTurns, paused }) =
 viewAnimatable :
     List (Attribute msg)
     ->
-        { cube : Cube
-        , animationState : AnimationState
+        { animationState : AnimationState
         , toMsg : AnimationMsg -> msg
         , animationDoneMsg : msg
         , pixelSize : Int
         , displayAngle : DisplayAngle
         , annotateFaces : Bool
         }
+    -> Cube
     -> Html msg
-viewAnimatable attributes ({ cube, animationState, toMsg } as arguments) =
+viewAnimatable attributes ({ animationState, toMsg } as arguments) cube =
     let
         (AnimationState animationStateInternal) =
             animationState
@@ -2505,10 +2550,12 @@ viewAnimatable attributes ({ cube, animationState, toMsg } as arguments) =
             applyAlgorithm animationStateInternal.alreadyApplied cube
     in
     viewHelper
-        wrappedAnimationStyle
-        (currentTurnAnimating animationState)
+        { generateExtraCubieStyles = wrappedAnimationStyle
+        , turnCurrentlyAnimating = currentTurnAnimating animationState
+        }
         (List.map (Html.Attributes.map UserMsg) attributes)
-        { arguments | cube = cubeIncludingAnimatedTurns }
+        arguments
+        cubeIncludingAnimatedTurns
         |> Html.map (unwrapAnimationOrUserMsg toMsg)
 
 
