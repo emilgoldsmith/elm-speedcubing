@@ -45,7 +45,7 @@ type Msg
     = AnimationMsg Cube.AnimationMsg
     | StartAnimationFromScratch
     | PauseAnimation
-    | ContinueAnimation
+    | UnpauseAnimation
     | NoOp
 
 
@@ -78,9 +78,9 @@ update msg model =
             , Cmd.none
             )
 
-        ContinueAnimation ->
+        UnpauseAnimation ->
             ( { model
-                | animationState = Cube.continueAnimation model.animationState
+                | animationState = Cube.unpauseAnimation model.animationState
               }
             , Cmd.none
             )
@@ -114,13 +114,16 @@ view model =
                     >> div [ style "height" "30px", style "font-size" "30px" ]
                )
         , Cube.viewAnimatable
-            { cube = model.cube
-            , animationState = model.animationState
+            []
+            { animationState = model.animationState
             , toMsg = AnimationMsg
             , animationDoneMsg = NoOp
-            , size = 500
+            , pixelSize = 500
+            , annotateFaces = False
+            , displayAngle = Cube.ufrDisplayAngle
             }
+            model.cube
         , button [ onClick StartAnimationFromScratch ] [ text "Start Animation From Scratch" ]
         , button [ onClick PauseAnimation ] [ text "Pause Animation" ]
-        , button [ onClick ContinueAnimation ] [ text "Continue Animation" ]
+        , button [ onClick UnpauseAnimation ] [ text "Unpause Animation" ]
         ]
