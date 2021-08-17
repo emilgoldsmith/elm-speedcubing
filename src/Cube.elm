@@ -2,7 +2,7 @@ module Cube exposing
     ( Cube
     , solved
     , applyAlgorithm
-    , viewUFRWithLetters, viewUFRNoLetters, viewUBLWithLetters
+    , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
     , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, AnimationState, AnimationMsg, currentTurnAnimating
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
     )
@@ -27,7 +27,7 @@ module Cube exposing
 
 # Displayers
 
-@docs viewUFRWithLetters, viewUFRNoLetters, viewUBLWithLetters
+@docs DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
 
 
 ## With Animation
@@ -99,35 +99,53 @@ solved =
     Cube.Advanced.solved
 
 
-{-| Display the Up, Back and Left sides of the cube
-with letters signifying the sides of the cube being
-displayed on the center caps
+{-| The different supported angles to display a cube from
 -}
-viewUBLWithLetters : List (Html.Attribute msg) -> Int -> Cube -> Html msg
-viewUBLWithLetters =
-    Cube.Advanced.viewUBLWithLetters
+type alias DisplayAngle =
+    Cube.Advanced.DisplayAngle
 
 
-{-| Display the Up, Front and Right sides of the cube
-with no letters or anything on the center caps
+{-| The display angle where the U F and R faces can be seen
 -}
-viewUFRNoLetters : List (Html.Attribute msg) -> Int -> Cube -> Html msg
-viewUFRNoLetters =
-    Cube.Advanced.viewUFRNoLetters
+ufrDisplayAngle : Cube.Advanced.DisplayAngle
+ufrDisplayAngle =
+    Cube.Advanced.ufrDisplayAngle
 
 
-{-| Display the Up, Front and Right sides of the cube
-with letters signifying the sides of the cube being
-displayed on the center caps
+{-| The display angle where the U B and L faces can be seen
 -}
-viewUFRWithLetters : List (Html.Attribute msg) -> Int -> Cube -> Html msg
-viewUFRWithLetters =
-    Cube.Advanced.viewUFRWithLetters
+ublDisplayAngle : Cube.Advanced.DisplayAngle
+ublDisplayAngle =
+    Cube.Advanced.ublDisplayAngle
 
 
-{-| Display a cube that can animate turns being applied to it.
+{-| Display a 3x3 cube from one of several angles, and with or without
+the faces annotated with their respective face letters (e.g U R B).
+
+![Example Image Of Cube Views](https://raw.githubusercontent.com/emilgoldmith/elm-speedcubing/7.0.0/documentation-assets/cube-views-example.png)
+
 -}
-viewAnimatable : { cube : Cube, size : Int, animationState : AnimationState, toMsg : AnimationMsg -> msg, animationDoneMsg : msg } -> Html msg
+view : List (Html.Attribute msg) -> { pixelSize : Int, cube : Cube, displayAngle : Cube.Advanced.DisplayAngle, annotateFaces : Bool } -> Html msg
+view =
+    Cube.Advanced.view
+
+
+{-| Display a cube that can animate turns being applied to it. You can also
+specify which angle to see it from and whether to annotate the faces just like
+on [view](#view)
+-}
+viewAnimatable :
+    List (Html.Attribute msg)
+    ->
+        { cube : Cube
+        , animationState : AnimationState
+        , toMsg : AnimationMsg -> msg
+        , animationDoneMsg : msg
+        , pixelSize : Int
+        , displayAngle : DisplayAngle
+        , annotateFaces : Bool
+        }
+    -> Html msg
 viewAnimatable =
     Cube.Advanced.viewAnimatable
 
