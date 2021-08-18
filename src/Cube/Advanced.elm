@@ -3,7 +3,7 @@ module Cube.Advanced exposing
     , solved
     , applyAlgorithm
     , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
-    , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, AnimationState, AnimationMsg, currentTurnAnimating
+    , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
     , Rendering, CubieRendering, Color(..), render
     , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
@@ -37,7 +37,7 @@ module Cube.Advanced exposing
 Check out the example [on Github](https://github.com/emilgoldsmith/elm-speedcubing/blob/main/examples/src/Animation.elm) to see
 how the different functions interact with each other
 
-@docs viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, AnimationState, AnimationMsg, currentTurnAnimating
+@docs viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
 
 
 # Rendering
@@ -2534,7 +2534,6 @@ viewAnimatable :
     ->
         { animationState : AnimationState
         , toMsg : AnimationMsg -> msg
-        , animationDoneMsg : msg
         , pixelSize : Int
         , displayAngle : DisplayAngle
         , annotateFaces : Bool
@@ -2588,8 +2587,12 @@ type AnimationMsg
 
 {-| See [Cube.handleAnimationMsg](Cube#handleAnimationMsg)
 -}
-handleAnimationMsg : AnimationState -> AnimationMsg -> ( AnimationState, Cmd AnimationMsg )
-handleAnimationMsg (AnimationState animationState) msg =
+handleAnimationMsg :
+    { toMsg : AnimationMsg -> msg, animationDoneMsg : msg }
+    -> AnimationState
+    -> AnimationMsg
+    -> ( AnimationState, Cmd msg )
+handleAnimationMsg { toMsg, animationDoneMsg } (AnimationState animationState) msg =
     case msg of
         TurnFinished ->
             if animationState.inBetweenTurns then
@@ -2598,8 +2601,8 @@ handleAnimationMsg (AnimationState animationState) msg =
             else
                 case animationState.toApply of
                     [] ->
-                        ( AnimationState { animationState | toApply = [], inBetweenTurns = True }
-                        , Task.perform (always StartNextTurn) (Process.sleep 0)
+                        ( AnimationState { animationState | inBetweenTurns = True }
+                        , Task.perform (always animationDoneMsg) (Task.succeed ())
                         )
 
                     x :: xs ->
@@ -2612,7 +2615,11 @@ handleAnimationMsg (AnimationState animationState) msg =
                                         (Algorithm.fromTurnList [ x ])
                                 , inBetweenTurns = True
                             }
-                        , Task.perform (always StartNextTurn) (Process.sleep 0)
+                        , if xs /= [] then
+                            Task.perform (always (toMsg StartNextTurn)) (Process.sleep 0)
+
+                          else
+                            Task.perform (always animationDoneMsg) (Task.succeed ())
                         )
 
         StartNextTurn ->

@@ -5,10 +5,12 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 
 
+cubeSize : Int
 cubeSize =
     400
 
 
+main : Html msg
 main =
     div []
         [ div [ style "display" "flex" ]

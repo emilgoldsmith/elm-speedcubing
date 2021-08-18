@@ -27,12 +27,16 @@ main =
 type alias Model =
     { cube : Cube
     , animationState : Cube.AnimationState
+    , done : Bool
     }
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { cube = Cube.solved, animationState = Cube.noAnimation }
+    ( { cube = Cube.solved
+      , animationState = Cube.noAnimation
+      , done = False
+      }
     , Cmd.none
     )
 
@@ -46,27 +50,27 @@ type Msg
     | StartAnimationFromScratch
     | PauseAnimation
     | UnpauseAnimation
-    | NoOp
+    | AnimationDone
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         AnimationMsg animationMsg ->
-            Cube.handleAnimationMsg model.animationState animationMsg
-                |> Tuple.mapBoth
-                    (\newAnimationState ->
-                        { model
-                            | animationState = newAnimationState
-                        }
-                    )
-                    (Cmd.map AnimationMsg)
+            Cube.handleAnimationMsg
+                { toMsg = AnimationMsg
+                , animationDoneMsg = AnimationDone
+                }
+                model.animationState
+                animationMsg
+                |> Tuple.mapFirst (\x -> { model | animationState = x })
 
         StartAnimationFromScratch ->
             ( { model
                 | animationState =
                     Cube.animateAlgorithm <|
                         Algorithm.fromTurnList (List.Nonempty.toList Algorithm.allTurns)
+                , done = False
               }
             , Cmd.none
             )
@@ -85,8 +89,12 @@ update msg model =
             , Cmd.none
             )
 
-        NoOp ->
-            ( model, Cmd.none )
+        AnimationDone ->
+            ( { model
+                | done = True
+              }
+            , Cmd.none
+            )
 
 
 
@@ -103,12 +111,15 @@ view model =
         , style "align-items" "center"
         , style "flex-direction" "column"
         ]
-        [ model.animationState
+        [ if model.done then
+            div [ style "font-size" "30px" ] [ text "DONE" ]
+
+          else
+            div [] []
+        , model.animationState
             |> Cube.currentTurnAnimating
-            |> Maybe.map List.singleton
-            |> Maybe.map Algorithm.fromTurnList
-            |> Maybe.map Algorithm.toString
-            |> Maybe.map text
+            |> Maybe.map (List.singleton >> Algorithm.fromTurnList)
+            |> Maybe.map (Algorithm.toString >> text)
             |> Maybe.withDefault (text "")
             |> (List.singleton
                     >> div [ style "height" "30px", style "font-size" "30px" ]
@@ -117,7 +128,6 @@ view model =
             []
             { animationState = model.animationState
             , toMsg = AnimationMsg
-            , animationDoneMsg = NoOp
             , pixelSize = 500
             , annotateFaces = False
             , displayAngle = Cube.ufrDisplayAngle
