@@ -122,7 +122,7 @@ ublDisplayAngle =
 {-| Display a 3x3 cube from one of several angles, and with or without
 the faces annotated with their respective face letters (e.g U R B).
 
-![Example Image Of Cube Views](https://raw.githubusercontent.com/emilgoldmith/elm-speedcubing/7.0.0/documentation-assets/cube-views-example.png)
+![Example Image Of Cube Views](https://raw.githubusercontent.com/emilgoldsmith/elm-speedcubing/7.0.1/documentation-assets/cube-views-example.png)
 
 -}
 view :
