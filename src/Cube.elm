@@ -3,7 +3,7 @@ module Cube exposing
     , solved
     , applyAlgorithm
     , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
-    , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, AnimationState, AnimationMsg, currentTurnAnimating
+    , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
     )
 
@@ -35,7 +35,7 @@ module Cube exposing
 Check out the example [on Github](https://github.com/emilgoldsmith/elm-speedcubing/blob/main/examples/src/Animation.elm) to see
 how the different functions interact with each other
 
-@docs viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, AnimationState, AnimationMsg, currentTurnAnimating
+@docs viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
 
 
 # Algorithm Helpers
@@ -105,14 +105,14 @@ type alias DisplayAngle =
     Cube.Advanced.DisplayAngle
 
 
-{-| The display angle where the U F and R faces can be seen
+{-| The display angle where the U, F, and R faces can be seen
 -}
 ufrDisplayAngle : Cube.Advanced.DisplayAngle
 ufrDisplayAngle =
     Cube.Advanced.ufrDisplayAngle
 
 
-{-| The display angle where the U B and L faces can be seen
+{-| The display angle where the U, B, and L faces can be seen
 -}
 ublDisplayAngle : Cube.Advanced.DisplayAngle
 ublDisplayAngle =
@@ -147,7 +147,6 @@ viewAnimatable :
     ->
         { animationState : AnimationState
         , toMsg : AnimationMsg -> msg
-        , animationDoneMsg : msg
         , pixelSize : Int
         , displayAngle : DisplayAngle
         , annotateFaces : Bool
@@ -162,7 +161,11 @@ viewAnimatable =
 and output the next animation state and any commands the package needs
 to have run for it
 -}
-handleAnimationMsg : AnimationState -> AnimationMsg -> ( AnimationState, Cmd AnimationMsg )
+handleAnimationMsg :
+    { toMsg : AnimationMsg -> msg, animationDoneMsg : msg }
+    -> AnimationState
+    -> AnimationMsg
+    -> ( AnimationState, Cmd msg )
 handleAnimationMsg =
     Cube.Advanced.handleAnimationMsg
 
