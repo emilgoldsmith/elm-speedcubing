@@ -5,10 +5,6 @@ FROM ubuntu:20.04
 ENV USERNAME cube-community
 ENV ROOT_PASSWORD dev-container-password
 
-# Current SHA sums are for node 15.7.0 and yarn 1.22.5
-# we just make these arguments instead of hardcoded to
-# give some ensurance images are built with the correct tag
-# as the versions will have to be specified on the command line
 ARG NODE_VERSION
 ARG YARN_VERSION
 

@@ -1,4 +1,4 @@
-module Tests.AUF exposing (aufFuzzer, fromStringTests, toStringTests)
+module Tests.AUF exposing (addToAlgorithmTests, aufFuzzer, fromStringTests, toStringTests)
 
 import AUF exposing (AUF)
 import Algorithm
@@ -92,6 +92,21 @@ fromStringTests =
             \_ ->
                 AUF.fromString "  \t \t    \t\t\t"
                     |> Expect.equal (Ok AUF.None)
+        ]
+
+
+addToAlgorithmTests : Test
+addToAlgorithmTests =
+    describe "addToAlgorithm"
+        [ fuzz2 Tests.Algorithm.algorithmFuzzer (Fuzz.tuple ( aufFuzzer, aufFuzzer )) "adds the aufs on each side of the algorithm" <|
+            \algorithm (( preAUF, postAUF ) as aufs) ->
+                AUF.addToAlgorithm aufs algorithm
+                    |> Expect.equal
+                        ((Algorithm.toTurnList << AUF.toAlgorithm) preAUF
+                            ++ Algorithm.toTurnList algorithm
+                            ++ (Algorithm.toTurnList << AUF.toAlgorithm) postAUF
+                            |> Algorithm.fromTurnList
+                        )
         ]
 
 

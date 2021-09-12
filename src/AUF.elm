@@ -1,6 +1,6 @@
 module AUF exposing
     ( AUF(..), all
-    , toAlgorithm, toAlgorithmWithCustomTurnable, toString, FromStringError(..), debugFromStringError, fromString
+    , toAlgorithm, toAlgorithmWithCustomTurnable, toString, FromStringError(..), debugFromStringError, fromString, addToAlgorithm
     )
 
 {-| Types and helpers to deal with Adjust U Face (AUF), which
@@ -19,7 +19,7 @@ for more information
 
 # Helpers
 
-@docs toAlgorithm, toAlgorithmWithCustomTurnable, toString, FromStringError, debugFromStringError, fromString
+@docs toAlgorithm, toAlgorithmWithCustomTurnable, toString, FromStringError, debugFromStringError, fromString, addToAlgorithm
 
 -}
 
@@ -266,3 +266,12 @@ algorithmToAuf algorithm =
 
         _ ->
             Nothing
+
+
+{-| Add a pre and postAUF to an algorithm outputting the resulting algorithm
+-}
+addToAlgorithm : ( AUF, AUF ) -> Algorithm -> Algorithm
+addToAlgorithm ( preAUF, postAUF ) algorithm =
+    algorithm
+        |> Algorithm.append (toAlgorithm preAUF)
+        |> Algorithm.reverseAppend (toAlgorithm postAUF)
