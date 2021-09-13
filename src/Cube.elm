@@ -107,14 +107,14 @@ type alias DisplayAngle =
 
 {-| The display angle where the U, F, and R faces can be seen
 -}
-ufrDisplayAngle : Cube.Advanced.DisplayAngle
+ufrDisplayAngle : DisplayAngle
 ufrDisplayAngle =
     Cube.Advanced.ufrDisplayAngle
 
 
 {-| The display angle where the U, B, and L faces can be seen
 -}
-ublDisplayAngle : Cube.Advanced.DisplayAngle
+ublDisplayAngle : DisplayAngle
 ublDisplayAngle =
     Cube.Advanced.ublDisplayAngle
 
@@ -129,7 +129,7 @@ view :
     List (Html.Attribute msg)
     ->
         { pixelSize : Int
-        , displayAngle : Cube.Advanced.DisplayAngle
+        , displayAngle : DisplayAngle
         , annotateFaces : Bool
         }
     -> Cube
