@@ -1,7 +1,7 @@
 module Cube.Advanced exposing
     ( Cube
     , solved
-    , applyAlgorithm
+    , applyAlgorithm, applyAlgorithmMaintainingOrientation
     , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
     , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
     , Rendering, CubieRendering, Color(..), render
@@ -24,7 +24,7 @@ module Cube.Advanced exposing
 
 # Modifiers
 
-@docs applyAlgorithm
+@docs applyAlgorithm, applyAlgorithmMaintainingOrientation
 
 
 # Displayers
@@ -368,11 +368,117 @@ composeTurnDefinition ( corners1, edges1, centers1 ) ( corners2, edges2, centers
     )
 
 
+{-| See [Cube.applyAlgorithmMaintainingOrientation](Cube#applyAlgorithmMaintainingOrientation)
+-}
+applyAlgorithmMaintainingOrientation : Algorithm.Algorithm -> Cube -> Cube
+applyAlgorithmMaintainingOrientation algorithm cube =
+    applyAlgorithm algorithm cube
+        |> orientSameAs { targetOrientation = cube }
+
+
+orientSameAs : { targetOrientation : Cube } -> Cube -> Cube
+orientSameAs { targetOrientation } cube =
+    let
+        targetRendering =
+            render targetOrientation
+
+        currentRendering =
+            render cube
+
+        faceToMoveToU =
+            findFaceWithCenterColor targetRendering.u.u currentRendering
+
+        allYRotations =
+            Algorithm.allTurnLengths
+                |> List.Nonempty.map (\length -> Algorithm.Turn Algorithm.Y length Algorithm.Clockwise)
+                |> List.Nonempty.map (List.singleton >> Algorithm.fromTurnList)
+                |> List.Nonempty.cons Algorithm.empty
+    in
+    cube
+        -- We first fix the U (and D) face
+        |> rotateSoFaceIsOnU faceToMoveToU
+        -- Now we should be able to use a y-axis rotation to fix the last 4 faces
+        |> (\uFixedCube ->
+                List.Nonempty.filter
+                    (hasSameOrientationAs targetOrientation)
+                    uFixedCube
+                    (List.Nonempty.map
+                        (\rotation -> applyAlgorithm rotation uFixedCube)
+                        allYRotations
+                    )
+           )
+        -- We use a default with the filter etc. above, so it is definitely important
+        -- this code has some good tests to ensure confidence in the logic
+        |> List.Nonempty.head
+
+
+findFaceWithCenterColor : Color -> Rendering -> Face
+findFaceWithCenterColor color rendering =
+    [ ( rendering.u.u, UpOrDown U )
+    , ( rendering.d.d, UpOrDown D )
+    , ( rendering.r.r, LeftOrRight R )
+    , ( rendering.l.l, LeftOrRight L )
+    , ( rendering.f.f, FrontOrBack F )
+    , ( rendering.b.b, FrontOrBack B )
+    ]
+        |> List.filter (Tuple.first >> (==) color)
+        |> List.head
+        |> Maybe.map Tuple.second
+        -- We trust the tests here as this case should never happen but in
+        -- case it does good tests hopefully catch it
+        |> Maybe.withDefault (UpOrDown U)
+
+
+rotateSoFaceIsOnU : Face -> Cube -> Cube
+rotateSoFaceIsOnU face cube =
+    let
+        theRotation =
+            case face of
+                UpOrDown U ->
+                    Algorithm.empty
+
+                UpOrDown D ->
+                    Algorithm.fromTurnList
+                        [ Algorithm.Turn Algorithm.X Algorithm.Halfway Algorithm.Clockwise ]
+
+                LeftOrRight R ->
+                    Algorithm.fromTurnList
+                        [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.CounterClockwise ]
+
+                LeftOrRight L ->
+                    Algorithm.fromTurnList
+                        [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise ]
+
+                FrontOrBack F ->
+                    Algorithm.fromTurnList
+                        [ Algorithm.Turn Algorithm.X Algorithm.OneQuarter Algorithm.Clockwise ]
+
+                FrontOrBack B ->
+                    Algorithm.fromTurnList
+                        [ Algorithm.Turn Algorithm.X Algorithm.OneQuarter Algorithm.CounterClockwise ]
+    in
+    applyAlgorithm theRotation cube
+
+
+hasSameOrientationAs : Cube -> Cube -> Bool
+hasSameOrientationAs a b =
+    let
+        areCubiesSame getter =
+            (getter <| render a) == (getter <| render b)
+    in
+    areCubiesSame .u
+        && areCubiesSame .d
+        && areCubiesSame .u
+        && areCubiesSame .f
+        && areCubiesSame .r
+        && areCubiesSame .l
+
+
 {-| See [Cube.applyAlgorithm](Cube#applyAlgorithm)
 -}
 applyAlgorithm : Algorithm.Algorithm -> Cube -> Cube
-applyAlgorithm alg cube =
-    List.foldl applyTurn cube (Algorithm.toTurnList alg)
+applyAlgorithm algorithm cube =
+    List.foldl applyTurn cube (Algorithm.toTurnList algorithm)
 
 
 applyTurn : Algorithm.Turn -> Cube -> Cube
