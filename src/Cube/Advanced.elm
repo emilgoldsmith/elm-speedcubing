@@ -414,19 +414,34 @@ orientSameAs { targetOrientation } cube =
 
 findFaceWithCenterColor : Color -> Rendering -> Face
 findFaceWithCenterColor color rendering =
-    [ ( rendering.u.u, UpOrDown U )
-    , ( rendering.d.d, UpOrDown D )
-    , ( rendering.r.r, LeftOrRight R )
-    , ( rendering.l.l, LeftOrRight L )
-    , ( rendering.f.f, FrontOrBack F )
-    , ( rendering.b.b, FrontOrBack B )
-    ]
-        |> List.filter (Tuple.first >> (==) color)
-        |> List.head
-        |> Maybe.map Tuple.second
-        -- We trust the tests here as this case should never happen but in
-        -- case it does good tests hopefully catch it
-        |> Maybe.withDefault (UpOrDown U)
+    List.Nonempty.map (\face -> ( centerColorOnFace face rendering, face )) faces
+        -- We trust the tests here by using the default this nonempty filter requires
+        -- as this case should never happen but in case it does good tests hopefully catch it
+        |> List.Nonempty.filter (Tuple.first >> (==) color) ( UpColor, UpOrDown U )
+        |> List.Nonempty.head
+        |> Tuple.second
+
+
+centerColorOnFace : Face -> Rendering -> Color
+centerColorOnFace face rendering =
+    case face of
+        UpOrDown U ->
+            rendering.u.u
+
+        UpOrDown D ->
+            rendering.d.d
+
+        LeftOrRight R ->
+            rendering.r.r
+
+        LeftOrRight L ->
+            rendering.l.l
+
+        FrontOrBack F ->
+            rendering.f.f
+
+        FrontOrBack B ->
+            rendering.b.b
 
 
 rotateSoFaceIsOnU : Face -> Cube -> Cube
@@ -462,16 +477,9 @@ rotateSoFaceIsOnU face cube =
 
 hasSameOrientationAs : Cube -> Cube -> Bool
 hasSameOrientationAs a b =
-    let
-        areCubiesSame getter =
-            (getter <| render a) == (getter <| render b)
-    in
-    areCubiesSame .u
-        && areCubiesSame .d
-        && areCubiesSame .u
-        && areCubiesSame .f
-        && areCubiesSame .r
-        && areCubiesSame .l
+    faces
+        |> List.Nonempty.map (\face -> ( centerColorOnFace face (render a), centerColorOnFace face (render b) ))
+        |> List.Nonempty.all (\( colorA, colorB ) -> colorA == colorB)
 
 
 {-| See [Cube.applyAlgorithm](Cube#applyAlgorithm)
