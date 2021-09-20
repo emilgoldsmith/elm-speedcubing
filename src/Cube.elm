@@ -1,7 +1,7 @@
 module Cube exposing
     ( Cube
     , solved
-    , applyAlgorithm
+    , applyAlgorithm, applyAlgorithmMaintainingOrientation
     , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
     , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
@@ -22,7 +22,7 @@ module Cube exposing
 
 # Modifiers
 
-@docs applyAlgorithm
+@docs applyAlgorithm, applyAlgorithmMaintainingOrientation
 
 
 # Displayers
@@ -89,6 +89,14 @@ aren't expected to arise often given "normal use".
 applyAlgorithm : Algorithm -> Cube -> Cube
 applyAlgorithm =
     Cube.Advanced.applyAlgorithm
+
+
+{-| Behaves exactly like [applyAlgorithm](#applyAlgorithm) except
+the cube always finishes in the same orientation it started
+-}
+applyAlgorithmMaintainingOrientation : Algorithm -> Cube -> Cube
+applyAlgorithmMaintainingOrientation =
+    Cube.Advanced.applyAlgorithmMaintainingOrientation
 
 
 {-| A solved cube with the initial orientation,

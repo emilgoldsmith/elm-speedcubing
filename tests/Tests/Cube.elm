@@ -1,6 +1,6 @@
-module Tests.Cube exposing (algorithmResultsAreEquivalentIndependentOfFinalRotationTests, algorithmResultsAreEquivalentTests, applyAlgorithmTests, testHelperTests)
+module Tests.Cube exposing (algorithmResultsAreEquivalentIndependentOfFinalRotationTests, algorithmResultsAreEquivalentTests, applyAlgorithmMaintainingOrientationTests, applyAlgorithmTests, testHelperTests)
 
-import Algorithm
+import Algorithm exposing (Algorithm)
 import Cube
 import Cube.Advanced exposing (Color(..))
 import Expect
@@ -362,6 +362,35 @@ applyAlgorithmTests =
         ]
 
 
+applyAlgorithmMaintainingOrientationTests : Test
+applyAlgorithmMaintainingOrientationTests =
+    describe "applyAlgorithmMaintainingOrientation"
+        [ fuzz algorithmWithNoOrientationChanges "behaves the same as apply algorithm when no orientations involved" <|
+            \algorithm ->
+                Cube.applyAlgorithmMaintainingOrientation algorithm Cube.solved
+                    |> Expect.equal (Cube.applyAlgorithm algorithm Cube.solved)
+        , fuzz Tests.Algorithm.algorithmFuzzer "always finishes in the starting orientation independent of the algorithm" <|
+            \algorithm ->
+                Cube.applyAlgorithmMaintainingOrientation algorithm Cube.solved
+                    |> Cube.Advanced.render
+                    |> Expect.all
+                        (let
+                            assertCentersMatch getter =
+                                getter
+                                    >> Expect.equal
+                                        (getter <| Cube.Advanced.render Cube.solved)
+                         in
+                         [ assertCentersMatch .u
+                         , assertCentersMatch .d
+                         , assertCentersMatch .l
+                         , assertCentersMatch .r
+                         , assertCentersMatch .f
+                         , assertCentersMatch .b
+                         ]
+                        )
+        ]
+
+
 algorithmResultsAreEquivalentTests : Test
 algorithmResultsAreEquivalentTests =
     describe "algorithmResultsAreEquivalent"
@@ -444,6 +473,16 @@ testHelperTests =
                         |> Expect.equal numUniquePairs
             ]
         ]
+
+
+algorithmWithNoOrientationChanges : Fuzz.Fuzzer Algorithm
+algorithmWithNoOrientationChanges =
+    Fuzz.map
+        (Algorithm.toTurnList
+            >> List.filter (not << isTurnThatMovesCenters)
+            >> Algorithm.fromTurnList
+        )
+        Tests.Algorithm.algorithmFuzzer
 
 
 listsDisjoint : List.Nonempty.Nonempty a -> List.Nonempty.Nonempty a -> Bool
@@ -892,3 +931,61 @@ cycleColor cycle color =
         _ ->
             -- Any other colors we just leave unchanged
             color
+
+
+isTurnThatMovesCenters : Algorithm.Turn -> Bool
+isTurnThatMovesCenters (Algorithm.Turn turnable _ _) =
+    case turnable of
+        Algorithm.X ->
+            True
+
+        Algorithm.Y ->
+            True
+
+        Algorithm.Z ->
+            True
+
+        Algorithm.Rw ->
+            True
+
+        Algorithm.Lw ->
+            True
+
+        Algorithm.Uw ->
+            True
+
+        Algorithm.Dw ->
+            True
+
+        Algorithm.Fw ->
+            True
+
+        Algorithm.Bw ->
+            True
+
+        Algorithm.M ->
+            True
+
+        Algorithm.S ->
+            True
+
+        Algorithm.E ->
+            True
+
+        Algorithm.U ->
+            False
+
+        Algorithm.D ->
+            False
+
+        Algorithm.L ->
+            False
+
+        Algorithm.R ->
+            False
+
+        Algorithm.F ->
+            False
+
+        Algorithm.B ->
+            False
