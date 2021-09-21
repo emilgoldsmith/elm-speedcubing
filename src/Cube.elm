@@ -1,10 +1,10 @@
 module Cube exposing
     ( Cube
     , solved
-    , applyAlgorithm, applyAlgorithmMaintainingOrientation
+    , applyAlgorithm
     , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
     , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
-    , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
+    , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
     )
 
 {-|
@@ -22,7 +22,7 @@ module Cube exposing
 
 # Modifiers
 
-@docs applyAlgorithm, applyAlgorithmMaintainingOrientation
+@docs applyAlgorithm
 
 
 # Displayers
@@ -43,7 +43,7 @@ how the different functions interact with each other
 Some algorithm functionality such as whether two algorithms are equivalent can only be determined
 in the context of having a cube, so they belong here and not in the Algorithm module.
 
-@docs algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
+@docs algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
 
 -}
 
@@ -89,14 +89,6 @@ aren't expected to arise often given "normal use".
 applyAlgorithm : Algorithm -> Cube -> Cube
 applyAlgorithm =
     Cube.Advanced.applyAlgorithm
-
-
-{-| Behaves exactly like [applyAlgorithm](#applyAlgorithm) except
-the cube always finishes in the same orientation it started
--}
-applyAlgorithmMaintainingOrientation : Algorithm -> Cube -> Cube
-applyAlgorithmMaintainingOrientation =
-    Cube.Advanced.applyAlgorithmMaintainingOrientation
 
 
 {-| A solved cube with the initial orientation,
@@ -249,3 +241,18 @@ equivalent
 algorithmResultsAreEquivalentIndependentOfFinalRotation : Algorithm -> Algorithm -> Bool
 algorithmResultsAreEquivalentIndependentOfFinalRotation =
     Cube.Advanced.algorithmResultsAreEquivalentIndependentOfFinalRotation
+
+
+{-| Changes the algorithm so that it leaves the cube in the same orientation
+that it started in if it didn't already. It doesn't change what cube state the
+algorithm leaves the cube in.
+
+If you are wondering why this doesn't live in in the Algorithm module that's a valid
+question. It is because it makes the most sense in the context of the resulting cube
+that comes out of an algorithm being applied. If one was to think of it without using
+the Cube module one would nearly have to reimplement concepts from the Cube module.
+
+-}
+makeAlgorithmMaintainOrientation : Algorithm -> Algorithm
+makeAlgorithmMaintainOrientation =
+    Cube.Advanced.makeAlgorithmMaintainOrientation

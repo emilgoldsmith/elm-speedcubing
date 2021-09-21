@@ -1,12 +1,12 @@
 module Cube.Advanced exposing
     ( Cube
     , solved
-    , applyAlgorithm, applyAlgorithmMaintainingOrientation
+    , applyAlgorithm
     , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
     , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
     , Rendering, CubieRendering, Color(..), render
     , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
-    , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
+    , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
     )
 
 {-|
@@ -24,7 +24,7 @@ module Cube.Advanced exposing
 
 # Modifiers
 
-@docs applyAlgorithm, applyAlgorithmMaintainingOrientation
+@docs applyAlgorithm
 
 
 # Displayers
@@ -52,7 +52,7 @@ how the different functions interact with each other
 
 # Algorithm Helpers
 
-@docs algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation
+@docs algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
 
 -}
 
@@ -366,120 +366,6 @@ composeTurnDefinition ( corners1, edges1, centers1 ) ( corners2, edges2, centers
     , MappedPermutation.compose edges1 edges2
     , MappedPermutation.compose centers1 centers2
     )
-
-
-{-| See [Cube.applyAlgorithmMaintainingOrientation](Cube#applyAlgorithmMaintainingOrientation)
--}
-applyAlgorithmMaintainingOrientation : Algorithm.Algorithm -> Cube -> Cube
-applyAlgorithmMaintainingOrientation algorithm cube =
-    applyAlgorithm algorithm cube
-        |> orientSameAs { targetOrientation = cube }
-
-
-orientSameAs : { targetOrientation : Cube } -> Cube -> Cube
-orientSameAs { targetOrientation } cube =
-    let
-        targetRendering =
-            render targetOrientation
-
-        currentRendering =
-            render cube
-
-        faceToMoveToU =
-            findFaceWithCenterColor targetRendering.u.u currentRendering
-
-        allYRotations =
-            Algorithm.allTurnLengths
-                |> List.Nonempty.map (\length -> Algorithm.Turn Algorithm.Y length Algorithm.Clockwise)
-                |> List.Nonempty.map (List.singleton >> Algorithm.fromTurnList)
-                |> List.Nonempty.cons Algorithm.empty
-    in
-    cube
-        -- We first fix the U (and D) face
-        |> rotateSoFaceIsOnU faceToMoveToU
-        -- Now we should be able to use a y-axis rotation to fix the last 4 faces
-        |> (\uFixedCube ->
-                List.Nonempty.filter
-                    (hasSameOrientationAs targetOrientation)
-                    uFixedCube
-                    (List.Nonempty.map
-                        (\rotation -> applyAlgorithm rotation uFixedCube)
-                        allYRotations
-                    )
-           )
-        -- We use a default with the filter etc. above, so it is definitely important
-        -- this code has some good tests to ensure confidence in the logic
-        |> List.Nonempty.head
-
-
-findFaceWithCenterColor : Color -> Rendering -> Face
-findFaceWithCenterColor color rendering =
-    List.Nonempty.map (\face -> ( centerColorOnFace face rendering, face )) faces
-        -- We trust the tests here by using the default this nonempty filter requires
-        -- as this case should never happen but in case it does good tests hopefully catch it
-        |> List.Nonempty.filter (Tuple.first >> (==) color) ( UpColor, UpOrDown U )
-        |> List.Nonempty.head
-        |> Tuple.second
-
-
-centerColorOnFace : Face -> Rendering -> Color
-centerColorOnFace face rendering =
-    case face of
-        UpOrDown U ->
-            rendering.u.u
-
-        UpOrDown D ->
-            rendering.d.d
-
-        LeftOrRight R ->
-            rendering.r.r
-
-        LeftOrRight L ->
-            rendering.l.l
-
-        FrontOrBack F ->
-            rendering.f.f
-
-        FrontOrBack B ->
-            rendering.b.b
-
-
-rotateSoFaceIsOnU : Face -> Cube -> Cube
-rotateSoFaceIsOnU face cube =
-    let
-        theRotation =
-            case face of
-                UpOrDown U ->
-                    Algorithm.empty
-
-                UpOrDown D ->
-                    Algorithm.fromTurnList
-                        [ Algorithm.Turn Algorithm.X Algorithm.Halfway Algorithm.Clockwise ]
-
-                LeftOrRight R ->
-                    Algorithm.fromTurnList
-                        [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.CounterClockwise ]
-
-                LeftOrRight L ->
-                    Algorithm.fromTurnList
-                        [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise ]
-
-                FrontOrBack F ->
-                    Algorithm.fromTurnList
-                        [ Algorithm.Turn Algorithm.X Algorithm.OneQuarter Algorithm.Clockwise ]
-
-                FrontOrBack B ->
-                    Algorithm.fromTurnList
-                        [ Algorithm.Turn Algorithm.X Algorithm.OneQuarter Algorithm.CounterClockwise ]
-    in
-    applyAlgorithm theRotation cube
-
-
-hasSameOrientationAs : Cube -> Cube -> Bool
-hasSameOrientationAs a b =
-    faces
-        |> List.Nonempty.map (\face -> ( centerColorOnFace face (render a), centerColorOnFace face (render b) ))
-        |> List.Nonempty.all (\( colorA, colorB ) -> colorA == colorB)
 
 
 {-| See [Cube.applyAlgorithm](Cube#applyAlgorithm)
@@ -2575,6 +2461,117 @@ algorithmResultsAreEquivalentIndependentOfFinalRotation : Algorithm -> Algorithm
 algorithmResultsAreEquivalentIndependentOfFinalRotation a b =
     List.Nonempty.map (Algorithm.append a) Algorithm.allCubeAngles
         |> List.Nonempty.any (algorithmResultsAreEquivalent b)
+
+
+{-| See [Cube.makeAlgorithmMaintainOrientation](Cube#makeAlgorithmMaintainOrientation)
+-}
+makeAlgorithmMaintainOrientation : Algorithm -> Algorithm
+makeAlgorithmMaintainOrientation algorithm =
+    let
+        faceToMoveToU =
+            findFaceWithCenterColor
+                UpColor
+                (render <| applyAlgorithm algorithm solved)
+
+        allYRotations =
+            Algorithm.allTurnLengths
+                |> List.Nonempty.map (\length -> Algorithm.Turn Algorithm.Y length Algorithm.Clockwise)
+                |> List.Nonempty.map (List.singleton >> Algorithm.fromTurnList)
+                |> List.Nonempty.cons Algorithm.empty
+    in
+    algorithm
+        -- We first fix the U (and D) face
+        |> rotateSoFaceIsOnU faceToMoveToU
+        -- Now we should be able to use a y-axis rotation to fix the last 4 faces
+        |> (\uFixedAlgorithm ->
+                let
+                    yRotationPossibilities =
+                        List.Nonempty.map
+                            (Algorithm.append uFixedAlgorithm)
+                            allYRotations
+                in
+                List.Nonempty.filter
+                    hasStartingOrientation
+                    uFixedAlgorithm
+                    yRotationPossibilities
+           )
+        -- We use a default with the filter etc. above, so it is definitely important
+        -- this code has some good tests to ensure confidence in the logic
+        |> List.Nonempty.head
+
+
+findFaceWithCenterColor : Color -> Rendering -> Face
+findFaceWithCenterColor color rendering =
+    List.Nonempty.map (\face -> ( centerColorOnFace face rendering, face )) faces
+        -- We trust the tests here by using the default this nonempty filter requires
+        -- as this case should never happen but in case it does good tests hopefully catch it
+        |> List.Nonempty.filter (Tuple.first >> (==) color) ( UpColor, UpOrDown U )
+        |> List.Nonempty.head
+        |> Tuple.second
+
+
+centerColorOnFace : Face -> Rendering -> Color
+centerColorOnFace face rendering =
+    case face of
+        UpOrDown U ->
+            rendering.u.u
+
+        UpOrDown D ->
+            rendering.d.d
+
+        LeftOrRight R ->
+            rendering.r.r
+
+        LeftOrRight L ->
+            rendering.l.l
+
+        FrontOrBack F ->
+            rendering.f.f
+
+        FrontOrBack B ->
+            rendering.b.b
+
+
+rotateSoFaceIsOnU : Face -> Algorithm -> Algorithm
+rotateSoFaceIsOnU face algorithm =
+    Algorithm.append algorithm <|
+        case face of
+            UpOrDown U ->
+                Algorithm.empty
+
+            UpOrDown D ->
+                Algorithm.fromTurnList
+                    [ Algorithm.Turn Algorithm.X Algorithm.Halfway Algorithm.Clockwise ]
+
+            LeftOrRight R ->
+                Algorithm.fromTurnList
+                    [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.CounterClockwise ]
+
+            LeftOrRight L ->
+                Algorithm.fromTurnList
+                    [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise ]
+
+            FrontOrBack F ->
+                Algorithm.fromTurnList
+                    [ Algorithm.Turn Algorithm.X Algorithm.OneQuarter Algorithm.Clockwise ]
+
+            FrontOrBack B ->
+                Algorithm.fromTurnList
+                    [ Algorithm.Turn Algorithm.X Algorithm.OneQuarter Algorithm.CounterClockwise ]
+
+
+hasStartingOrientation : Algorithm -> Bool
+hasStartingOrientation algorithm =
+    faces
+        |> List.Nonempty.map
+            (\face ->
+                ( centerColorOnFace
+                    face
+                    (render <| applyAlgorithm algorithm solved)
+                , centerColorOnFace face (render solved)
+                )
+            )
+        |> List.Nonempty.all (\( colorA, colorB ) -> colorA == colorB)
 
 
 
