@@ -1,4 +1,4 @@
-module Tests.Cube exposing (algorithmResultsAreEquivalentIndependentOfFinalRotationTests, algorithmResultsAreEquivalentTests, applyAlgorithmMaintainingOrientationTests, applyAlgorithmTests, testHelperTests)
+module Tests.Cube exposing (algorithmResultsAreEquivalentIndependentOfFinalRotationTests, algorithmResultsAreEquivalentTests, applyAlgorithmTests, makeAlgorithmMaintainOrientationTests, testHelperTests)
 
 import Algorithm exposing (Algorithm)
 import Cube
@@ -362,16 +362,18 @@ applyAlgorithmTests =
         ]
 
 
-applyAlgorithmMaintainingOrientationTests : Test
-applyAlgorithmMaintainingOrientationTests =
-    describe "applyAlgorithmMaintainingOrientation"
-        [ fuzz algorithmWithNoOrientationChanges "behaves the same as apply algorithm when no orientations involved" <|
+makeAlgorithmMaintainOrientationTests : Test
+makeAlgorithmMaintainOrientationTests =
+    describe "makeAlgorithmMaintainOrientation"
+        [ fuzz algorithmWithNoOrientationChanges "is an identity operation when no orientations involved" <|
             \algorithm ->
-                Cube.applyAlgorithmMaintainingOrientation algorithm Cube.solved
-                    |> Expect.equal (Cube.applyAlgorithm algorithm Cube.solved)
-        , fuzz Tests.Algorithm.algorithmFuzzer "always finishes in the starting orientation independent of the algorithm" <|
+                Cube.makeAlgorithmMaintainOrientation algorithm
+                    |> Expect.equal algorithm
+        , fuzz Tests.Algorithm.algorithmFuzzer "makes any and all algorithms finish in the same orientation it started in" <|
             \algorithm ->
-                Cube.applyAlgorithmMaintainingOrientation algorithm Cube.solved
+                Cube.applyAlgorithm
+                    (Cube.makeAlgorithmMaintainOrientation algorithm)
+                    Cube.solved
                     |> Cube.Advanced.render
                     |> Expect.all
                         (let
@@ -388,6 +390,12 @@ applyAlgorithmMaintainingOrientationTests =
                          , assertCentersMatch .b
                          ]
                         )
+        , fuzz Tests.Algorithm.algorithmFuzzer "algorithm output doesn't change anything but the orientation of the cube compared to original algorithm" <|
+            \algorithm ->
+                Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation
+                    algorithm
+                    (Cube.makeAlgorithmMaintainOrientation algorithm)
+                    |> Expect.true "should produce same result independent of orientation"
         ]
 
 
