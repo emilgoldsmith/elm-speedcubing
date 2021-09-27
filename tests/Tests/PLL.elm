@@ -371,6 +371,11 @@ solvedByTests =
                 Algorithm.fromString "l' U R' D2 R U' R' D2 R2 B"
                     |> Result.map (\alg -> PLL.solvedBy alg PLL.Aa)
                     |> Expect.equal (Ok True)
+        , test "an algorithm with a leading z rotation that isn't reversed in the end works" <|
+            \_ ->
+                Algorithm.fromString "z D' R2 D R2 U R' D' R U' R U R' D R U'"
+                    |> Result.map (\alg -> PLL.solvedBy alg PLL.V)
+                    |> Expect.equal (Ok True)
         ]
 
 
