@@ -310,9 +310,9 @@ solvedByTests =
                         PLL.getAlgorithm PLL.referenceAlgorithms pll
 
                     withAUFsAndRotation =
-                        Algorithm.append (AUF.toAlgorithm preAUF) referenceAlgorithm
-                            |> Algorithm.reverseAppend (AUF.toAlgorithm postAUF)
-                            |> Algorithm.reverseAppend rotation
+                        Algorithm.append
+                            (AUF.addToAlgorithm ( preAUF, postAUF ) referenceAlgorithm)
+                            rotation
                 in
                 PLL.solvedBy
                     withAUFsAndRotation

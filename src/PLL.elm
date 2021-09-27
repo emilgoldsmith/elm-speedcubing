@@ -289,8 +289,10 @@ solvedBy algorithm pll =
     in
     List.Nonempty.any
         (\( preAUF, postAUF ) ->
-            Algorithm.append (AUF.toAlgorithm preAUF) algorithm
-                |> Algorithm.reverseAppend (AUF.toAlgorithmWithCustomTurnable aufTurnable postAUF)
+            (Algorithm.append (AUF.toAlgorithm preAUF) <|
+                Algorithm.append algorithm <|
+                    AUF.toAlgorithmWithCustomTurnable aufTurnable postAUF
+            )
                 |> Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation
                     (getAlgorithm referenceAlgorithms pll)
         )

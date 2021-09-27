@@ -272,6 +272,6 @@ algorithmToAuf algorithm =
 -}
 addToAlgorithm : ( AUF, AUF ) -> Algorithm -> Algorithm
 addToAlgorithm ( preAUF, postAUF ) algorithm =
-    algorithm
-        |> Algorithm.append (toAlgorithm preAUF)
-        |> Algorithm.reverseAppend (toAlgorithm postAUF)
+    Algorithm.append (toAlgorithm preAUF) <|
+        Algorithm.append algorithm <|
+            toAlgorithm postAUF
