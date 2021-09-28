@@ -2459,8 +2459,9 @@ algorithmResultsAreEquivalent a b =
 -}
 algorithmResultsAreEquivalentIndependentOfFinalRotation : Algorithm -> Algorithm -> Bool
 algorithmResultsAreEquivalentIndependentOfFinalRotation a b =
-    List.Nonempty.map (Algorithm.append a) Algorithm.allCubeAngles
-        |> List.Nonempty.any (algorithmResultsAreEquivalent b)
+    algorithmResultsAreEquivalent
+        (makeAlgorithmMaintainOrientation a)
+        (makeAlgorithmMaintainOrientation b)
 
 
 {-| See [Cube.makeAlgorithmMaintainOrientation](Cube#makeAlgorithmMaintainOrientation)
