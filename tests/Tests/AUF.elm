@@ -2,6 +2,7 @@ module Tests.AUF exposing (addToAlgorithmTests, aufFuzzer, fromStringTests, toSt
 
 import AUF exposing (AUF)
 import Algorithm
+import Cube
 import Expect
 import Fuzz
 import List.Nonempty
@@ -98,15 +99,30 @@ fromStringTests =
 addToAlgorithmTests : Test
 addToAlgorithmTests =
     describe "addToAlgorithm"
-        [ fuzz2 Tests.Algorithm.algorithmFuzzer (Fuzz.tuple ( aufFuzzer, aufFuzzer )) "adds the aufs on each side of the algorithm" <|
-            \algorithm (( preAUF, postAUF ) as aufs) ->
-                AUF.addToAlgorithm aufs algorithm
+        [ fuzz2 Tests.Algorithm.algorithmFuzzer (Fuzz.tuple ( aufFuzzer, aufFuzzer )) "adds the aufs on each side of the algorithm simply when algorithm maintains orientation" <|
+            \possiblyOrientingAlgorithm (( preAUF, postAUF ) as aufs) ->
+                let
+                    nonOrientingAlgorithm =
+                        Cube.makeAlgorithmMaintainOrientation possiblyOrientingAlgorithm
+                in
+                AUF.addToAlgorithm aufs nonOrientingAlgorithm
                     |> Expect.equal
                         ((Algorithm.toTurnList << AUF.toAlgorithm) preAUF
-                            ++ Algorithm.toTurnList algorithm
+                            ++ Algorithm.toTurnList nonOrientingAlgorithm
                             ++ (Algorithm.toTurnList << AUF.toAlgorithm) postAUF
                             |> Algorithm.fromTurnList
                         )
+        , fuzz2 Tests.Algorithm.algorithmFuzzer (Fuzz.tuple ( aufFuzzer, aufFuzzer )) "always adds AUFs to the original U face independent of final rotation" <|
+            \algorithm aufs ->
+                let
+                    expectedEquivalency =
+                        algorithm
+                            |> Cube.makeAlgorithmMaintainOrientation
+                            |> AUF.addToAlgorithm aufs
+                in
+                AUF.addToAlgorithm aufs algorithm
+                    |> Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation expectedEquivalency
+                    |> Expect.true "should be equivalent to an algorithm that maintained orientation"
         ]
 
 
