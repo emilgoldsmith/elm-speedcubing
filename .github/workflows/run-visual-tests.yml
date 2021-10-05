@@ -39,10 +39,10 @@ jobs:
         shell: bash
         run: |
           mkdir percy-snapshots &&
-          cd examples &&
-          for filename in src/*.elm; do
+          cd examples/src &&
+          for filename in *.elm; do
               elm make "$filename" &&
-              mv index.html ../percy-snapshots/"$filename".html
+              mv index.html ../../percy-snapshots/"$filename".html
           done
 
       ### This is the only place we run the untrusted code
