@@ -62,12 +62,15 @@ import Html.Attributes exposing (..)
 import Html.Events
 import Json.Decode
 import List.Nonempty
+import Math.Matrix4 as Mat4 exposing (Mat4)
+import Math.Vector3 as Vec3 exposing (Vec3)
 import Process
 import Svg exposing (line, path, svg)
 import Svg.Attributes exposing (d, fill, stroke, strokeWidth, viewBox, x1, x2, y1, y2)
 import Task
 import Utils.Enumerator
 import Utils.MappedPermutation as MappedPermutation exposing (MappedPermutation)
+import WebGL
 
 
 
@@ -1814,6 +1817,18 @@ type alias Size =
     Int
 
 
+type alias Vertex =
+    { color : Vec3
+    , position : Vec3
+    }
+
+
+type alias Uniforms =
+    { perspective : Mat4
+    , rotation : Mat4
+    }
+
+
 getCubeHtml :
     List (Attribute msg)
     ->
@@ -1826,48 +1841,294 @@ getCubeHtml :
     -> Cube
     -> Html msg
 getCubeHtml attributes { generateExtraCubieStyles, rotation, turnCurrentlyAnimating, annotateFaces, pixelSize } cube =
-    let
-        rendering =
-            render cube
-    in
-    div
-        ([ style "width" (px <| containerSideLength pixelSize)
-         , style "height" (px <| containerSideLength pixelSize)
-         , style "display" "flex"
-         , style "justify-content" "center"
-         , style "align-items" "center"
-         , style "perspective" "0"
-         ]
-            ++ attributes
-        )
-        [ div
-            [ style "width" (px <| wholeCubeSideLength pixelSize)
-            , style "height" (px <| wholeCubeSideLength pixelSize)
-            , style "position" "relative"
-            , style "transform-style" "preserve-3d"
-            , cssTransformCube rotation (wholeCubeSideLength pixelSize)
-            ]
-          <|
-            List.map
-                (\( cubieRendering, coordinates, extraCubieAnnotations ) ->
-                    displayCubie
-                        { generateExtraStyles = generateExtraCubieStyles
-                        , theme = defaultTheme
-                        , size = pixelSize
-                        , coordinates = coordinates
-                        , turnCurrentlyAnimating = turnCurrentlyAnimating
-                        , extraCubieAnnotations = extraCubieAnnotations
-                        }
-                        cubieRendering
-                )
-                (getRenderedCorners { annotateFaces = annotateFaces } rendering
-                    |> List.Nonempty.append
-                        (getRenderedEdges { annotateFaces = annotateFaces } rendering)
-                    |> List.Nonempty.append
-                        (getRenderedCenters { annotateFaces = annotateFaces } rendering)
-                    |> List.Nonempty.toList
-                )
+    WebGL.toHtml
+        [ width pixelSize
+        , height pixelSize
+        , style "display" "block"
+        , style "position" "absolute"
+        , style "left" "0"
+        , style "top" "0"
         ]
+        [ WebGL.entity
+            vertexShader
+            fragmentShader
+            cubeMesh
+            { perspective =
+                perspective (toFloat pixelSize) (toFloat pixelSize)
+            , rotation =
+                Mat4.identity
+                    |> Mat4.rotate 0 Vec3.j
+                    |> Mat4.rotate 0 Vec3.k
+            }
+        ]
+
+
+perspective : Float -> Float -> Mat4
+perspective width height =
+    let
+        eye =
+            Vec3.vec3 0.5 -0.5 1
+                |> Vec3.normalize
+                |> Vec3.scale 6
+    in
+    Mat4.mul
+        (Mat4.makePerspective 45 (width / height) 0.01 100)
+        (Mat4.makeLookAt eye (Vec3.vec3 0 0 0) Vec3.j)
+
+
+type alias CubiesPositions =
+    List ( Float, Float, Float )
+
+
+cubeMesh : WebGL.Mesh Vertex
+cubeMesh =
+    List.map2
+        (\col pos -> cubieMesh col pos)
+        cubiesColours
+        initialCubiesPositions
+        |> List.concat
+        |> WebGL.triangles
+
+
+cubieMesh : List Vec3 -> ( Float, Float, Float ) -> List ( Vertex, Vertex, Vertex )
+cubieMesh colours ( x, y, z ) =
+    let
+        w =
+            0.9
+
+        rft =
+            Vec3.vec3 (x + w / 2) (y + w / 2) (z + w / 2)
+
+        lft =
+            Vec3.vec3 (x - w / 2) (y + w / 2) (z + w / 2)
+
+        lbt =
+            Vec3.vec3 (x - w / 2) (y - w / 2) (z + w / 2)
+
+        rbt =
+            Vec3.vec3 (x + w / 2) (y - w / 2) (z + w / 2)
+
+        rbb =
+            Vec3.vec3 (x + w / 2) (y - w / 2) (z - w / 2)
+
+        rfb =
+            Vec3.vec3 (x + w / 2) (y + w / 2) (z - w / 2)
+
+        lfb =
+            Vec3.vec3 (x - w / 2) (y + w / 2) (z - w / 2)
+
+        lbb =
+            Vec3.vec3 (x - w / 2) (y - w / 2) (z - w / 2)
+    in
+    (case colours of
+        [ top, bottom, front, back, left, right ] ->
+            [ cubieFace top rft rfb rbb rbt
+            , cubieFace bottom rft rfb lfb lft
+            , cubieFace front rft lft lbt rbt
+            , cubieFace back rfb lfb lbb rbb
+            , cubieFace left lft lfb lbb lbt
+            , cubieFace right rbt rbb lbb lbt
+            ]
+
+        _ ->
+            [ cubieFace green rft rfb rbb rbt
+            , cubieFace blue rft rfb lfb lft
+            , cubieFace yellow rft lft lbt rbt
+            , cubieFace red rfb lfb lbb rbb
+            , cubieFace white lft lfb lbb lbt
+            , cubieFace orange rbt rbb lbb lbt
+            ]
+    )
+        |> List.concat
+
+
+cubieFace : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Vertex, Vertex, Vertex )
+cubieFace color a b c d =
+    let
+        vertex position =
+            Vertex (Vec3.scale (1 / 255) color) position
+    in
+    [ ( vertex a, vertex b, vertex c )
+    , ( vertex c, vertex d, vertex a )
+    ]
+
+
+vertexShader : WebGL.Shader Vertex Uniforms { vcolor : Vec3 }
+vertexShader =
+    [glsl|
+        attribute vec3 position;
+        attribute vec3 color;
+        uniform mat4 rotation;
+        uniform mat4 perspective;
+        varying vec3 vcolor;
+        void main () {
+            gl_Position = perspective * rotation * vec4(position, 1.0);
+            vcolor = color;
+        }
+    |]
+
+
+fragmentShader : WebGL.Shader {} Uniforms { vcolor : Vec3 }
+fragmentShader =
+    [glsl|
+        precision mediump float;
+        varying vec3 vcolor;
+        void main () {
+            gl_FragColor = vec4(vcolor, 1.0);
+        }
+    |]
+
+
+
+-- Mesh
+
+
+white : Vec3
+white =
+    Vec3.vec3 200 200 200
+
+
+red : Vec3
+red =
+    Vec3.vec3 255 0 0
+
+
+blue : Vec3
+blue =
+    Vec3.vec3 0 0 255
+
+
+orange : Vec3
+orange =
+    Vec3.vec3 245 121 0
+
+
+green : Vec3
+green =
+    Vec3.vec3 0 255 0
+
+
+yellow : Vec3
+yellow =
+    Vec3.vec3 237 212 0
+
+
+black : Vec3
+black =
+    Vec3.vec3 0 0 0
+
+
+cubiesColours : List (List Vec3)
+cubiesColours =
+    [ [ black, black, black, blue, red, white ]
+    , [ black, black, black, black, red, white ]
+    , [ black, black, green, black, red, white ]
+    , [ black, black, black, blue, red, black ]
+    , [ black, black, black, black, red, black ]
+    , [ black, black, green, black, red, black ]
+    , [ black, yellow, black, blue, red, black ]
+    , [ black, yellow, black, black, red, black ]
+    , [ black, yellow, green, black, red, black ]
+    , [ black, black, black, blue, black, white ]
+    , [ black, black, black, black, black, white ]
+    , [ black, black, green, black, black, white ]
+    , [ black, black, black, blue, black, black ]
+    , [ black, black, black, black, black, black ]
+    , [ black, black, green, black, black, black ]
+    , [ black, yellow, black, blue, black, black ]
+    , [ black, yellow, black, black, black, black ]
+    , [ black, yellow, green, black, black, black ]
+    , [ orange, black, black, blue, black, white ]
+    , [ orange, black, black, black, black, white ]
+    , [ orange, black, green, black, black, white ]
+    , [ orange, black, black, blue, black, black ]
+    , [ orange, black, black, black, black, black ]
+    , [ orange, black, green, black, black, black ]
+    , [ orange, yellow, black, blue, black, black ]
+    , [ orange, yellow, black, black, black, black ]
+    , [ orange, yellow, green, black, black, black ]
+    ]
+
+
+
+-- The position in space of each cubie
+
+
+initialCubiesPositions : CubiesPositions
+initialCubiesPositions =
+    [ ( -1, -1, -1 ) -- 0
+    , ( -1, -1, 0 ) -- 1
+    , ( -1, -1, 1 ) -- 2
+    , ( -1, 0, -1 ) -- 3
+    , ( -1, 0, 0 ) -- 4
+    , ( -1, 0, 1 ) -- 5
+    , ( -1, 1, -1 ) -- 6
+    , ( -1, 1, 0 ) -- 7
+    , ( -1, 1, 1 ) -- 8
+    , ( 0, -1, -1 ) -- 9
+    , ( 0, -1, 0 ) -- 10
+    , ( 0, -1, 1 ) -- 11
+    , ( 0, 0, -1 ) -- 12
+    , ( 0, 0, 0 ) -- 13
+    , ( 0, 0, 1 ) -- 14
+    , ( 0, 1, -1 ) -- 15
+    , ( 0, 1, 0 ) -- 16
+    , ( 0, 1, 1 ) -- 17
+    , ( 1, -1, -1 ) -- 18
+    , ( 1, -1, 0 ) -- 19
+    , ( 1, -1, 1 ) -- 20
+    , ( 1, 0, -1 ) -- 21
+    , ( 1, 0, 0 ) -- 22
+    , ( 1, 0, 1 ) -- 23
+    , ( 1, 1, -1 ) -- 24
+    , ( 1, 1, 0 ) -- 25
+    , ( 1, 1, 1 ) -- 26
+    ]
+
+
+
+-- let
+--     rendering =
+--         render cube
+-- in
+-- div
+--     ([ style "width" (px <| containerSideLength pixelSize)
+--      , style "height" (px <| containerSideLength pixelSize)
+--      , style "display" "flex"
+--      , style "justify-content" "center"
+--      , style "align-items" "center"
+--      , style "perspective" "0"
+--      ]
+--         ++ attributes
+--     )
+--     [ div
+--         [ style "width" (px <| wholeCubeSideLength pixelSize)
+--         , style "height" (px <| wholeCubeSideLength pixelSize)
+--         , style "position" "relative"
+--         , style "transform-style" "preserve-3d"
+--         , cssTransformCube rotation (wholeCubeSideLength pixelSize)
+--         ]
+--       <|
+--         List.map
+--             (\( cubieRendering, coordinates, extraCubieAnnotations ) ->
+--                 displayCubie
+--                     { generateExtraStyles = generateExtraCubieStyles
+--                     , theme = defaultTheme
+--                     , size = pixelSize
+--                     , coordinates = coordinates
+--                     , turnCurrentlyAnimating = turnCurrentlyAnimating
+--                     , extraCubieAnnotations = extraCubieAnnotations
+--                     }
+--                     cubieRendering
+--             )
+--             (getRenderedCorners { annotateFaces = annotateFaces } rendering
+--                 |> List.Nonempty.append
+--                     (getRenderedEdges { annotateFaces = annotateFaces } rendering)
+--                 |> List.Nonempty.append
+--                     (getRenderedCenters { annotateFaces = annotateFaces } rendering)
+--                 |> List.Nonempty.toList
+--             )
+--     ]
 
 
 type alias CubieExtraStyleGenerator msg =
