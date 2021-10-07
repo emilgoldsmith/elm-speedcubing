@@ -1891,34 +1891,34 @@ cubeMesh =
 
 
 cubieMesh : List Vec3 -> ( Float, Float, Float ) -> List ( Vertex, Vertex, Vertex )
-cubieMesh colours ( x, y, z ) =
+cubieMesh colours center =
     let
-        w =
-            0.9
+        width =
+            0.97
 
         rft =
-            Vec3.vec3 (x + w / 2) (y + w / 2) (z + w / 2)
+            buildCubieCorner "rft" { center = center, width = width }
 
         lft =
-            Vec3.vec3 (x - w / 2) (y + w / 2) (z + w / 2)
+            buildCubieCorner "lft" { center = center, width = width }
 
         lbt =
-            Vec3.vec3 (x - w / 2) (y - w / 2) (z + w / 2)
+            buildCubieCorner "lbt" { center = center, width = width }
 
         rbt =
-            Vec3.vec3 (x + w / 2) (y - w / 2) (z + w / 2)
+            buildCubieCorner "rbt" { center = center, width = width }
 
         rbb =
-            Vec3.vec3 (x + w / 2) (y - w / 2) (z - w / 2)
+            buildCubieCorner "rbb" { center = center, width = width }
 
         rfb =
-            Vec3.vec3 (x + w / 2) (y + w / 2) (z - w / 2)
+            buildCubieCorner "rfb" { center = center, width = width }
 
         lfb =
-            Vec3.vec3 (x - w / 2) (y + w / 2) (z - w / 2)
+            buildCubieCorner "lfb" { center = center, width = width }
 
         lbb =
-            Vec3.vec3 (x - w / 2) (y - w / 2) (z - w / 2)
+            buildCubieCorner "lbb" { center = center, width = width }
     in
     (case colours of
         [ top, bottom, front, back, left, right ] ->
@@ -1940,6 +1940,58 @@ cubieMesh colours ( x, y, z ) =
             ]
     )
         |> List.concat
+
+
+{-| The string must be three characters long with
+the first character being r or l for right or left,
+the second one f or b for front or back and the last
+one t or b for top or bottom
+-}
+buildCubieCorner : String -> { center : ( Float, Float, Float ), width : Float } -> Vec3
+buildCubieCorner cornerType { center, width } =
+    case (String.toLower >> String.toList) cornerType of
+        [ rOrL, fOrB, tOrB ] ->
+            let
+                ( centerX, centerY, centerZ ) =
+                    center
+
+                x =
+                    case rOrL of
+                        'r' ->
+                            centerX + width / 2
+
+                        'l' ->
+                            centerX - width / 2
+
+                        _ ->
+                            0
+
+                y =
+                    case fOrB of
+                        'f' ->
+                            centerY + width / 2
+
+                        'b' ->
+                            centerY - width / 2
+
+                        _ ->
+                            0
+
+                z =
+                    case tOrB of
+                        't' ->
+                            centerZ + width / 2
+
+                        'b' ->
+                            centerZ - width / 2
+
+                        _ ->
+                            0
+            in
+            Vec3.vec3 x y z
+
+        _ ->
+            Vec3.vec3 0 0 0
 
 
 cubieFace : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Vertex, Vertex, Vertex )
