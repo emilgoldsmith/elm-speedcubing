@@ -1854,7 +1854,7 @@ getCubeHtml attributes { generateExtraCubieStyles, rotation, turnCurrentlyAnimat
             fragmentShader
             cubeMesh
             { perspective =
-                perspective (toFloat pixelSize) (toFloat pixelSize)
+                perspective (toFloat pixelSize)
             , rotation =
                 Mat4.identity
                     |> Mat4.rotate 0 Vec3.j
@@ -1863,16 +1863,16 @@ getCubeHtml attributes { generateExtraCubieStyles, rotation, turnCurrentlyAnimat
         ]
 
 
-perspective : Float -> Float -> Mat4
-perspective width height =
+perspective : Float -> Mat4
+perspective sidelength =
     let
         eye =
-            Vec3.vec3 0.5 -0.5 1
+            Vec3.vec3 0.55 0.5 1
                 |> Vec3.normalize
                 |> Vec3.scale 6
     in
     Mat4.mul
-        (Mat4.makePerspective 45 (width / height) 0.01 100)
+        (Mat4.makePerspective 45 (sidelength / sidelength) 0.01 sidelength)
         (Mat4.makeLookAt eye (Vec3.vec3 0 0 0) Vec3.j)
 
 
@@ -2014,7 +2014,7 @@ vertexShader =
         uniform mat4 perspective;
         varying vec3 vcolor;
         void main () {
-            gl_Position = perspective * rotation * vec4(position, 1.0);
+            gl_Position = perspective * rotation * vec4(position, 1.0) + vec4(0.2, 0.5, 0, 0);
             vcolor = color;
         }
     |]
