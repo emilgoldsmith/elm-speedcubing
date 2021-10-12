@@ -1842,19 +1842,18 @@ getCubeHtml :
     -> Html msg
 getCubeHtml attributes { generateExtraCubieStyles, rotation, turnCurrentlyAnimating, annotateFaces, pixelSize } cube =
     WebGL.toHtml
-        [ width pixelSize
-        , height pixelSize
+        [ width (pixelSize * 2)
+        , height (pixelSize * 2)
+        , style "width" (String.fromInt pixelSize ++ "px")
+        , style "height" (String.fromInt pixelSize ++ "px")
         , style "display" "block"
-        , style "position" "absolute"
-        , style "left" "0"
-        , style "top" "0"
         ]
         [ WebGL.entity
             vertexShader
             fragmentShader
             cubeMesh
             { perspective =
-                perspective (toFloat pixelSize)
+                perspective
             , rotation =
                 Mat4.identity
                     |> Mat4.rotate 0 Vec3.j
@@ -1863,17 +1862,21 @@ getCubeHtml attributes { generateExtraCubieStyles, rotation, turnCurrentlyAnimat
         ]
 
 
-perspective : Float -> Mat4
-perspective sidelength =
+perspective : Mat4
+perspective =
     let
+        viewportTranslation =
+            Vec3.vec3 -0.2 -0.3 0
+
         eye =
-            Vec3.vec3 0.55 0.5 1
+            Vec3.vec3 0.6 0.6 1
                 |> Vec3.normalize
-                |> Vec3.scale 6
+                |> Vec3.scale 10.5
+                |> Vec3.add viewportTranslation
     in
     Mat4.mul
-        (Mat4.makePerspective 45 (sidelength / sidelength) 0.01 sidelength)
-        (Mat4.makeLookAt eye (Vec3.vec3 0 0 0) Vec3.j)
+        (Mat4.makePerspective 25 1 0.01 150)
+        (Mat4.makeLookAt eye viewportTranslation Vec3.j)
 
 
 type alias CubiesPositions =
@@ -2014,7 +2017,7 @@ vertexShader =
         uniform mat4 perspective;
         varying vec3 vcolor;
         void main () {
-            gl_Position = perspective * rotation * vec4(position, 1.0) + vec4(0.2, 0.5, 0, 0);
+            gl_Position = perspective * rotation * vec4(position, 1.0);
             vcolor = color;
         }
     |]
