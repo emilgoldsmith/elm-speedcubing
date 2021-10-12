@@ -1706,14 +1706,12 @@ view :
     -> Html msg
 view =
     viewHelper
-        { generateExtraCubieStyles = \_ _ _ -> []
-        , turnCurrentlyAnimating = Nothing
+        { turnCurrentlyAnimating = Nothing
         }
 
 
 viewHelper :
-    { generateExtraCubieStyles : CubieExtraStyleGenerator msg
-    , turnCurrentlyAnimating : Maybe Algorithm.Turn
+    { turnCurrentlyAnimating : Maybe Algorithm.Turn
     }
     -> List (Attribute msg)
     ->
@@ -1724,19 +1722,18 @@ viewHelper :
         }
     -> Cube
     -> Html msg
-viewHelper { generateExtraCubieStyles, turnCurrentlyAnimating } attributes { pixelSize, displayAngle, annotateFaces } cube =
+viewHelper { turnCurrentlyAnimating } attributes { pixelSize, displayAngle, annotateFaces } cube =
     let
         rotation =
             case displayAngle of
                 UFRDisplayAngle ->
-                    ufrRotation
+                    []
 
                 UBLDisplayAngle ->
-                    YRotateDegrees 180 :: ufrRotation
+                    [ YRotateDegrees 180 ]
     in
     getCubeHtml attributes
-        { generateExtraCubieStyles = generateExtraCubieStyles
-        , rotation = rotation
+        { rotation = rotation
         , turnCurrentlyAnimating = turnCurrentlyAnimating
         , pixelSize = pixelSize
         , annotateFaces = annotateFaces
@@ -1746,11 +1743,6 @@ viewHelper { generateExtraCubieStyles, turnCurrentlyAnimating } attributes { pix
 
 
 -- PARAMETERS
-
-
-ufrRotation : Transformation
-ufrRotation =
-    [ ZRotateDegrees 5, XRotateDegrees -15, YRotateDegrees -20 ]
 
 
 type alias CubeTheme =
@@ -1826,21 +1818,21 @@ type alias Vertex =
 type alias Uniforms =
     { perspective : Mat4
     , rotation : Mat4
+    , test : { a : Int, b : { a : Int } }
     }
 
 
 getCubeHtml :
     List (Attribute msg)
     ->
-        { generateExtraCubieStyles : CubieExtraStyleGenerator msg
-        , rotation : Transformation
+        { rotation : Rotation
         , turnCurrentlyAnimating : Maybe Algorithm.Turn
         , pixelSize : Size
         , annotateFaces : Bool
         }
     -> Cube
     -> Html msg
-getCubeHtml attributes { generateExtraCubieStyles, rotation, turnCurrentlyAnimating, annotateFaces, pixelSize } cube =
+getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelSize } cube =
     WebGL.toHtml
         [ width (pixelSize * 2)
         , height (pixelSize * 2)
@@ -1855,11 +1847,28 @@ getCubeHtml attributes { generateExtraCubieStyles, rotation, turnCurrentlyAnimat
             { perspective =
                 perspective
             , rotation =
-                Mat4.identity
-                    |> Mat4.rotate 0 Vec3.j
-                    |> Mat4.rotate 0 Vec3.k
+                rotationToWebgl rotation
+            , test = { a = 3, b = { a = 4 } }
             }
         ]
+
+
+rotationToWebgl : Rotation -> Mat4
+rotationToWebgl rotation =
+    List.foldl
+        (\singleTransform currentMatrix ->
+            case singleTransform of
+                XRotateDegrees deg ->
+                    Mat4.rotate (degrees deg) Vec3.i currentMatrix
+
+                YRotateDegrees deg ->
+                    Mat4.rotate (degrees deg) Vec3.j currentMatrix
+
+                ZRotateDegrees deg ->
+                    Mat4.rotate (degrees deg) Vec3.k currentMatrix
+        )
+        Mat4.identity
+        rotation
 
 
 perspective : Mat4
@@ -2184,88 +2193,6 @@ initialCubiesPositions =
 --                 |> List.Nonempty.toList
 --             )
 --     ]
-
-
-type alias CubieExtraStyleGenerator msg =
-    Size -> Coordinates -> Maybe Algorithm.Turn -> List (Attribute msg)
-
-
-displayCubie :
-    { generateExtraStyles : CubieExtraStyleGenerator msg
-    , turnCurrentlyAnimating : Maybe Algorithm.Turn
-    , size : Size
-    , theme : CubeTheme
-    , extraCubieAnnotations : ExtraCubieAnnotations msg
-    , coordinates : Coordinates
-    }
-    -> CubieRendering
-    -> Html msg
-displayCubie { generateExtraStyles, theme, size, coordinates, turnCurrentlyAnimating, extraCubieAnnotations } rendering =
-    let
-        { fromTop, fromFront, fromLeft } =
-            coordinates
-    in
-    div
-        (style "transform-style" "preserve-3d"
-            :: generateExtraStyles
-                size
-                coordinates
-                turnCurrentlyAnimating
-        )
-        [ div
-            [ style "position" "absolute"
-            , style "width" (px <| cubieSideLength size)
-            , style "height" (px <| cubieSideLength size)
-            , style "transform-style" "preserve-3d"
-            , style "display" "inline-block"
-
-            -- Position the cubie correctly
-            , style "top" (px <| cubieSideLength size * fromTop)
-            , style "left" (px <| cubieSideLength size * fromLeft)
-            , cssTransformCube [ ZTranslatePixels <| cubieSideLength size * fromFront * -1 ] (cubieSideLength size)
-            ]
-            (faces
-                |> List.Nonempty.map
-                    (\face ->
-                        displayCubieFace
-                            theme
-                            size
-                            face
-                            (getFaceAnnotation extraCubieAnnotations face)
-                            rendering
-                    )
-                |> List.Nonempty.toList
-            )
-        ]
-
-
-displayCubieFace : CubeTheme -> Size -> Face -> Maybe (Size -> Html msg) -> CubieRendering -> Html msg
-displayCubieFace theme size face textOnFace rendering =
-    div
-        [ cssTransformCube [ getFaceRotation face ] (cubieSideLength size)
-        , style "background-color" <| getColorString theme (getFaceColor face rendering)
-        , style "position" "absolute"
-        , style "top" "0"
-        , style "left" "0"
-        , style "width" (px <| cubieSideLength size)
-        , style "height" (px <| cubieSideLength size)
-        , style "display" "flex"
-        , style "justify-content" "center"
-        , style "align-items" "center"
-        , style "border" (theme.plastic ++ " solid " ++ px (cubieBorderWidth size))
-        , style "box-sizing" "border-box"
-        ]
-    <|
-        (textOnFace
-            |> Maybe.map
-                (\actualTextOnFace ->
-                    [ actualTextOnFace (cubieSideLength size * 63 // 100) ]
-                )
-            |> Maybe.withDefault []
-        )
-
-
-
 -- LOGIC AND MAPPINGS
 
 
@@ -2296,7 +2223,7 @@ getFaceAnnotation annotations face =
             annotations.r
 
 
-getFaceRotation : Face -> SingleTransformation
+getFaceRotation : Face -> SingleRotation
 getFaceRotation face =
     case face of
         UpOrDown U ->
@@ -2376,84 +2303,16 @@ type alias Coordinates =
     }
 
 
-type SingleTransformation
-    = XRotateDegrees Int
-    | YRotateDegrees Int
-    | ZRotateDegrees Int
-    | ZTranslatePixels Int
+type SingleRotation
+    = XRotateDegrees Float
+    | YRotateDegrees Float
+    | ZRotateDegrees Float
 
 
-isRotation : SingleTransformation -> Bool
-isRotation t =
-    case t of
-        XRotateDegrees _ ->
-            True
-
-        YRotateDegrees _ ->
-            True
-
-        ZRotateDegrees _ ->
-            True
-
-        ZTranslatePixels _ ->
-            False
-
-
-cssTransformCube : Transformation -> Size -> Attribute msg
-cssTransformCube transformation size =
-    let
-        hasRotations =
-            List.filter isRotation transformation
-                |> List.length
-                |> (\x -> x > 0)
-
-        threeDCompatibleTransformation =
-            if hasRotations then
-                -- We need this translate as the default center of rotations is at the
-                -- "front" of the screen and we need it at the center of the cube.
-                -- Note that we can't use transform-origin as it has inconsistent behaviour
-                -- in Safari and other browsers
-                ZTranslatePixels (size // 2)
-                    :: transformation
-                    ++ [ ZTranslatePixels (-1 * size // 2) ]
-
-            else
-                -- If there aren't any rotations we don't need to move for correct origin
-                transformation
-    in
-    style "transform"
-        (threeDCompatibleTransformation
-            -- We reverse it as our type reads left to right but
-            -- css transform reads right to left
-            |> List.reverse
-            |> List.map toCssRotationString
-            |> String.join " "
-        )
-
-
-toCssRotationString : SingleTransformation -> String
-toCssRotationString axisRotation =
-    case axisRotation of
-        XRotateDegrees deg ->
-            "rotateX(" ++ String.fromInt deg ++ "deg)"
-
-        YRotateDegrees deg ->
-            "rotateY(" ++ String.fromInt deg ++ "deg)"
-
-        ZRotateDegrees deg ->
-            "rotateZ(" ++ String.fromInt deg ++ "deg)"
-
-        ZTranslatePixels pixels ->
-            "translateZ(" ++ String.fromInt pixels ++ "px)"
-
-
-{-| 3D transformation, note that order a difference when it comes to rotations.
-The transforms are applied from left to right (note this is opposite to the css transform
-property which applies transforms from right to left, but we do left to right for easier
-readability here)
+{-| 3D Rotation. Note rotations are applied from left to right
 -}
-type alias Transformation =
-    List SingleTransformation
+type alias Rotation =
+    List SingleRotation
 
 
 getRenderedCorners : { annotateFaces : Bool } -> Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
@@ -2977,8 +2836,7 @@ viewAnimatable attributes ({ animationState, toMsg } as arguments) cube =
             applyAlgorithm animationStateInternal.alreadyApplied cube
     in
     viewHelper
-        { generateExtraCubieStyles = wrappedAnimationStyle
-        , turnCurrentlyAnimating = currentTurnAnimating animationState
+        { turnCurrentlyAnimating = currentTurnAnimating animationState
         }
         (List.map (Html.Attributes.map UserMsg) attributes)
         arguments
