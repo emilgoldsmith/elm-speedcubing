@@ -63,6 +63,7 @@ import Html.Events
 import Json.Decode
 import List.Nonempty
 import Math.Matrix4 as Mat4 exposing (Mat4)
+import Math.Vector2 as Vec2 exposing (Vec2)
 import Math.Vector3 as Vec3 exposing (Vec3)
 import Process
 import Svg exposing (line, path, svg)
@@ -1818,7 +1819,6 @@ type alias Vertex =
 type alias Uniforms =
     { perspective : Mat4
     , rotation : Mat4
-    , test : { a : Int, b : { a : Int } }
     }
 
 
@@ -1843,12 +1843,20 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
         [ WebGL.entity
             vertexShader
             fragmentShader
-            cubeMesh
+            meshF
             { perspective =
                 perspective
             , rotation =
                 rotationToWebgl rotation
-            , test = { a = 3, b = { a = 4 } }
+            }
+        , WebGL.entity
+            vertexShader
+            fragmentShader
+            meshF
+            { perspective =
+                perspective
+            , rotation =
+                rotationToWebgl rotation
             }
         ]
 
@@ -2542,6 +2550,68 @@ svgF size =
         , line [ x1 "0", y1 "12.5", x2 "150", y2 "12.5", stroke "black", strokeWidth "25" ] []
         , line [ x1 "0", y1 "112.5", x2 "130", y2 "112.5", stroke "black", strokeWidth "25" ] []
         ]
+
+
+meshF : WebGL.Mesh Vertex
+meshF =
+    WebGL.triangles
+        (triangleLine { from = Vec2.vec2 0 0, to = Vec2.vec2 1 1, zCoordinate = 0, width = 0.02, color = black })
+
+
+triangleLine : { from : Vec2, to : Vec2, zCoordinate : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex )
+triangleLine { from, to, width, color, zCoordinate } =
+    let
+        diff =
+            Vec2.direction from to
+
+        normal =
+            Vec2.vec2 -(Vec2.getY diff) (Vec2.getX diff)
+
+        halfWidthLengthNormal =
+            Vec2.scale (width / 2) normal
+
+        dotProduct1 =
+            Debug.log "1. should be 0" Vec2.dot normal diff
+
+        dotProduct2 =
+            Debug.log "2. should be 0" Vec2.dot halfWidthLengthNormal diff
+
+        a =
+            Vec2.add from halfWidthLengthNormal
+
+        b =
+            Vec2.add a diff
+
+        c =
+            Vec2.sub b (Vec2.scale 2 halfWidthLengthNormal)
+
+        d =
+            Vec2.sub c diff
+    in
+    [ ( a, b, c ), ( c, a, d ) ]
+        |> twoDTrianglesToColored3d { zCoordinate = zCoordinate, color = color }
+
+
+twoDTrianglesToColored3d : { zCoordinate : Float, color : Vec3 } -> List ( Vec2, Vec2, Vec2 ) -> List ( Vertex, Vertex, Vertex )
+twoDTrianglesToColored3d { zCoordinate, color } triangles =
+    triangles
+        |> List.map (mapTriple <| twoDTo3d zCoordinate)
+        |> List.map (mapTriple <| positionToVertex { color = color })
+
+
+twoDTo3d : Float -> Vec2 -> Vec3
+twoDTo3d zCoordinate xy =
+    Vec3.vec3 (Vec2.getX xy) (Vec2.getY xy) zCoordinate
+
+
+positionToVertex : { color : Vec3 } -> Vec3 -> Vertex
+positionToVertex { color } position =
+    { position = position, color = color }
+
+
+mapTriple : (a -> b) -> ( a, a, a ) -> ( b, b, b )
+mapTriple fn ( x, y, z ) =
+    ( fn x, fn y, fn z )
 
 
 svgL : String -> Html msg
