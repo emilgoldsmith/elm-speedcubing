@@ -1843,21 +1843,22 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
         [ WebGL.entity
             vertexShader
             fragmentShader
-            meshF
+            (meshF { height = 1 })
             { perspective =
                 perspective
             , rotation =
                 rotationToWebgl rotation
             }
-        , WebGL.entity
-            vertexShader
-            fragmentShader
-            meshF
-            { perspective =
-                perspective
-            , rotation =
-                rotationToWebgl rotation
-            }
+
+        -- , WebGL.entity
+        --     vertexShader
+        --     fragmentShader
+        --     (meshF { height = 1 })
+        --     { perspective =
+        --         perspective
+        --     , rotation =
+        --         rotationToWebgl rotation
+        --     }
         ]
 
 
@@ -2552,29 +2553,35 @@ svgF size =
         ]
 
 
-meshF : WebGL.Mesh Vertex
-meshF =
-    WebGL.triangles
-        (triangleLine { from = Vec2.vec2 0 0, to = Vec2.vec2 1 1, zCoordinate = 0, width = 0.02, color = black })
+meshF : { height : Float } -> WebGL.Mesh Vertex
+meshF { height } =
+    -- Bounding box pre-scaling is 150 (width) x 225 (height)
+    [ triangleLine { from = Vec2.vec2 15 0, to = Vec2.vec2 15 225, zCoordinate = 0, width = 30, color = black }
+    , triangleLine { from = Vec2.vec2 0 12.5, to = Vec2.vec2 150 12.5, zCoordinate = 0, width = 25, color = black }
+    , triangleLine { from = Vec2.vec2 0 112.5, to = Vec2.vec2 130 112.5, zCoordinate = 0, width = 25, color = black }
+    ]
+        |> List.concat
+        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| height / 225)
+        |> WebGL.triangles
+
+
+mapPosition : (Vec3 -> Vec3) -> Vertex -> Vertex
+mapPosition fn original =
+    { original | position = fn original.position }
 
 
 triangleLine : { from : Vec2, to : Vec2, zCoordinate : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex )
 triangleLine { from, to, width, color, zCoordinate } =
     let
         diff =
-            Vec2.direction from to
+            Vec2.sub to from
 
         normal =
             Vec2.vec2 -(Vec2.getY diff) (Vec2.getX diff)
+                |> Vec2.normalize
 
         halfWidthLengthNormal =
             Vec2.scale (width / 2) normal
-
-        dotProduct1 =
-            Debug.log "1. should be 0" Vec2.dot normal diff
-
-        dotProduct2 =
-            Debug.log "2. should be 0" Vec2.dot halfWidthLengthNormal diff
 
         a =
             Vec2.add from halfWidthLengthNormal
