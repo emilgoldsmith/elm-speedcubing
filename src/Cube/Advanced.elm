@@ -1813,6 +1813,7 @@ type alias Size =
 type alias Vertex =
     { color : Vec3
     , position : Vec3
+    , transformation : Mat4
     }
 
 
@@ -1843,22 +1844,21 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
         [ WebGL.entity
             vertexShader
             fragmentShader
-            (meshF { height = 1 })
+            cubeMesh
             { perspective =
                 perspective
             , rotation =
                 rotationToWebgl rotation
             }
-
-        -- , WebGL.entity
-        --     vertexShader
-        --     fragmentShader
-        --     (meshF { height = 1 })
-        --     { perspective =
-        --         perspective
-        --     , rotation =
-        --         rotationToWebgl rotation
-        --     }
+        , WebGL.entity
+            vertexShader
+            fragmentShader
+            (meshF { height = 0.6, centerPosition = Vec3.vec3 0 0 1.5 })
+            { perspective =
+                perspective
+            , rotation =
+                rotationToWebgl rotation
+            }
         ]
 
 
@@ -2019,11 +2019,20 @@ cubieFace : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Vertex, Vertex, Verte
 cubieFace color a b c d =
     let
         vertex position =
-            Vertex (Vec3.scale (1 / 255) color) position
+            { color = Vec3.scale (1 / 255) color, position = position }
     in
     [ ( vertex a, vertex b, vertex c )
     , ( vertex c, vertex d, vertex a )
     ]
+        |> List.map (mapTriple noTransformationVertex)
+
+
+noTransformationVertex : { color : Vec3, position : Vec3 } -> Vertex
+noTransformationVertex { color, position } =
+    { color = color
+    , position = position
+    , transformation = Mat4.identity
+    }
 
 
 vertexShader : WebGL.Shader Vertex Uniforms { vcolor : Vec3 }
@@ -2031,11 +2040,12 @@ vertexShader =
     [glsl|
         attribute vec3 position;
         attribute vec3 color;
+        attribute mat4 transformation;
         uniform mat4 rotation;
         uniform mat4 perspective;
         varying vec3 vcolor;
         void main () {
-            gl_Position = perspective * rotation * vec4(position, 1.0);
+            gl_Position = perspective * transformation * rotation * vec4(position, 1.0);
             vcolor = color;
         }
     |]
@@ -2553,16 +2563,46 @@ svgF size =
         ]
 
 
-meshF : { height : Float } -> WebGL.Mesh Vertex
-meshF { height } =
-    -- Bounding box pre-scaling is 150 (width) x 225 (height)
-    [ triangleLine { from = Vec2.vec2 15 0, to = Vec2.vec2 15 225, zCoordinate = 0, width = 30, color = black }
-    , triangleLine { from = Vec2.vec2 0 12.5, to = Vec2.vec2 150 12.5, zCoordinate = 0, width = 25, color = black }
-    , triangleLine { from = Vec2.vec2 0 112.5, to = Vec2.vec2 130 112.5, zCoordinate = 0, width = 25, color = black }
+meshF : { height : Float, centerPosition : Vec3 } -> WebGL.Mesh Vertex
+meshF { height, centerPosition } =
+    let
+        -- Bounding box pre-scaling is 150 (width) x 225 (height)
+        boundingWidth =
+            150
+
+        boundingHeight =
+            225
+
+        width =
+            height * boundingWidth / boundingHeight
+
+        stemWidth =
+            30
+
+        branchesWidth =
+            25
+    in
+    [ triangleLine { from = Vec2.vec2 (stemWidth / 2) 0, to = Vec2.vec2 (stemWidth / 2) boundingHeight, zCoordinate = 0, width = stemWidth, color = black }
+    , triangleLine { from = Vec2.vec2 0 (branchesWidth / 2), to = Vec2.vec2 boundingWidth (branchesWidth / 2), zCoordinate = 0, width = branchesWidth, color = black }
+    , triangleLine { from = Vec2.vec2 0 (boundingHeight / 2), to = Vec2.vec2 (boundingWidth * 13 / 15) (boundingHeight / 2), zCoordinate = 0, width = 25, color = black }
     ]
         |> List.concat
-        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| height / 225)
+        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| height / boundingHeight)
+        |> List.map
+            (mapTriple <|
+                setTransformation
+                    (Mat4.identity
+                        |> Mat4.translate centerPosition
+                        |> Mat4.rotate (degrees 180) Vec3.k
+                        |> Mat4.translate3 -(width / 2) -(height / 2) 0
+                    )
+            )
         |> WebGL.triangles
+
+
+setTransformation : Mat4 -> Vertex -> Vertex
+setTransformation newTransformation oldVertex =
+    { oldVertex | transformation = newTransformation }
 
 
 mapPosition : (Vec3 -> Vec3) -> Vertex -> Vertex
@@ -2613,7 +2653,7 @@ twoDTo3d zCoordinate xy =
 
 positionToVertex : { color : Vec3 } -> Vec3 -> Vertex
 positionToVertex { color } position =
-    { position = position, color = color }
+    { position = position, color = color, transformation = Mat4.identity }
 
 
 mapTriple : (a -> b) -> ( a, a, a ) -> ( b, b, b )
