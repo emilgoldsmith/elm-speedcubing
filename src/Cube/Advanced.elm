@@ -1859,6 +1859,15 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
             , rotation =
                 rotationToWebgl rotation
             }
+        , WebGL.entity
+            vertexShader
+            fragmentShader
+            (meshL { height = 0.6, centerPosition = Vec3.vec3 -1.5 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j })
+            { perspective =
+                perspective
+            , rotation =
+                rotationToWebgl rotation
+            }
         ]
 
 
@@ -2684,6 +2693,54 @@ svgL size =
         [ line [ x1 "0", y1 "0", x2 "0", y2 "225", stroke "black", strokeWidth "30" ] []
         , line [ x1 "0", y1 "212.5", x2 "150", y2 "212.5", stroke "black", strokeWidth "25" ] []
         ]
+
+
+meshL : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
+meshL { height, centerPosition, rotate } =
+    let
+        -- Bounding box pre-scaling is 150 (width) x 225 (height)
+        boundingWidth =
+            150
+
+        boundingHeight =
+            225
+
+        width =
+            height * boundingWidth / boundingHeight
+
+        stemWidth =
+            30
+
+        branchesWidth =
+            25
+    in
+    [ triangleLine
+        { from = Vec2.vec2 (stemWidth / 2) 0
+        , to = Vec2.vec2 (stemWidth / 2) boundingHeight
+        , zCoordinate = 0
+        , width = stemWidth
+        , color = black
+        }
+    , triangleLine
+        { from = Vec2.vec2 0 (branchesWidth / 2)
+        , to = Vec2.vec2 boundingWidth (branchesWidth / 2)
+        , zCoordinate = 0
+        , width = branchesWidth
+        , color = black
+        }
+    ]
+        |> List.concat
+        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| height / boundingHeight)
+        |> List.map
+            (mapTriple <|
+                setTransformation
+                    (Mat4.identity
+                        |> Mat4.translate centerPosition
+                        |> rotate
+                        |> Mat4.translate3 -(width / 2) -(height / 2) 0
+                    )
+            )
+        |> WebGL.triangles
 
 
 svgU : String -> Html msg
