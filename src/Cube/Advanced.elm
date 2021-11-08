@@ -2045,7 +2045,7 @@ vertexShader =
         uniform mat4 perspective;
         varying vec3 vcolor;
         void main () {
-            gl_Position = perspective * transformation * rotation * vec4(position, 1.0);
+            gl_Position = perspective * rotation * transformation * vec4(position, 1.0);
             vcolor = color;
         }
     |]
@@ -2582,9 +2582,27 @@ meshF { height, centerPosition } =
         branchesWidth =
             25
     in
-    [ triangleLine { from = Vec2.vec2 (stemWidth / 2) 0, to = Vec2.vec2 (stemWidth / 2) boundingHeight, zCoordinate = 0, width = stemWidth, color = black }
-    , triangleLine { from = Vec2.vec2 0 (branchesWidth / 2), to = Vec2.vec2 boundingWidth (branchesWidth / 2), zCoordinate = 0, width = branchesWidth, color = black }
-    , triangleLine { from = Vec2.vec2 0 (boundingHeight / 2), to = Vec2.vec2 (boundingWidth * 13 / 15) (boundingHeight / 2), zCoordinate = 0, width = 25, color = black }
+    [ triangleLine
+        { from = Vec2.vec2 (stemWidth / 2) 0
+        , to = Vec2.vec2 (stemWidth / 2) boundingHeight
+        , zCoordinate = 0
+        , width = stemWidth
+        , color = black
+        }
+    , triangleLine
+        { from = Vec2.vec2 0 (boundingHeight - branchesWidth / 2)
+        , to = Vec2.vec2 boundingWidth (boundingHeight - branchesWidth / 2)
+        , zCoordinate = 0
+        , width = branchesWidth
+        , color = black
+        }
+    , triangleLine
+        { from = Vec2.vec2 0 (boundingHeight / 2)
+        , to = Vec2.vec2 (boundingWidth * 13 / 15) (boundingHeight / 2)
+        , zCoordinate = 0
+        , width = branchesWidth
+        , color = black
+        }
     ]
         |> List.concat
         |> List.map (mapTriple <| mapPosition <| Vec3.scale <| height / boundingHeight)
@@ -2593,7 +2611,6 @@ meshF { height, centerPosition } =
                 setTransformation
                     (Mat4.identity
                         |> Mat4.translate centerPosition
-                        |> Mat4.rotate (degrees 180) Vec3.k
                         |> Mat4.translate3 -(width / 2) -(height / 2) 0
                     )
             )
