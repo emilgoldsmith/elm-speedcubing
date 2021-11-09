@@ -1868,6 +1868,15 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
             , rotation =
                 rotationToWebgl rotation
             }
+        , WebGL.entity
+            vertexShader
+            fragmentShader
+            (meshU { height = 0.6, centerPosition = Vec3.vec3 0 1.5 0, rotate = Mat4.rotate (degrees -90) Vec3.i })
+            { perspective =
+                perspective
+            , rotation =
+                rotationToWebgl rotation
+            }
         ]
 
 
@@ -2748,6 +2757,146 @@ svgU size =
     svg [ viewBox "-17.5 0 219 300", Svg.Attributes.height size ]
         [ path [ d "M 0,0 l 0,200 a 92.5,82.5 0 0 0 185,0 l 0,-200", fill "transparent", strokeWidth "35", stroke "black" ] []
         ]
+
+
+meshU : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
+meshU { height, centerPosition, rotate } =
+    let
+        -- Bounding box pre-scaling is 219 (width) x 300 (height)
+        boundingWidth =
+            220
+
+        boundingHeight =
+            300
+
+        width =
+            height * boundingWidth / boundingHeight
+
+        strokeWidth =
+            35
+    in
+    [ triangleLine
+        { from = Vec2.vec2 (strokeWidth / 2) 0
+        , to = Vec2.vec2 (strokeWidth / 2) (boundingHeight * 2 / 3)
+        , zCoordinate = 0
+        , width = strokeWidth
+        , color = black
+        }
+    , halfEllipse
+        { width = 185
+        , height = 82.5
+        , center = Vec3.vec3 ((185 + strokeWidth) / 2) (boundingHeight * 2 / 3) 0
+        , granularity = 10
+        , strokeWidth = strokeWidth
+        }
+    , triangleLine
+        { from = Vec2.vec2 (boundingWidth - strokeWidth / 2) 0
+        , to = Vec2.vec2 (boundingWidth - strokeWidth / 2) (boundingHeight * 2 / 3)
+        , zCoordinate = 0
+        , width = strokeWidth
+        , color = black
+        }
+    ]
+        |> List.concat
+        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| height / boundingHeight)
+        |> List.map
+            (mapTriple <|
+                setTransformation
+                    (Mat4.identity
+                        |> Mat4.translate centerPosition
+                        |> rotate
+                        |> Mat4.rotate (degrees 180) Vec3.k
+                        |> Mat4.translate3 -(width / 2) -(height / 2) 0
+                    )
+            )
+        |> WebGL.triangles
+
+
+{-| Granularity is the length of each line segment in the curve
+-}
+halfEllipse : { width : Float, height : Float, center : Vec3, granularity : Float, strokeWidth : Float } -> List ( Vertex, Vertex, Vertex )
+halfEllipse params =
+    halfEllipseHelper params { x = -params.width / 2, triangles = [] }
+        |> List.map (mapTriple <| mapPosition <| Vec3.add params.center)
+
+
+debug : String -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
+debug string value =
+    let
+        x =
+            Debug.log string (List.map (mapTriple .position) value)
+    in
+    value
+
+
+halfEllipseHelper : { a | width : Float, height : Float, granularity : Float, strokeWidth : Float } -> { x : Float, triangles : List ( Vertex, Vertex, Vertex ) } -> List ( Vertex, Vertex, Vertex )
+halfEllipseHelper params { x, triangles } =
+    let
+        rx =
+            params.width / 2
+
+        ry =
+            params.height
+
+        startCoordinates =
+            getPositiveEllipseCoordinatesFromX { rx = rx, ry = ry } x
+
+        endCoordinates =
+            getNextCoordinates { rx = rx, ry = ry, granularity = params.granularity } startCoordinates
+
+        newLineSegment =
+            triangleLine { from = startCoordinates, to = endCoordinates, width = params.strokeWidth, zCoordinate = 0, color = black }
+    in
+    if rx - Vec2.getX endCoordinates < params.granularity / 100 then
+        triangles ++ newLineSegment
+
+    else
+        halfEllipseHelper params { x = Vec2.getX endCoordinates, triangles = triangles ++ newLineSegment }
+
+
+getNextCoordinates : { rx : Float, ry : Float, granularity : Float } -> Vec2 -> Vec2
+getNextCoordinates { rx, ry, granularity } current =
+    binarySearchEllipseDistance
+        { rx = rx
+        , ry = ry
+        , targetDistance = granularity
+        , minX = Vec2.getX current
+        , maxX = Basics.min rx (Vec2.getX current + granularity)
+        , startPoint = current
+        }
+
+
+binarySearchEllipseDistance : { rx : Float, ry : Float, targetDistance : Float, minX : Float, maxX : Float, startPoint : Vec2 } -> Vec2
+binarySearchEllipseDistance ({ rx, ry, targetDistance, minX, maxX, startPoint } as params) =
+    let
+        xToTest =
+            (minX + maxX) / 2
+
+        testEndPoint =
+            getPositiveEllipseCoordinatesFromX { rx = rx, ry = ry } xToTest
+
+        testDistance =
+            Vec2.distance startPoint testEndPoint
+    in
+    if testDistance - targetDistance < targetDistance / 30 then
+        testEndPoint
+
+    else if maxX - minX < targetDistance / 30 then
+        getPositiveEllipseCoordinatesFromX { rx = rx, ry = ry } maxX
+
+    else if testDistance >= targetDistance then
+        binarySearchEllipseDistance { params | maxX = xToTest }
+
+    else
+        binarySearchEllipseDistance { params | minX = xToTest }
+
+
+getPositiveEllipseCoordinatesFromX : { rx : Float, ry : Float } -> Float -> Vec2
+getPositiveEllipseCoordinatesFromX { rx, ry } x =
+    Vec2.fromRecord
+        { x = x
+        , y = ry * sqrt (rx * rx - x * x) / rx
+        }
 
 
 svgD : String -> Html msg
