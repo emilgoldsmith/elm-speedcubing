@@ -2817,6 +2817,18 @@ meshU { height, centerPosition, rotate } =
 halfEllipse : { width : Float, height : Float, center : Vec3, granularity : Float, strokeWidth : Float } -> List ( Vertex, Vertex, Vertex )
 halfEllipse params =
     halfEllipseHelper params { x = -params.width / 2, triangles = [] }
+        |> addBeginningEllipseLine
+            { startX = -params.width / 2
+            , startY = 0
+            , width = params.strokeWidth
+            , color = black
+            }
+        |> addEndingEllipseLine
+            { startX = params.width / 2
+            , startY = 0
+            , width = params.strokeWidth
+            , color = black
+            }
         |> List.map (mapTriple <| mapPosition <| Vec3.add params.center)
 
 
@@ -2847,7 +2859,7 @@ halfEllipseHelper params { x, triangles } =
         newLineSegment =
             triangleLine { from = startCoordinates, to = endCoordinates, width = params.strokeWidth, zCoordinate = 0, color = black }
     in
-    if rx - Vec2.getX endCoordinates < params.granularity / 100 then
+    if rx - Vec2.getX endCoordinates < params.granularity / 20 then
         triangles ++ newLineSegment
 
     else
@@ -2878,10 +2890,10 @@ binarySearchEllipseDistance ({ rx, ry, targetDistance, minX, maxX, startPoint } 
         testDistance =
             Vec2.distance startPoint testEndPoint
     in
-    if testDistance - targetDistance < targetDistance / 30 then
+    if testDistance - targetDistance < targetDistance / 10 then
         testEndPoint
 
-    else if maxX - minX < targetDistance / 30 then
+    else if maxX - minX < targetDistance / 10 then
         getPositiveEllipseCoordinatesFromX { rx = rx, ry = ry } maxX
 
     else if testDistance >= targetDistance then
@@ -2897,6 +2909,70 @@ getPositiveEllipseCoordinatesFromX { rx, ry } x =
         { x = x
         , y = ry * sqrt (rx * rx - x * x) / rx
         }
+
+
+addBeginningEllipseLine : { startX : Float, startY : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
+addBeginningEllipseLine { startX, startY, width, color } vertices =
+    case vertices of
+        first :: second :: _ ->
+            let
+                firstLineCorners =
+                    List.Nonempty.Nonempty first [ second ]
+                        |> List.Nonempty.map (\( a, b, c ) -> List.Nonempty.Nonempty a [ b, c ])
+                        |> List.Nonempty.concat
+
+                minXVertex =
+                    firstLineCorners
+                        |> List.Nonempty.sortBy (.position >> Vec3.getX)
+                        |> List.Nonempty.head
+
+                beginningLine =
+                    triangleLine { from = Vec2.vec2 startX startY, to = Vec2.vec2 startX (Vec3.getY minXVertex.position), zCoordinate = 0, width = width, color = color }
+            in
+            beginningLine ++ vertices
+
+        _ ->
+            vertices
+
+
+addEndingEllipseLine : { startX : Float, startY : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
+addEndingEllipseLine { startX, startY, width, color } vertices =
+    case vertices of
+        _ :: _ :: _ ->
+            let
+                placeholderVertex =
+                    { color = black, position = black, transformation = Mat4.identity }
+
+                lastLineCorners =
+                    vertices
+                        |> List.reverse
+                        |> List.take 2
+                        |> List.Nonempty.fromList
+                        -- We know this will form a list as we ensured in the case statement that it has at least 2 elements
+                        -- so List.take 2 will successfully take 2
+                        |> Maybe.withDefault
+                            (List.Nonempty.singleton
+                                ( placeholderVertex
+                                , placeholderVertex
+                                , placeholderVertex
+                                )
+                            )
+                        |> List.Nonempty.map (\( a, b, c ) -> List.Nonempty.Nonempty a [ b, c ])
+                        |> List.Nonempty.concat
+
+                maxXVertex =
+                    lastLineCorners
+                        |> List.Nonempty.sortBy (.position >> Vec3.getX)
+                        |> List.Nonempty.reverse
+                        |> List.Nonempty.head
+
+                endingLine =
+                    triangleLine { from = Vec2.vec2 startX startY, to = Vec2.vec2 startX (Vec3.getY maxXVertex.position), zCoordinate = 0, width = width, color = color }
+            in
+            vertices ++ endingLine
+
+        _ ->
+            vertices
 
 
 svgD : String -> Html msg
