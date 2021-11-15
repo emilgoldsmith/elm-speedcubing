@@ -1897,6 +1897,15 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
             , rotation =
                 rotationToWebgl rotation
             }
+        , WebGL.entity
+            vertexShader
+            fragmentShader
+            (meshR { height = 0.6, centerPosition = Vec3.vec3 1.5 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j })
+            { perspective =
+                perspective
+            , rotation =
+                rotationToWebgl rotation
+            }
         ]
 
 
@@ -2996,7 +3005,7 @@ svgD size =
 meshD : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
 meshD { height, centerPosition, rotate } =
     let
-        -- Bounding box pre-scaling is 290 (width) x 230 (height)
+        -- Bounding box pre-scaling and rotation is 290 (width) x 230 (height)
         -- and for ease of ellipse use we are drawing the D "lying down"
         boundingWidth =
             290
@@ -3057,8 +3066,8 @@ svgR size =
 meshR : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
 meshR { height, centerPosition, rotate } =
     let
-        -- Bounding box pre-scaling is 290 (width) x 230 (height)
-        -- and for ease of ellipse use we are drawing the D "lying down"
+        -- Bounding box pre-scaling and rotation is 290 (width) x 255 (height)
+        -- and for ease of ellipse use we are drawing the R "lying down"
         boundingWidth =
             290
 
@@ -3083,14 +3092,35 @@ meshR { height, centerPosition, rotate } =
         , width = strokeWidth
         , color = black
         }
+    , triangleLine
+        { from = Vec2.vec2 (strokeWidth / 2) 0
+        , to = Vec2.vec2 (strokeWidth / 2) (boundingHeight * 10 / 23)
+        , zCoordinate = 0
+        , width = strokeWidth
+        , color = black
+        }
     , halfEllipse
         { startX = strokeWidth / 2
-        , endX = boundingWidth - strokeWidth / 2
-        , centerYCoordinate = strokeWidth
+        , endX = boundingWidth / 2
+        , centerYCoordinate = boundingHeight * 10 / 23
         , zCoordinate = 0
-        , height = boundingHeight - strokeWidth * 3 / 2
+        , height = boundingHeight * 95 / 255
         , granularity = 10
         , strokeWidth = strokeWidth
+        }
+    , triangleLine
+        { from = Vec2.vec2 (boundingWidth / 2) (boundingHeight * 10 / 23)
+        , to = Vec2.vec2 (boundingWidth / 2) 0
+        , zCoordinate = 0
+        , width = strokeWidth
+        , color = black
+        }
+    , triangleLine
+        { from = Vec2.vec2 (boundingWidth / 2) (boundingHeight * 12 / 23)
+        , to = Vec2.vec2 boundingWidth (boundingWidth * 2 / 3)
+        , zCoordinate = 0
+        , width = strokeWidth
+        , color = black
         }
     ]
         |> List.concat
