@@ -1864,7 +1864,7 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
         , WebGL.entity
             vertexShader
             fragmentShader
-            (meshF { height = 0.6, centerPosition = Vec3.vec3 0 0 1.5 })
+            (meshD { height = 0.6, centerPosition = Vec3.vec3 0 0 1.5, rotate = Mat4.rotate (degrees 0) Vec3.i })
             { perspective =
                 perspective
             , rotation =
@@ -1883,6 +1883,15 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
             vertexShader
             fragmentShader
             (meshU { height = 0.6, centerPosition = Vec3.vec3 0 1.5 0, rotate = Mat4.rotate (degrees -90) Vec3.i })
+            { perspective =
+                perspective
+            , rotation =
+                rotationToWebgl rotation
+            }
+        , WebGL.entity
+            vertexShader
+            fragmentShader
+            (meshD { height = 0.6, centerPosition = Vec3.vec3 0 -1.5 0, rotate = Mat4.rotate (degrees 90) Vec3.i })
             { perspective =
                 perspective
             , rotation =
@@ -2773,7 +2782,7 @@ svgU size =
 meshU : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
 meshU { height, centerPosition, rotate } =
     let
-        -- Bounding box pre-scaling is 219 (width) x 300 (height)
+        -- Bounding box pre-scaling is 220 (width) x 300 (height)
         boundingWidth =
             220
 
@@ -2794,9 +2803,11 @@ meshU { height, centerPosition, rotate } =
         , color = black
         }
     , halfEllipse
-        { width = 185
+        { startX = strokeWidth / 2
+        , endX = boundingWidth - strokeWidth / 2
+        , centerYCoordinate = boundingHeight * 2 / 3
+        , zCoordinate = 0
         , height = 82.5
-        , center = Vec3.vec3 ((185 + strokeWidth) / 2) (boundingHeight * 2 / 3) 0
         , granularity = 10
         , strokeWidth = strokeWidth
         }
@@ -2825,22 +2836,35 @@ meshU { height, centerPosition, rotate } =
 
 {-| Granularity is the length of each line segment in the curve
 -}
-halfEllipse : { width : Float, height : Float, center : Vec3, granularity : Float, strokeWidth : Float } -> List ( Vertex, Vertex, Vertex )
+halfEllipse : { height : Float, centerYCoordinate : Float, zCoordinate : Float, startX : Float, endX : Float, granularity : Float, strokeWidth : Float } -> List ( Vertex, Vertex, Vertex )
 halfEllipse params =
-    halfEllipseHelper params { x = -params.width / 2, triangles = [] }
+    let
+        width =
+            params.endX - params.startX
+
+        center =
+            Vec3.vec3 (params.startX + width / 2) params.centerYCoordinate params.zCoordinate
+    in
+    halfEllipseHelper
+        { width = width
+        , height = params.height
+        , granularity = params.granularity
+        , strokeWidth = params.strokeWidth
+        }
+        { x = -width / 2, triangles = [] }
         |> addBeginningEllipseLine
-            { startX = -params.width / 2
+            { startX = -width / 2
             , startY = 0
             , width = params.strokeWidth
             , color = black
             }
         |> addEndingEllipseLine
-            { startX = params.width / 2
+            { startX = width / 2
             , startY = 0
             , width = params.strokeWidth
             , color = black
             }
-        |> List.map (mapTriple <| mapPosition <| Vec3.add params.center)
+        |> List.map (mapTriple <| mapPosition <| Vec3.add center)
 
 
 debug : String -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
@@ -2852,7 +2876,7 @@ debug string value =
     value
 
 
-halfEllipseHelper : { a | width : Float, height : Float, granularity : Float, strokeWidth : Float } -> { x : Float, triangles : List ( Vertex, Vertex, Vertex ) } -> List ( Vertex, Vertex, Vertex )
+halfEllipseHelper : { width : Float, height : Float, granularity : Float, strokeWidth : Float } -> { x : Float, triangles : List ( Vertex, Vertex, Vertex ) } -> List ( Vertex, Vertex, Vertex )
 halfEllipseHelper params { x, triangles } =
     let
         rx =
@@ -2947,43 +2971,18 @@ addBeginningEllipseLine { startX, startY, width, color } vertices =
 
 
 addEndingEllipseLine : { startX : Float, startY : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
-addEndingEllipseLine { startX, startY, width, color } vertices =
-    case vertices of
-        _ :: _ :: _ ->
-            let
-                placeholderVertex =
-                    { color = black, position = black, transformation = Mat4.identity }
+addEndingEllipseLine params vertices =
+    vertices
+        |> negateAllXCoordinates
+        |> List.reverse
+        |> addBeginningEllipseLine { params | startX = -params.startX }
+        |> negateAllXCoordinates
+        |> List.reverse
 
-                lastLineCorners =
-                    vertices
-                        |> List.reverse
-                        |> List.take 2
-                        |> List.Nonempty.fromList
-                        -- We know this will form a list as we ensured in the case statement that it has at least 2 elements
-                        -- so List.take 2 will successfully take 2
-                        |> Maybe.withDefault
-                            (List.Nonempty.singleton
-                                ( placeholderVertex
-                                , placeholderVertex
-                                , placeholderVertex
-                                )
-                            )
-                        |> List.Nonempty.map (\( a, b, c ) -> List.Nonempty.Nonempty a [ b, c ])
-                        |> List.Nonempty.concat
 
-                maxXVertex =
-                    lastLineCorners
-                        |> List.Nonempty.sortBy (.position >> Vec3.getX)
-                        |> List.Nonempty.reverse
-                        |> List.Nonempty.head
-
-                endingLine =
-                    triangleLine { from = Vec2.vec2 startX startY, to = Vec2.vec2 startX (Vec3.getY maxXVertex.position), zCoordinate = 0, width = width, color = color }
-            in
-            vertices ++ endingLine
-
-        _ ->
-            vertices
+negateAllXCoordinates : List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
+negateAllXCoordinates =
+    List.map (mapTriple <| mapPosition (\pos -> Vec3.setX (-1 * Vec3.getX pos) pos))
 
 
 svgD : String -> Html msg
@@ -2991,6 +2990,60 @@ svgD size =
     svg [ viewBox "-17.5 0 230 290", Svg.Attributes.height size ]
         [ path [ d "M 0,0 l 0,272.5 l 100,0 a 95,127.5 0 0 0 0,-255 l -100,0", fill "transparent", strokeWidth "35", stroke "black" ] []
         ]
+
+
+meshD : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
+meshD { height, centerPosition, rotate } =
+    let
+        -- Bounding box pre-scaling is 290 (width) x 230 (height)
+        -- and for ease of ellipse use we are drawing the D "lying down"
+        boundingWidth =
+            290
+
+        boundingHeight =
+            230
+
+        -- Since we'll be doing some rotation that will actually swap
+        -- the width and height
+        preRotateWidth =
+            height
+
+        preRotateHeight =
+            preRotateWidth * boundingHeight / boundingWidth
+
+        strokeWidth =
+            35
+    in
+    [ triangleLine
+        { from = Vec2.vec2 0 (strokeWidth / 2)
+        , to = Vec2.vec2 boundingWidth (strokeWidth / 2)
+        , zCoordinate = 0
+        , width = strokeWidth
+        , color = black
+        }
+    , halfEllipse
+        { startX = strokeWidth / 2
+        , endX = boundingWidth - strokeWidth / 2
+        , centerYCoordinate = strokeWidth
+        , zCoordinate = 0
+        , height = boundingHeight - strokeWidth * 3 / 2
+        , granularity = 10
+        , strokeWidth = strokeWidth
+        }
+    ]
+        |> List.concat
+        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| preRotateHeight / boundingHeight)
+        |> List.map
+            (mapTriple <|
+                setTransformation
+                    (Mat4.identity
+                        |> Mat4.translate centerPosition
+                        |> rotate
+                        |> Mat4.rotate (degrees -90) Vec3.k
+                        |> Mat4.translate3 -(preRotateWidth / 2) -(preRotateHeight / 2) 0
+                    )
+            )
+        |> WebGL.triangles
 
 
 svgR : String -> Html msg

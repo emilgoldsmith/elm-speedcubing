@@ -36,7 +36,7 @@ cubeToView2 =
 main : Html msg
 main =
     div [ style "display" "flex", style "flex-wrap" "wrap" ]
-        [ div [ style "display" "flex" ]
+        [ div [ ]
             [ Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.ufrDisplayAngle
@@ -50,7 +50,7 @@ main =
                 }
                 cubeToView2
             ]
-        , div [ style "display" "flex" ]
+        , div [ ]
             [ Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.ublDisplayAngle
@@ -64,7 +64,7 @@ main =
                 }
                 cubeToView2
             ]
-        , div [ style "display" "flex" ]
+        , div [ ]
             [ Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.dblDisplayAngle
