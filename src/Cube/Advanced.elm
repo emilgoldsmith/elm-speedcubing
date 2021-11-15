@@ -1846,13 +1846,15 @@ getCubeHtml :
     -> Html msg
 getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelSize } cube =
     WebGL.toHtml
-        [ width (pixelSize * 2)
-        , height (pixelSize * 2)
-        , style "width" (String.fromInt pixelSize ++ "px")
-        , style "height" (String.fromInt pixelSize ++ "px")
-        , style "display" "block"
-        ]
-        [ WebGL.entity
+        ([ width (pixelSize * 2)
+         , height (pixelSize * 2)
+         , style "width" (String.fromInt pixelSize ++ "px")
+         , style "height" (String.fromInt pixelSize ++ "px")
+         , style "display" "block"
+         ]
+            ++ attributes
+        )
+        (WebGL.entity
             vertexShader
             fragmentShader
             cubeMesh
@@ -1861,61 +1863,72 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
             , rotation =
                 rotationToWebgl rotation
             }
-        , WebGL.entity
-            vertexShader
-            fragmentShader
-            (meshF { height = 0.6, centerPosition = Vec3.vec3 0 0 1.5, rotate = Mat4.rotate (degrees 0) Vec3.i })
-            { perspective =
-                perspective
-            , rotation =
-                rotationToWebgl rotation
-            }
-        , WebGL.entity
-            vertexShader
-            fragmentShader
-            (meshL { height = 0.6, centerPosition = Vec3.vec3 -1.5 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j })
-            { perspective =
-                perspective
-            , rotation =
-                rotationToWebgl rotation
-            }
-        , WebGL.entity
-            vertexShader
-            fragmentShader
-            (meshU { height = 0.6, centerPosition = Vec3.vec3 0 1.5 0, rotate = Mat4.rotate (degrees -90) Vec3.i })
-            { perspective =
-                perspective
-            , rotation =
-                rotationToWebgl rotation
-            }
-        , WebGL.entity
-            vertexShader
-            fragmentShader
-            (meshD { height = 0.6, centerPosition = Vec3.vec3 0 -1.5 0, rotate = Mat4.rotate (degrees 90) Vec3.i })
-            { perspective =
-                perspective
-            , rotation =
-                rotationToWebgl rotation
-            }
-        , WebGL.entity
-            vertexShader
-            fragmentShader
-            (meshR { height = 0.6, centerPosition = Vec3.vec3 1.5 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j })
-            { perspective =
-                perspective
-            , rotation =
-                rotationToWebgl rotation
-            }
-        , WebGL.entity
-            vertexShader
-            fragmentShader
-            (meshB { height = 0.6, centerPosition = Vec3.vec3 0 0 -1.5, rotate = Mat4.rotate (degrees 180) Vec3.j })
-            { perspective =
-                perspective
-            , rotation =
-                rotationToWebgl rotation
-            }
-        ]
+            :: (if annotateFaces then
+                    faceAnnotations rotation
+
+                else
+                    []
+               )
+        )
+
+
+faceAnnotations : Rotation -> List WebGL.Entity
+faceAnnotations rotation =
+    [ WebGL.entity
+        vertexShader
+        fragmentShader
+        (meshF { height = 0.6, centerPosition = Vec3.vec3 0 0 1.5, rotate = Mat4.rotate (degrees 0) Vec3.i })
+        { perspective =
+            perspective
+        , rotation =
+            rotationToWebgl rotation
+        }
+    , WebGL.entity
+        vertexShader
+        fragmentShader
+        (meshL { height = 0.6, centerPosition = Vec3.vec3 -1.5 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j })
+        { perspective =
+            perspective
+        , rotation =
+            rotationToWebgl rotation
+        }
+    , WebGL.entity
+        vertexShader
+        fragmentShader
+        (meshU { height = 0.6, centerPosition = Vec3.vec3 0 1.5 0, rotate = Mat4.rotate (degrees -90) Vec3.i })
+        { perspective =
+            perspective
+        , rotation =
+            rotationToWebgl rotation
+        }
+    , WebGL.entity
+        vertexShader
+        fragmentShader
+        (meshD { height = 0.6, centerPosition = Vec3.vec3 0 -1.5 0, rotate = Mat4.rotate (degrees 90) Vec3.i })
+        { perspective =
+            perspective
+        , rotation =
+            rotationToWebgl rotation
+        }
+    , WebGL.entity
+        vertexShader
+        fragmentShader
+        (meshR { height = 0.6, centerPosition = Vec3.vec3 1.5 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j })
+        { perspective =
+            perspective
+        , rotation =
+            rotationToWebgl rotation
+        }
+    , WebGL.entity
+        vertexShader
+        fragmentShader
+        (meshB { height = 0.6, centerPosition = Vec3.vec3 0 0 -1.5, rotate = Mat4.rotate (degrees 180) Vec3.j })
+        { perspective =
+            perspective
+        , rotation =
+            rotationToWebgl rotation
+        }
+    ]
 
 
 rotationToWebgl : Rotation -> Mat4
