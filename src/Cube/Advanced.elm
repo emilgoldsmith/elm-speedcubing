@@ -1733,22 +1733,54 @@ viewHelper :
     -> Html msg
 viewHelper { turnCurrentlyAnimating } attributes { pixelSize, displayAngle, annotateFaces } cube =
     let
-        rotation =
+        { mainRotation, annotationAdjustments } =
             case displayAngle of
                 UFRDisplayAngle ->
-                    []
+                    { mainRotation = []
+                    , annotationAdjustments =
+                        { u = []
+                        , d = []
+                        , f = []
+                        , b = []
+                        , l = []
+                        , r = []
+                        }
+                    }
 
                 UBLDisplayAngle ->
-                    [ YRotateDegrees 180 ]
+                    { mainRotation = [ YRotateDegrees 180 ]
+                    , annotationAdjustments =
+                        { u = [ ZRotateDegrees 180 ]
+                        , d = []
+                        , f = []
+                        , b = []
+                        , l = []
+                        , r = []
+                        }
+                    }
 
                 DBLDisplayAngle ->
-                    [ ZRotateDegrees 180, YRotateDegrees 90 ]
+                    { mainRotation = [ ZRotateDegrees 180, YRotateDegrees 90 ]
+                    , annotationAdjustments =
+                        { u = []
+                        , d = [ ZRotateDegrees -90 ]
+                        , f = [ ZRotateDegrees 180 ]
+                        , b = [ ZRotateDegrees 180 ]
+                        , l = [ ZRotateDegrees 180 ]
+                        , r = [ ZRotateDegrees 180 ]
+                        }
+                    }
     in
     getCubeHtml attributes
-        { rotation = rotation
+        { rotation = mainRotation
         , turnCurrentlyAnimating = turnCurrentlyAnimating
         , pixelSize = pixelSize
-        , annotateFaces = annotateFaces
+        , annotateFaces =
+            if annotateFaces then
+                Just annotationAdjustments
+
+            else
+                Nothing
         }
         cube
 
@@ -1840,7 +1872,15 @@ getCubeHtml :
         { rotation : Rotation
         , turnCurrentlyAnimating : Maybe Algorithm.Turn
         , pixelSize : Size
-        , annotateFaces : Bool
+        , annotateFaces :
+            Maybe
+                { u : Rotation
+                , d : Rotation
+                , l : Rotation
+                , r : Rotation
+                , f : Rotation
+                , b : Rotation
+                }
         }
     -> Cube
     -> Html msg
@@ -1861,91 +1901,98 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
             { perspective =
                 perspective
             , rotation =
-                rotationToWebgl rotation
+                rotationToWebgl rotation Mat4.identity
             }
-            :: (if annotateFaces then
-                    faceAnnotations rotation
-
-                else
-                    []
+            :: (Maybe.map (faceAnnotations rotation) annotateFaces
+                    |> Maybe.withDefault []
                )
         )
 
 
-faceAnnotations : Rotation -> List WebGL.Entity
-faceAnnotations rotation =
+faceAnnotations :
+    Rotation
+    ->
+        { u : Rotation
+        , d : Rotation
+        , l : Rotation
+        , r : Rotation
+        , f : Rotation
+        , b : Rotation
+        }
+    -> List WebGL.Entity
+faceAnnotations rotation adjustments =
     [ WebGL.entity
         vertexShader
         fragmentShader
-        (meshF { height = 0.6, centerPosition = Vec3.vec3 0 0 1.5, rotate = Mat4.rotate (degrees 0) Vec3.i })
+        (meshF { height = 0.6, centerPosition = Vec3.vec3 0 0 1.5, rotate = identity >> rotationToWebgl adjustments.f })
         { perspective =
             perspective
         , rotation =
-            rotationToWebgl rotation
+            rotationToWebgl rotation Mat4.identity
         }
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshL { height = 0.6, centerPosition = Vec3.vec3 -1.5 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j })
+        (meshL { height = 0.6, centerPosition = Vec3.vec3 -1.5 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j >> rotationToWebgl adjustments.l })
         { perspective =
             perspective
         , rotation =
-            rotationToWebgl rotation
+            rotationToWebgl rotation Mat4.identity
         }
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshU { height = 0.6, centerPosition = Vec3.vec3 0 1.5 0, rotate = Mat4.rotate (degrees -90) Vec3.i })
+        (meshU { height = 0.6, centerPosition = Vec3.vec3 0 1.5 0, rotate = Mat4.rotate (degrees -90) Vec3.i >> rotationToWebgl adjustments.u })
         { perspective =
             perspective
         , rotation =
-            rotationToWebgl rotation
+            rotationToWebgl rotation Mat4.identity
         }
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshD { height = 0.6, centerPosition = Vec3.vec3 0 -1.5 0, rotate = Mat4.rotate (degrees 90) Vec3.i })
+        (meshD { height = 0.6, centerPosition = Vec3.vec3 0 -1.5 0, rotate = Mat4.rotate (degrees 90) Vec3.i >> rotationToWebgl adjustments.d })
         { perspective =
             perspective
         , rotation =
-            rotationToWebgl rotation
+            rotationToWebgl rotation Mat4.identity
         }
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshR { height = 0.6, centerPosition = Vec3.vec3 1.5 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j })
+        (meshR { height = 0.6, centerPosition = Vec3.vec3 1.5 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j >> rotationToWebgl adjustments.r })
         { perspective =
             perspective
         , rotation =
-            rotationToWebgl rotation
+            rotationToWebgl rotation Mat4.identity
         }
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshB { height = 0.6, centerPosition = Vec3.vec3 0 0 -1.5, rotate = Mat4.rotate (degrees 180) Vec3.j })
+        (meshB { height = 0.6, centerPosition = Vec3.vec3 0 0 -1.5, rotate = Mat4.rotate (degrees 180) Vec3.j >> rotationToWebgl adjustments.b })
         { perspective =
             perspective
         , rotation =
-            rotationToWebgl rotation
+            rotationToWebgl rotation Mat4.identity
         }
     ]
 
 
-rotationToWebgl : Rotation -> Mat4
+rotationToWebgl : Rotation -> Mat4 -> Mat4
 rotationToWebgl rotation =
     List.foldl
-        (\singleTransform currentMatrix ->
+        (\singleTransform currentTransform ->
             case singleTransform of
                 XRotateDegrees deg ->
-                    Mat4.rotate (degrees deg) Vec3.i currentMatrix
+                    Mat4.rotate (degrees deg) Vec3.i << currentTransform
 
                 YRotateDegrees deg ->
-                    Mat4.rotate (degrees deg) Vec3.j currentMatrix
+                    Mat4.rotate (degrees deg) Vec3.j << currentTransform
 
                 ZRotateDegrees deg ->
-                    Mat4.rotate (degrees deg) Vec3.k currentMatrix
+                    Mat4.rotate (degrees deg) Vec3.k << currentTransform
         )
-        Mat4.identity
+        identity
         rotation
 
 
@@ -3033,7 +3080,7 @@ meshD { height, centerPosition, rotate } =
             290
 
         boundingHeight =
-            230
+            200
 
         -- Since we'll be doing some rotation that will actually swap
         -- the width and height
@@ -3094,7 +3141,7 @@ meshR { height, centerPosition, rotate } =
             290
 
         boundingHeight =
-            255
+            210
 
         -- Since we'll be doing some rotation that will actually swap
         -- the width and height
@@ -3116,7 +3163,7 @@ meshR { height, centerPosition, rotate } =
         }
     , triangleLine
         { from = Vec2.vec2 (strokeWidth / 2) 0
-        , to = Vec2.vec2 (strokeWidth / 2) (boundingHeight * 10 / 25.5)
+        , to = Vec2.vec2 (strokeWidth / 2) (boundingHeight * 10 / 21)
         , zCoordinate = 0
         , width = strokeWidth
         , color = black
@@ -3124,21 +3171,21 @@ meshR { height, centerPosition, rotate } =
     , halfEllipse
         { startX = strokeWidth / 2
         , endX = boundingWidth / 2
-        , centerYCoordinate = boundingHeight * 10 / 25.5
+        , centerYCoordinate = boundingHeight * 10 / 21
         , zCoordinate = 0
-        , height = boundingHeight * 95 / 255
+        , height = boundingHeight * 95 / 210
         , granularity = 10
         , strokeWidth = strokeWidth
         }
     , triangleLine
-        { from = Vec2.vec2 (boundingWidth / 2) (boundingHeight * 10 / 25.5)
+        { from = Vec2.vec2 (boundingWidth / 2) (boundingHeight * 10 / 21)
         , to = Vec2.vec2 (boundingWidth / 2) 0
         , zCoordinate = 0
         , width = strokeWidth
         , color = black
         }
     , triangleLine
-        { from = Vec2.vec2 (boundingWidth / 2) (boundingHeight * 12 / 25.5)
+        { from = Vec2.vec2 (boundingWidth / 2) (boundingHeight * 12 / 21)
         , to = Vec2.vec2 boundingWidth (boundingWidth * 2 / 3)
         , zCoordinate = 0
         , width = strokeWidth
@@ -3176,7 +3223,7 @@ meshB { height, centerPosition, rotate } =
             290
 
         boundingHeight =
-            230
+            205
 
         -- Since we'll be doing some rotation that will actually swap
         -- the width and height
