@@ -2,7 +2,7 @@ module Cube.Advanced exposing
     ( Cube
     , solved
     , applyAlgorithm
-    , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
+    , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view
     , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
     , Rendering, CubieRendering, Color(..), render
     , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
@@ -29,7 +29,7 @@ module Cube.Advanced exposing
 
 # Displayers
 
-@docs DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
+@docs DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view
 
 
 ## With Animation
@@ -1678,6 +1678,7 @@ centerLocations =
 type DisplayAngle
     = UFRDisplayAngle
     | UBLDisplayAngle
+    | DBLDisplayAngle
 
 
 {-| See [Cube.ufrDisplayAngle](Cube#ufrDisplayAngle)
@@ -1692,6 +1693,13 @@ ufrDisplayAngle =
 ublDisplayAngle : DisplayAngle
 ublDisplayAngle =
     UBLDisplayAngle
+
+
+{-| See [Cube.dblDisplayAngle](Cube#dblDisplayAngle)
+-}
+dblDisplayAngle : DisplayAngle
+dblDisplayAngle =
+    DBLDisplayAngle
 
 
 {-| See [Cube.view](Cube#view)
@@ -1732,6 +1740,9 @@ viewHelper { turnCurrentlyAnimating } attributes { pixelSize, displayAngle, anno
 
                 UBLDisplayAngle ->
                     [ YRotateDegrees 180 ]
+
+                DBLDisplayAngle ->
+                    [ ZRotateDegrees 180, YRotateDegrees 90 ]
     in
     getCubeHtml attributes
         { rotation = rotation
