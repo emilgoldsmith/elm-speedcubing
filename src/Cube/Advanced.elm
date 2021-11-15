@@ -1864,7 +1864,7 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
         , WebGL.entity
             vertexShader
             fragmentShader
-            (meshD { height = 0.6, centerPosition = Vec3.vec3 0 0 1.5, rotate = Mat4.rotate (degrees 0) Vec3.i })
+            (meshF { height = 0.6, centerPosition = Vec3.vec3 0 0 1.5, rotate = Mat4.rotate (degrees 0) Vec3.i })
             { perspective =
                 perspective
             , rotation =
@@ -2601,8 +2601,8 @@ svgF size =
         ]
 
 
-meshF : { height : Float, centerPosition : Vec3 } -> WebGL.Mesh Vertex
-meshF { height, centerPosition } =
+meshF : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
+meshF { height, centerPosition, rotate } =
     let
         -- Bounding box pre-scaling is 150 (width) x 225 (height)
         boundingWidth =
@@ -2649,6 +2649,7 @@ meshF { height, centerPosition } =
                 setTransformation
                     (Mat4.identity
                         |> Mat4.translate centerPosition
+                        |> rotate
                         |> Mat4.translate3 -(width / 2) -(height / 2) 0
                     )
             )
@@ -3051,6 +3052,60 @@ svgR size =
     svg [ viewBox "-17.5 0 255 290", Svg.Attributes.height size ]
         [ path [ d "M 0,290 l 0,-272.5 l 100,0 a 95,63.75 0 0 1 0,127.5 l -100,0 l 120,0 l 200,300", fill "transparent", strokeWidth "35", stroke "black" ] []
         ]
+
+
+meshR : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
+meshR { height, centerPosition, rotate } =
+    let
+        -- Bounding box pre-scaling is 290 (width) x 230 (height)
+        -- and for ease of ellipse use we are drawing the D "lying down"
+        boundingWidth =
+            290
+
+        boundingHeight =
+            230
+
+        -- Since we'll be doing some rotation that will actually swap
+        -- the width and height
+        preRotateWidth =
+            height
+
+        preRotateHeight =
+            preRotateWidth * boundingHeight / boundingWidth
+
+        strokeWidth =
+            35
+    in
+    [ triangleLine
+        { from = Vec2.vec2 0 (strokeWidth / 2)
+        , to = Vec2.vec2 boundingWidth (strokeWidth / 2)
+        , zCoordinate = 0
+        , width = strokeWidth
+        , color = black
+        }
+    , halfEllipse
+        { startX = strokeWidth / 2
+        , endX = boundingWidth - strokeWidth / 2
+        , centerYCoordinate = strokeWidth
+        , zCoordinate = 0
+        , height = boundingHeight - strokeWidth * 3 / 2
+        , granularity = 10
+        , strokeWidth = strokeWidth
+        }
+    ]
+        |> List.concat
+        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| preRotateHeight / boundingHeight)
+        |> List.map
+            (mapTriple <|
+                setTransformation
+                    (Mat4.identity
+                        |> Mat4.translate centerPosition
+                        |> rotate
+                        |> Mat4.rotate (degrees -90) Vec3.k
+                        |> Mat4.translate3 -(preRotateWidth / 2) -(preRotateHeight / 2) 0
+                    )
+            )
+        |> WebGL.triangles
 
 
 svgB : String -> Html msg
