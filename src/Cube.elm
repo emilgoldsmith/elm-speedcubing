@@ -2,7 +2,7 @@ module Cube exposing
     ( Cube
     , solved
     , applyAlgorithm
-    , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
+    , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view
     , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
     )
@@ -27,7 +27,7 @@ module Cube exposing
 
 # Displayers
 
-@docs DisplayAngle, ufrDisplayAngle, ublDisplayAngle, view
+@docs DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view
 
 
 ## With Animation
@@ -117,6 +117,13 @@ ufrDisplayAngle =
 ublDisplayAngle : DisplayAngle
 ublDisplayAngle =
     Cube.Advanced.ublDisplayAngle
+
+
+{-| The display angle where the D, B, and L faces can be seen
+-}
+dblDisplayAngle : DisplayAngle
+dblDisplayAngle =
+    Cube.Advanced.dblDisplayAngle
 
 
 {-| Display a 3x3 cube from one of several angles, and with or without
