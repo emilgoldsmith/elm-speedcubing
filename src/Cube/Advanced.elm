@@ -1921,10 +1921,11 @@ faceAnnotations :
         }
     -> List WebGL.Entity
 faceAnnotations rotation adjustments =
+    -- The .51 instead of just .5s are so that the annotations display in front of the cube instead of blending into the face itself
     [ WebGL.entity
         vertexShader
         fragmentShader
-        (meshF { height = 0.6, centerPosition = Vec3.vec3 0 0 1.5, rotate = identity >> rotationToWebgl adjustments.f })
+        (meshF { height = 0.6, centerPosition = Vec3.vec3 0 0 1.51, rotate = identity >> rotationToWebgl adjustments.f })
         { perspective =
             perspective
         , rotation =
@@ -1933,7 +1934,7 @@ faceAnnotations rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshL { height = 0.6, centerPosition = Vec3.vec3 -1.5 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j >> rotationToWebgl adjustments.l })
+        (meshL { height = 0.6, centerPosition = Vec3.vec3 -1.51 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j >> rotationToWebgl adjustments.l })
         { perspective =
             perspective
         , rotation =
@@ -1942,7 +1943,7 @@ faceAnnotations rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshU { height = 0.6, centerPosition = Vec3.vec3 0 1.5 0, rotate = Mat4.rotate (degrees -90) Vec3.i >> rotationToWebgl adjustments.u })
+        (meshU { height = 0.6, centerPosition = Vec3.vec3 0 1.51 0, rotate = Mat4.rotate (degrees -90) Vec3.i >> rotationToWebgl adjustments.u })
         { perspective =
             perspective
         , rotation =
@@ -1951,7 +1952,7 @@ faceAnnotations rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshD { height = 0.6, centerPosition = Vec3.vec3 0 -1.5 0, rotate = Mat4.rotate (degrees 90) Vec3.i >> rotationToWebgl adjustments.d })
+        (meshD { height = 0.6, centerPosition = Vec3.vec3 0 -1.51 0, rotate = Mat4.rotate (degrees 90) Vec3.i >> rotationToWebgl adjustments.d })
         { perspective =
             perspective
         , rotation =
@@ -1960,7 +1961,7 @@ faceAnnotations rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshR { height = 0.6, centerPosition = Vec3.vec3 1.5 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j >> rotationToWebgl adjustments.r })
+        (meshR { height = 0.6, centerPosition = Vec3.vec3 1.51 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j >> rotationToWebgl adjustments.r })
         { perspective =
             perspective
         , rotation =
@@ -1969,7 +1970,7 @@ faceAnnotations rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshB { height = 0.6, centerPosition = Vec3.vec3 0 0 -1.5, rotate = Mat4.rotate (degrees 180) Vec3.j >> rotationToWebgl adjustments.b })
+        (meshB { height = 0.6, centerPosition = Vec3.vec3 0 0 -1.51, rotate = Mat4.rotate (degrees 180) Vec3.j >> rotationToWebgl adjustments.b })
         { perspective =
             perspective
         , rotation =
@@ -2026,91 +2027,137 @@ cubieMesh : CubieData -> List ( Vertex, Vertex, Vertex )
 cubieMesh { colors, center } =
     let
         totalCubieWidth =
-            0.97
+            1
 
-        innerCubieWidth =
-            0.97
+        borderWidth =
+            0.05
     in
-    [ square
-        { color = colors.top
-        , center = Vec3.add center (Vec3.vec3 0 (-0.5 * totalCubieWidth) 0)
-        , orthogonalPlaneDirection1 = Vec3.i
-        , orthogonalPlaneDirection2 = Vec3.k
-        , widthAndHeight = innerCubieWidth
-        }
-    , square
-        { color = colors.bottom
-        , center = Vec3.add center (Vec3.vec3 0 (0.5 * totalCubieWidth) 0)
-        , orthogonalPlaneDirection1 = Vec3.i
-        , orthogonalPlaneDirection2 = Vec3.k
-        , widthAndHeight = innerCubieWidth
-        }
-    , square
-        { color = colors.front
-        , center = Vec3.add center (Vec3.vec3 0 0 (0.5 * totalCubieWidth))
-        , orthogonalPlaneDirection1 = Vec3.i
-        , orthogonalPlaneDirection2 = Vec3.j
-        , widthAndHeight = innerCubieWidth
-        }
-    , square
-        { color = colors.back
-        , center = Vec3.add center (Vec3.vec3 0 0 (-0.5 * totalCubieWidth))
-        , orthogonalPlaneDirection1 = Vec3.i
-        , orthogonalPlaneDirection2 = Vec3.j
-        , widthAndHeight = innerCubieWidth
-        }
-    , square
-        { color = colors.left
-        , center = Vec3.add center (Vec3.vec3 (-0.5 * totalCubieWidth) 0 0)
-        , orthogonalPlaneDirection1 = Vec3.j
-        , orthogonalPlaneDirection2 = Vec3.k
-        , widthAndHeight = innerCubieWidth
-        }
-    , square
-        { color = colors.right
-        , center = Vec3.add center (Vec3.vec3 (0.5 * totalCubieWidth) 0 0)
-        , orthogonalPlaneDirection1 = Vec3.j
-        , orthogonalPlaneDirection2 = Vec3.k
-        , widthAndHeight = innerCubieWidth
-        }
+    [ { innerColor = colors.top
+      , center = Vec3.add center (Vec3.vec3 0 (-0.5 * totalCubieWidth) 0)
+      , orthogonalPlaneDirection1 = Vec3.i
+      , orthogonalPlaneDirection2 = Vec3.k
+      }
+    , { innerColor = colors.bottom
+      , center = Vec3.add center (Vec3.vec3 0 (0.5 * totalCubieWidth) 0)
+      , orthogonalPlaneDirection1 = Vec3.i
+      , orthogonalPlaneDirection2 = Vec3.k
+      }
+    , { innerColor = colors.front
+      , center = Vec3.add center (Vec3.vec3 0 0 (0.5 * totalCubieWidth))
+      , orthogonalPlaneDirection1 = Vec3.i
+      , orthogonalPlaneDirection2 = Vec3.j
+      }
+    , { innerColor = colors.back
+      , center = Vec3.add center (Vec3.vec3 0 0 (-0.5 * totalCubieWidth))
+      , orthogonalPlaneDirection1 = Vec3.i
+      , orthogonalPlaneDirection2 = Vec3.j
+      }
+    , { innerColor = colors.left
+      , center = Vec3.add center (Vec3.vec3 (-0.5 * totalCubieWidth) 0 0)
+      , orthogonalPlaneDirection1 = Vec3.j
+      , orthogonalPlaneDirection2 = Vec3.k
+      }
+    , { innerColor = colors.right
+      , center = Vec3.add center (Vec3.vec3 (0.5 * totalCubieWidth) 0 0)
+      , orthogonalPlaneDirection1 = Vec3.j
+      , orthogonalPlaneDirection2 = Vec3.k
+      }
     ]
+        -- Add the shared arguments
+        |> List.map
+            (\params ->
+                { innerColor = params.innerColor
+                , center = params.center
+                , orthogonalPlaneDirection1 = params.orthogonalPlaneDirection1
+                , orthogonalPlaneDirection2 = params.orthogonalPlaneDirection2
+                , totalWidthAndHeight = totalCubieWidth
+                , borderWidth = borderWidth
+                , borderColor = black
+                }
+            )
+        |> List.map square
         |> List.concat
 
 
-square : { center : Vec3, color : Vec3, orthogonalPlaneDirection1 : Vec3, orthogonalPlaneDirection2 : Vec3, widthAndHeight : Float } -> List ( Vertex, Vertex, Vertex )
-square { center, color, orthogonalPlaneDirection1, orthogonalPlaneDirection2, widthAndHeight } =
+square :
+    { center : Vec3
+    , innerColor : Vec3
+    , borderColor : Vec3
+    , orthogonalPlaneDirection1 : Vec3
+    , orthogonalPlaneDirection2 : Vec3
+    , totalWidthAndHeight : Float
+    , borderWidth : Float
+    }
+    -> List ( Vertex, Vertex, Vertex )
+square { center, innerColor, orthogonalPlaneDirection1, orthogonalPlaneDirection2, totalWidthAndHeight, borderWidth, borderColor } =
     let
-        vertex position =
-            { color = Vec3.scale (1 / 255) color, position = position }
+        innerVertex position =
+            { color = Vec3.scale (1 / 255) innerColor, position = position }
 
-        addHalfWidthInDirection direction point =
+        borderVertex position =
+            { color = Vec3.scale (1 / 255) borderColor, position = position }
+
+        innerWidthAndHeight =
+            totalWidthAndHeight - 2 * borderWidth
+
+        addHalfWidthInDirection width direction point =
             direction
                 |> Vec3.normalize
-                |> Vec3.scale (widthAndHeight / 2)
+                |> Vec3.scale (width / 2)
                 |> Vec3.add point
 
+        -- Inner Corners
         { a, b, c, d } =
             { a =
                 center
                     -- The scale by 1 are just for readability of the -1 and 1 difference
-                    |> addHalfWidthInDirection (Vec3.scale 1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection (Vec3.scale 1 orthogonalPlaneDirection2)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
             , b =
                 center
-                    |> addHalfWidthInDirection (Vec3.scale -1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection (Vec3.scale 1 orthogonalPlaneDirection2)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
             , c =
                 center
-                    |> addHalfWidthInDirection (Vec3.scale -1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection (Vec3.scale -1 orthogonalPlaneDirection2)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
             , d =
                 center
-                    |> addHalfWidthInDirection (Vec3.scale 1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection (Vec3.scale -1 orthogonalPlaneDirection2)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
+            }
+
+        -- Corresponding Outer Corners
+        { aa, bb, cc, dd } =
+            { aa =
+                center
+                    -- The scale by 1 are just for readability of the -1 and 1 difference
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
+            , bb =
+                center
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
+            , cc =
+                center
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
+            , dd =
+                center
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
             }
     in
-    [ ( vertex a, vertex b, vertex c )
-    , ( vertex c, vertex d, vertex a )
+    [ ( innerVertex a, innerVertex b, innerVertex c )
+    , ( innerVertex c, innerVertex d, innerVertex a )
+    , ( borderVertex aa, borderVertex bb, borderVertex b )
+    , ( borderVertex b, borderVertex a, borderVertex aa )
+    , ( borderVertex bb, borderVertex cc, borderVertex c )
+    , ( borderVertex c, borderVertex b, borderVertex bb )
+    , ( borderVertex cc, borderVertex dd, borderVertex d )
+    , ( borderVertex d, borderVertex c, borderVertex cc )
+    , ( borderVertex dd, borderVertex aa, borderVertex a )
+    , ( borderVertex a, borderVertex d, borderVertex dd )
     ]
         |> List.map (mapTriple noTransformationVertex)
 
