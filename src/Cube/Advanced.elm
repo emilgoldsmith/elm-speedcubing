@@ -2013,129 +2013,101 @@ perspective =
         (Mat4.makeLookAt eye viewportTranslation Vec3.j)
 
 
-type alias CubiesPositions =
-    List ( Float, Float, Float )
-
-
 cubeMesh : WebGL.Mesh Vertex
 cubeMesh =
-    List.map2
-        (\col pos -> cubieMesh col pos)
-        cubiesColours
-        initialCubiesPositions
+    List.map
+        cubieMesh
+        allCubieData
         |> List.concat
         |> WebGL.triangles
 
 
-cubieMesh : List Vec3 -> ( Float, Float, Float ) -> List ( Vertex, Vertex, Vertex )
-cubieMesh colours center =
+cubieMesh : CubieData -> List ( Vertex, Vertex, Vertex )
+cubieMesh { colors, center } =
     let
-        width =
+        totalCubieWidth =
             0.97
 
-        rft =
-            buildCubieCorner "rft" { center = center, width = width }
-
-        lft =
-            buildCubieCorner "lft" { center = center, width = width }
-
-        lbt =
-            buildCubieCorner "lbt" { center = center, width = width }
-
-        rbt =
-            buildCubieCorner "rbt" { center = center, width = width }
-
-        rbb =
-            buildCubieCorner "rbb" { center = center, width = width }
-
-        rfb =
-            buildCubieCorner "rfb" { center = center, width = width }
-
-        lfb =
-            buildCubieCorner "lfb" { center = center, width = width }
-
-        lbb =
-            buildCubieCorner "lbb" { center = center, width = width }
+        innerCubieWidth =
+            0.97
     in
-    (case colours of
-        [ top, bottom, front, back, left, right ] ->
-            [ cubieFace top rft rfb rbb rbt
-            , cubieFace bottom rft rfb lfb lft
-            , cubieFace front rft lft lbt rbt
-            , cubieFace back rfb lfb lbb rbb
-            , cubieFace left lft lfb lbb lbt
-            , cubieFace right rbt rbb lbb lbt
-            ]
-
-        _ ->
-            [ cubieFace green rft rfb rbb rbt
-            , cubieFace blue rft rfb lfb lft
-            , cubieFace yellow rft lft lbt rbt
-            , cubieFace red rfb lfb lbb rbb
-            , cubieFace white lft lfb lbb lbt
-            , cubieFace orange rbt rbb lbb lbt
-            ]
-    )
+    [ square
+        { color = colors.top
+        , center = Vec3.add center (Vec3.vec3 0 (-0.5 * totalCubieWidth) 0)
+        , orthogonalPlaneDirection1 = Vec3.i
+        , orthogonalPlaneDirection2 = Vec3.k
+        , widthAndHeight = innerCubieWidth
+        }
+    , square
+        { color = colors.bottom
+        , center = Vec3.add center (Vec3.vec3 0 (0.5 * totalCubieWidth) 0)
+        , orthogonalPlaneDirection1 = Vec3.i
+        , orthogonalPlaneDirection2 = Vec3.k
+        , widthAndHeight = innerCubieWidth
+        }
+    , square
+        { color = colors.front
+        , center = Vec3.add center (Vec3.vec3 0 0 (0.5 * totalCubieWidth))
+        , orthogonalPlaneDirection1 = Vec3.i
+        , orthogonalPlaneDirection2 = Vec3.j
+        , widthAndHeight = innerCubieWidth
+        }
+    , square
+        { color = colors.back
+        , center = Vec3.add center (Vec3.vec3 0 0 (-0.5 * totalCubieWidth))
+        , orthogonalPlaneDirection1 = Vec3.i
+        , orthogonalPlaneDirection2 = Vec3.j
+        , widthAndHeight = innerCubieWidth
+        }
+    , square
+        { color = colors.left
+        , center = Vec3.add center (Vec3.vec3 (-0.5 * totalCubieWidth) 0 0)
+        , orthogonalPlaneDirection1 = Vec3.j
+        , orthogonalPlaneDirection2 = Vec3.k
+        , widthAndHeight = innerCubieWidth
+        }
+    , square
+        { color = colors.right
+        , center = Vec3.add center (Vec3.vec3 (0.5 * totalCubieWidth) 0 0)
+        , orthogonalPlaneDirection1 = Vec3.j
+        , orthogonalPlaneDirection2 = Vec3.k
+        , widthAndHeight = innerCubieWidth
+        }
+    ]
         |> List.concat
 
 
-{-| The string must be three characters long with
-the first character being r or l for right or left,
-the second one f or b for front or back and the last
-one t or b for top or bottom
--}
-buildCubieCorner : String -> { center : ( Float, Float, Float ), width : Float } -> Vec3
-buildCubieCorner cornerType { center, width } =
-    case (String.toLower >> String.toList) cornerType of
-        [ rOrL, fOrB, tOrB ] ->
-            let
-                ( centerX, centerY, centerZ ) =
-                    center
-
-                x =
-                    case rOrL of
-                        'r' ->
-                            centerX + width / 2
-
-                        'l' ->
-                            centerX - width / 2
-
-                        _ ->
-                            0
-
-                y =
-                    case fOrB of
-                        'f' ->
-                            centerY + width / 2
-
-                        'b' ->
-                            centerY - width / 2
-
-                        _ ->
-                            0
-
-                z =
-                    case tOrB of
-                        't' ->
-                            centerZ + width / 2
-
-                        'b' ->
-                            centerZ - width / 2
-
-                        _ ->
-                            0
-            in
-            Vec3.vec3 x y z
-
-        _ ->
-            Vec3.vec3 0 0 0
-
-
-cubieFace : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Vertex, Vertex, Vertex )
-cubieFace color a b c d =
+square : { center : Vec3, color : Vec3, orthogonalPlaneDirection1 : Vec3, orthogonalPlaneDirection2 : Vec3, widthAndHeight : Float } -> List ( Vertex, Vertex, Vertex )
+square { center, color, orthogonalPlaneDirection1, orthogonalPlaneDirection2, widthAndHeight } =
     let
         vertex position =
             { color = Vec3.scale (1 / 255) color, position = position }
+
+        addHalfWidthInDirection direction point =
+            direction
+                |> Vec3.normalize
+                |> Vec3.scale (widthAndHeight / 2)
+                |> Vec3.add point
+
+        { a, b, c, d } =
+            { a =
+                center
+                    -- The scale by 1 are just for readability of the -1 and 1 difference
+                    |> addHalfWidthInDirection (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection (Vec3.scale 1 orthogonalPlaneDirection2)
+            , b =
+                center
+                    |> addHalfWidthInDirection (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection (Vec3.scale 1 orthogonalPlaneDirection2)
+            , c =
+                center
+                    |> addHalfWidthInDirection (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection (Vec3.scale -1 orthogonalPlaneDirection2)
+            , d =
+                center
+                    |> addHalfWidthInDirection (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection (Vec3.scale -1 orthogonalPlaneDirection2)
+            }
     in
     [ ( vertex a, vertex b, vertex c )
     , ( vertex c, vertex d, vertex a )
@@ -2217,71 +2189,39 @@ black =
     Vec3.vec3 0 0 0
 
 
-cubiesColours : List (List Vec3)
-cubiesColours =
-    [ [ black, black, black, blue, red, white ]
-    , [ black, black, black, black, red, white ]
-    , [ black, black, green, black, red, white ]
-    , [ black, black, black, blue, red, black ]
-    , [ black, black, black, black, red, black ]
-    , [ black, black, green, black, red, black ]
-    , [ black, yellow, black, blue, red, black ]
-    , [ black, yellow, black, black, red, black ]
-    , [ black, yellow, green, black, red, black ]
-    , [ black, black, black, blue, black, white ]
-    , [ black, black, black, black, black, white ]
-    , [ black, black, green, black, black, white ]
-    , [ black, black, black, blue, black, black ]
-    , [ black, black, black, black, black, black ]
-    , [ black, black, green, black, black, black ]
-    , [ black, yellow, black, blue, black, black ]
-    , [ black, yellow, black, black, black, black ]
-    , [ black, yellow, green, black, black, black ]
-    , [ orange, black, black, blue, black, white ]
-    , [ orange, black, black, black, black, white ]
-    , [ orange, black, green, black, black, white ]
-    , [ orange, black, black, blue, black, black ]
-    , [ orange, black, black, black, black, black ]
-    , [ orange, black, green, black, black, black ]
-    , [ orange, yellow, black, blue, black, black ]
-    , [ orange, yellow, black, black, black, black ]
-    , [ orange, yellow, green, black, black, black ]
-    ]
+type alias CubieData =
+    { colors : { top : Vec3, bottom : Vec3, front : Vec3, back : Vec3, left : Vec3, right : Vec3 }, center : Vec3 }
 
 
-
--- The position in space of each cubie
-
-
-initialCubiesPositions : CubiesPositions
-initialCubiesPositions =
-    [ ( -1, -1, -1 ) -- 0
-    , ( -1, -1, 0 ) -- 1
-    , ( -1, -1, 1 ) -- 2
-    , ( -1, 0, -1 ) -- 3
-    , ( -1, 0, 0 ) -- 4
-    , ( -1, 0, 1 ) -- 5
-    , ( -1, 1, -1 ) -- 6
-    , ( -1, 1, 0 ) -- 7
-    , ( -1, 1, 1 ) -- 8
-    , ( 0, -1, -1 ) -- 9
-    , ( 0, -1, 0 ) -- 10
-    , ( 0, -1, 1 ) -- 11
-    , ( 0, 0, -1 ) -- 12
-    , ( 0, 0, 0 ) -- 13
-    , ( 0, 0, 1 ) -- 14
-    , ( 0, 1, -1 ) -- 15
-    , ( 0, 1, 0 ) -- 16
-    , ( 0, 1, 1 ) -- 17
-    , ( 1, -1, -1 ) -- 18
-    , ( 1, -1, 0 ) -- 19
-    , ( 1, -1, 1 ) -- 20
-    , ( 1, 0, -1 ) -- 21
-    , ( 1, 0, 0 ) -- 22
-    , ( 1, 0, 1 ) -- 23
-    , ( 1, 1, -1 ) -- 24
-    , ( 1, 1, 0 ) -- 25
-    , ( 1, 1, 1 ) -- 26
+allCubieData : List CubieData
+allCubieData =
+    [ { center = Vec3.vec3 -1 -1 -1, colors = { right = black, top = yellow, front = black, back = blue, left = red, bottom = black } }
+    , { center = Vec3.vec3 -1 -1 0, colors = { right = black, top = yellow, front = black, back = black, left = red, bottom = black } }
+    , { center = Vec3.vec3 -1 -1 1, colors = { right = black, top = yellow, front = green, back = black, left = red, bottom = black } }
+    , { center = Vec3.vec3 -1 0 -1, colors = { right = black, top = black, front = black, back = blue, left = red, bottom = black } }
+    , { center = Vec3.vec3 -1 0 0, colors = { right = black, top = black, front = black, back = black, left = red, bottom = black } }
+    , { center = Vec3.vec3 -1 0 1, colors = { right = black, top = black, front = green, back = black, left = red, bottom = black } }
+    , { center = Vec3.vec3 -1 1 -1, colors = { right = black, top = black, front = black, back = blue, left = red, bottom = white } }
+    , { center = Vec3.vec3 -1 1 0, colors = { right = black, top = black, front = black, back = black, left = red, bottom = white } }
+    , { center = Vec3.vec3 -1 1 1, colors = { right = black, top = black, front = green, back = black, left = red, bottom = white } }
+    , { center = Vec3.vec3 0 -1 -1, colors = { right = black, top = yellow, front = black, back = blue, left = black, bottom = black } }
+    , { center = Vec3.vec3 0 -1 0, colors = { right = black, top = yellow, front = black, back = black, left = black, bottom = black } }
+    , { center = Vec3.vec3 0 -1 1, colors = { right = black, top = yellow, front = green, back = black, left = black, bottom = black } }
+    , { center = Vec3.vec3 0 0 -1, colors = { right = black, top = black, front = black, back = blue, left = black, bottom = black } }
+    , { center = Vec3.vec3 0 0 0, colors = { right = black, top = black, front = black, back = black, left = black, bottom = black } }
+    , { center = Vec3.vec3 0 0 1, colors = { right = black, top = black, front = green, back = black, left = black, bottom = black } }
+    , { center = Vec3.vec3 0 1 -1, colors = { right = black, top = black, front = black, back = blue, left = black, bottom = white } }
+    , { center = Vec3.vec3 0 1 0, colors = { right = black, top = black, front = black, back = black, left = black, bottom = white } }
+    , { center = Vec3.vec3 0 1 1, colors = { right = black, top = black, front = green, back = black, left = black, bottom = white } }
+    , { center = Vec3.vec3 1 -1 -1, colors = { right = orange, top = yellow, front = black, back = blue, left = black, bottom = black } }
+    , { center = Vec3.vec3 1 -1 0, colors = { right = orange, top = yellow, front = black, back = black, left = black, bottom = black } }
+    , { center = Vec3.vec3 1 -1 1, colors = { right = orange, top = yellow, front = green, back = black, left = black, bottom = black } }
+    , { center = Vec3.vec3 1 0 -1, colors = { right = orange, top = black, front = black, back = blue, left = black, bottom = black } }
+    , { center = Vec3.vec3 1 0 0, colors = { right = orange, top = black, front = black, back = black, left = black, bottom = black } }
+    , { center = Vec3.vec3 1 0 1, colors = { right = orange, top = black, front = green, back = black, left = black, bottom = black } }
+    , { center = Vec3.vec3 1 1 -1, colors = { right = orange, top = black, front = black, back = blue, left = black, bottom = white } }
+    , { center = Vec3.vec3 1 1 0, colors = { right = orange, top = black, front = black, back = black, left = black, bottom = white } }
+    , { center = Vec3.vec3 1 1 1, colors = { right = orange, top = black, front = green, back = black, left = black, bottom = white } }
     ]
 
 
