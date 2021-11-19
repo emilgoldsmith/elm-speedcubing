@@ -2073,51 +2073,52 @@ cubieMesh theme { colors, center } =
         borderWidth =
             0.05
     in
-    [ { innerColor = colors.up
-      , center = Vec3.add center (Vec3.vec3 0 (-0.5 * totalCubieWidth) 0)
-      , orthogonalPlaneDirection1 = Vec3.i
-      , orthogonalPlaneDirection2 = Vec3.k
-      }
-    , { innerColor = colors.down
-      , center = Vec3.add center (Vec3.vec3 0 (0.5 * totalCubieWidth) 0)
-      , orthogonalPlaneDirection1 = Vec3.i
-      , orthogonalPlaneDirection2 = Vec3.k
-      }
-    , { innerColor = colors.front
-      , center = Vec3.add center (Vec3.vec3 0 0 (0.5 * totalCubieWidth))
-      , orthogonalPlaneDirection1 = Vec3.i
-      , orthogonalPlaneDirection2 = Vec3.j
-      }
-    , { innerColor = colors.back
-      , center = Vec3.add center (Vec3.vec3 0 0 (-0.5 * totalCubieWidth))
-      , orthogonalPlaneDirection1 = Vec3.i
-      , orthogonalPlaneDirection2 = Vec3.j
-      }
-    , { innerColor = colors.left
-      , center = Vec3.add center (Vec3.vec3 (-0.5 * totalCubieWidth) 0 0)
-      , orthogonalPlaneDirection1 = Vec3.j
-      , orthogonalPlaneDirection2 = Vec3.k
-      }
-    , { innerColor = colors.right
-      , center = Vec3.add center (Vec3.vec3 (0.5 * totalCubieWidth) 0 0)
-      , orthogonalPlaneDirection1 = Vec3.j
-      , orthogonalPlaneDirection2 = Vec3.k
-      }
-    ]
+    (List.map
         -- Add the shared arguments
-        |> List.map
-            (\params ->
-                { innerColor = params.innerColor
-                , center = params.center
-                , orthogonalPlaneDirection1 = params.orthogonalPlaneDirection1
-                , orthogonalPlaneDirection2 = params.orthogonalPlaneDirection2
-                , totalWidthAndHeight = totalCubieWidth
-                , borderWidth = borderWidth
-                , borderColor = theme.plastic |> rgb255ColorToColorVector
-                }
-            )
-        |> List.map square
-        |> List.concat
+        (\params ->
+            { innerColor = params.innerColor
+            , center = params.center
+            , orthogonalPlaneDirection1 = params.orthogonalPlaneDirection1
+            , orthogonalPlaneDirection2 = params.orthogonalPlaneDirection2
+            , totalWidthAndHeight = totalCubieWidth
+            , borderWidth = borderWidth
+            , borderColor = theme.plastic |> rgb255ColorToColorVector
+            }
+        )
+        >> List.map square
+        >> List.concat
+    )
+        [ { innerColor = colors.up
+          , center = Vec3.add center (Vec3.vec3 0 (-0.5 * totalCubieWidth) 0)
+          , orthogonalPlaneDirection1 = Vec3.i
+          , orthogonalPlaneDirection2 = Vec3.k
+          }
+        , { innerColor = colors.down
+          , center = Vec3.add center (Vec3.vec3 0 (0.5 * totalCubieWidth) 0)
+          , orthogonalPlaneDirection1 = Vec3.i
+          , orthogonalPlaneDirection2 = Vec3.k
+          }
+        , { innerColor = colors.front
+          , center = Vec3.add center (Vec3.vec3 0 0 (0.5 * totalCubieWidth))
+          , orthogonalPlaneDirection1 = Vec3.i
+          , orthogonalPlaneDirection2 = Vec3.j
+          }
+        , { innerColor = colors.back
+          , center = Vec3.add center (Vec3.vec3 0 0 (-0.5 * totalCubieWidth))
+          , orthogonalPlaneDirection1 = Vec3.i
+          , orthogonalPlaneDirection2 = Vec3.j
+          }
+        , { innerColor = colors.left
+          , center = Vec3.add center (Vec3.vec3 (-0.5 * totalCubieWidth) 0 0)
+          , orthogonalPlaneDirection1 = Vec3.j
+          , orthogonalPlaneDirection2 = Vec3.k
+          }
+        , { innerColor = colors.right
+          , center = Vec3.add center (Vec3.vec3 (0.5 * totalCubieWidth) 0 0)
+          , orthogonalPlaneDirection1 = Vec3.j
+          , orthogonalPlaneDirection2 = Vec3.k
+          }
+        ]
 
 
 vertexShader : WebGL.Shader Vertex Uniforms { vcolor : Vec3 }
