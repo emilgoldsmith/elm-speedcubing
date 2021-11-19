@@ -3,7 +3,6 @@ module Cube exposing
     , solved
     , applyAlgorithm
     , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view
-    , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
     )
 
@@ -28,14 +27,6 @@ module Cube exposing
 # Displayers
 
 @docs DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view
-
-
-## With Animation
-
-Check out the example [on Github](https://github.com/emilgoldsmith/elm-speedcubing/blob/main/examples/src/Animation.elm) to see
-how the different functions interact with each other
-
-@docs viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
 
 
 # Algorithm Helpers
@@ -143,92 +134,6 @@ view :
     -> Html msg
 view =
     Cube.Advanced.view
-
-
-{-| Display a cube that can animate turns being applied to it. You can also
-specify which angle to see it from and whether to annotate the faces just like
-on [view](#view)
--}
-viewAnimatable :
-    List (Html.Attribute msg)
-    ->
-        { animationState : AnimationState
-        , toMsg : AnimationMsg -> msg
-        , pixelSize : Int
-        , displayAngle : DisplayAngle
-        , annotateFaces : Bool
-        }
-    -> Cube
-    -> Html msg
-viewAnimatable =
-    Cube.Advanced.viewAnimatable
-
-
-{-| The function that can handle the opaque animation message type
-and output the next animation state and any commands the package needs
-to have run for it
--}
-handleAnimationMsg :
-    { toMsg : AnimationMsg -> msg, animationDoneMsg : msg }
-    -> AnimationState
-    -> AnimationMsg
-    -> ( AnimationState, Cmd msg )
-handleAnimationMsg =
-    Cube.Advanced.handleAnimationMsg
-
-
-{-| The animation state describing the animation of
-an algorithm. Set this in your model while viewAnimatable
-is being used and AnimationMsg is being handled and your
-cube will animate on screen
--}
-animateAlgorithm : Algorithm -> AnimationState
-animateAlgorithm =
-    Cube.Advanced.animateAlgorithm
-
-
-{-| The animation state describing a static cube with no
-animated turns applied to it
--}
-noAnimation : AnimationState
-noAnimation =
-    Cube.Advanced.noAnimation
-
-
-{-| Continue a paused animation. This won't have any effect if the animation is not paused
--}
-unpauseAnimation : AnimationState -> AnimationState
-unpauseAnimation =
-    Cube.Advanced.unpauseAnimation
-
-
-{-| Pause an animation either to stop it completely or to unpause it later
--}
-pauseAnimation : AnimationState -> AnimationState
-pauseAnimation =
-    Cube.Advanced.pauseAnimation
-
-
-{-| An opaque type that describes the internal state this package uses to
-manage the animation of turns on a cube
--}
-type alias AnimationState =
-    Cube.Advanced.AnimationState
-
-
-{-| An opaque type describing the internal messages this package
-uses to manage the animation of a cube
--}
-type alias AnimationMsg =
-    Cube.Advanced.AnimationMsg
-
-
-{-| A helper function that given an animation state will tell you
-which turn is currently being animated if any
--}
-currentTurnAnimating : AnimationState -> Maybe Algorithm.Turn
-currentTurnAnimating =
-    Cube.Advanced.currentTurnAnimating
 
 
 {-| Check that two algorithms produce the exact same result when

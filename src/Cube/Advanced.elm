@@ -3,7 +3,6 @@ module Cube.Advanced exposing
     , solved
     , applyAlgorithm
     , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view
-    , viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
     , Rendering, CubieRendering, Color(..), render
     , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
@@ -32,14 +31,6 @@ module Cube.Advanced exposing
 @docs DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view
 
 
-## With Animation
-
-Check out the example [on Github](https://github.com/emilgoldsmith/elm-speedcubing/blob/main/examples/src/Animation.elm) to see
-how the different functions interact with each other
-
-@docs viewAnimatable, handleAnimationMsg, animateAlgorithm, noAnimation, pauseAnimation, unpauseAnimation, currentTurnAnimating, AnimationState, AnimationMsg
-
-
 # Rendering
 
 @docs Rendering, CubieRendering, Color, render
@@ -59,16 +50,10 @@ how the different functions interact with each other
 import Algorithm exposing (Algorithm)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events
-import Json.Decode
 import List.Nonempty
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 as Vec2 exposing (Vec2)
 import Math.Vector3 as Vec3 exposing (Vec3)
-import Process
-import Svg exposing (line, path, svg)
-import Svg.Attributes exposing (d, fill, stroke, strokeWidth, viewBox, x1, x2, y1, y2)
-import Task
 import Utils.Enumerator
 import Utils.MappedPermutation as MappedPermutation exposing (MappedPermutation)
 import WebGL
@@ -1669,6 +1654,140 @@ centerLocations =
 
 
 
+-- ALGORITHM RELEVANT APIS
+
+
+{-| See [Cube.algorithmResultsAreEquivalent](Cube#algorithmResultsAreEquivalent)
+-}
+algorithmResultsAreEquivalent : Algorithm -> Algorithm -> Bool
+algorithmResultsAreEquivalent a b =
+    solved
+        |> applyAlgorithm a
+        |> applyAlgorithm (Algorithm.inverse b)
+        |> (==) solved
+
+
+{-| See [Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation](Cube#algorithmResultsAreEquivalentIndependentOfRotation)
+-}
+algorithmResultsAreEquivalentIndependentOfFinalRotation : Algorithm -> Algorithm -> Bool
+algorithmResultsAreEquivalentIndependentOfFinalRotation a b =
+    algorithmResultsAreEquivalent
+        (makeAlgorithmMaintainOrientation a)
+        (makeAlgorithmMaintainOrientation b)
+
+
+{-| See [Cube.makeAlgorithmMaintainOrientation](Cube#makeAlgorithmMaintainOrientation)
+-}
+makeAlgorithmMaintainOrientation : Algorithm -> Algorithm
+makeAlgorithmMaintainOrientation algorithm =
+    let
+        faceToMoveToU =
+            findFaceWithCenterColor
+                UpColor
+                (render <| applyAlgorithm algorithm solved)
+
+        allYRotations =
+            Algorithm.allTurnLengths
+                |> List.Nonempty.map (\length -> Algorithm.Turn Algorithm.Y length Algorithm.Clockwise)
+                |> List.Nonempty.map (List.singleton >> Algorithm.fromTurnList)
+                |> List.Nonempty.cons Algorithm.empty
+    in
+    algorithm
+        -- We first fix the U (and D) face
+        |> rotateSoFaceIsOnU faceToMoveToU
+        -- Now we should be able to use a y-axis rotation to fix the last 4 faces
+        |> (\uFixedAlgorithm ->
+                let
+                    yRotationPossibilities =
+                        List.Nonempty.map
+                            (Algorithm.append uFixedAlgorithm)
+                            allYRotations
+                in
+                List.Nonempty.filter
+                    hasStartingOrientation
+                    uFixedAlgorithm
+                    yRotationPossibilities
+           )
+        -- We use a default with the filter etc. above, so it is definitely important
+        -- this code has some good tests to ensure confidence in the logic
+        |> List.Nonempty.head
+
+
+findFaceWithCenterColor : Color -> Rendering -> Face
+findFaceWithCenterColor color rendering =
+    List.Nonempty.map (\face -> ( centerColorOnFace face rendering, face )) faces
+        -- We trust the tests here by using the default this nonempty filter requires
+        -- as this case should never happen but in case it does good tests hopefully catch it
+        |> List.Nonempty.filter (Tuple.first >> (==) color) ( UpColor, UpOrDown U )
+        |> List.Nonempty.head
+        |> Tuple.second
+
+
+centerColorOnFace : Face -> Rendering -> Color
+centerColorOnFace face rendering =
+    case face of
+        UpOrDown U ->
+            rendering.u.u
+
+        UpOrDown D ->
+            rendering.d.d
+
+        LeftOrRight R ->
+            rendering.r.r
+
+        LeftOrRight L ->
+            rendering.l.l
+
+        FrontOrBack F ->
+            rendering.f.f
+
+        FrontOrBack B ->
+            rendering.b.b
+
+
+rotateSoFaceIsOnU : Face -> Algorithm -> Algorithm
+rotateSoFaceIsOnU face algorithm =
+    Algorithm.append algorithm <|
+        case face of
+            UpOrDown U ->
+                Algorithm.empty
+
+            UpOrDown D ->
+                Algorithm.fromTurnList
+                    [ Algorithm.Turn Algorithm.X Algorithm.Halfway Algorithm.Clockwise ]
+
+            LeftOrRight R ->
+                Algorithm.fromTurnList
+                    [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.CounterClockwise ]
+
+            LeftOrRight L ->
+                Algorithm.fromTurnList
+                    [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise ]
+
+            FrontOrBack F ->
+                Algorithm.fromTurnList
+                    [ Algorithm.Turn Algorithm.X Algorithm.OneQuarter Algorithm.Clockwise ]
+
+            FrontOrBack B ->
+                Algorithm.fromTurnList
+                    [ Algorithm.Turn Algorithm.X Algorithm.OneQuarter Algorithm.CounterClockwise ]
+
+
+hasStartingOrientation : Algorithm -> Bool
+hasStartingOrientation algorithm =
+    faces
+        |> List.Nonempty.map
+            (\face ->
+                ( centerColorOnFace
+                    face
+                    (render <| applyAlgorithm algorithm solved)
+                , centerColorOnFace face (render solved)
+                )
+            )
+        |> List.Nonempty.all (\( colorA, colorB ) -> colorA == colorB)
+
+
+
 -- UI STUFF
 -- Exports
 
@@ -1922,7 +2041,7 @@ perspective =
         (Mat4.makeLookAt eye viewportTranslation Vec3.j)
 
 
-{-| All this WebGL code is highly inspired by
+{-| All this WebGL code was modified from the original at
 <https://github.com/maxf/elm-webgl-rubik/tree/28f20972aee898c262461b93dbb6e45b67859b29>
 -}
 cubeMesh : CubeTheme -> Rendering -> WebGL.Mesh Vertex
@@ -2022,7 +2141,16 @@ fragmentShader =
 
 
 type alias CubieData =
-    { colors : { up : Vec3, down : Vec3, front : Vec3, back : Vec3, left : Vec3, right : Vec3 }, center : Vec3 }
+    { colors :
+        { up : Vec3
+        , down : Vec3
+        , front : Vec3
+        , back : Vec3
+        , left : Vec3
+        , right : Vec3
+        }
+    , center : Vec3
+    }
 
 
 allCubieData : CubeTheme -> Rendering -> List CubieData
@@ -2040,11 +2168,6 @@ allCubieData theme rendering =
         )
 
 
-coordinatesToCenterVector : Coordinates -> Vec3
-coordinatesToCenterVector { fromFront, fromTop, fromLeft } =
-    Vec3.vec3 (toFloat fromLeft - 1) (toFloat fromTop - 1) (1 - toFloat fromFront)
-
-
 cubieRenderingToColorVectors : CubeTheme -> CubieRendering -> { up : Vec3, down : Vec3, front : Vec3, back : Vec3, left : Vec3, right : Vec3 }
 cubieRenderingToColorVectors theme rendering =
     { up = rendering.u |> getRgb255Color theme |> rgb255ColorToColorVector
@@ -2056,9 +2179,28 @@ cubieRenderingToColorVectors theme rendering =
     }
 
 
-rgb255ColorToColorVector : Rgb255Color -> Vec3
-rgb255ColorToColorVector ( x, y, z ) =
-    Vec3.vec3 (toFloat x) (toFloat y) (toFloat z)
+coordinatesToCenterVector : Coordinates -> Vec3
+coordinatesToCenterVector { fromFront, fromTop, fromLeft } =
+    Vec3.vec3 (toFloat fromLeft - 1) (toFloat fromTop - 1) (1 - toFloat fromFront)
+
+
+rotationToWebgl : Rotation -> Mat4 -> Mat4
+rotationToWebgl rotation =
+    List.foldl
+        (\singleTransform currentTransform ->
+            case singleTransform of
+                YRotateDegrees deg ->
+                    Mat4.rotate (degrees deg) Vec3.j << currentTransform
+
+                ZRotateDegrees deg ->
+                    Mat4.rotate (degrees deg) Vec3.k << currentTransform
+        )
+        identity
+        rotation
+
+
+
+-- ANNOTATIONS
 
 
 faceAnnotations :
@@ -2132,270 +2274,6 @@ faceAnnotations theme rotation adjustments =
     ]
 
 
-rotationToWebgl : Rotation -> Mat4 -> Mat4
-rotationToWebgl rotation =
-    List.foldl
-        (\singleTransform currentTransform ->
-            case singleTransform of
-                XRotateDegrees deg ->
-                    Mat4.rotate (degrees deg) Vec3.i << currentTransform
-
-                YRotateDegrees deg ->
-                    Mat4.rotate (degrees deg) Vec3.j << currentTransform
-
-                ZRotateDegrees deg ->
-                    Mat4.rotate (degrees deg) Vec3.k << currentTransform
-        )
-        identity
-        rotation
-
-
-
--- LOGIC AND MAPPINGS
-
-
-getRgb255Color : CubeTheme -> Color -> Rgb255Color
-getRgb255Color theme color =
-    case color of
-        UpColor ->
-            theme.up
-
-        DownColor ->
-            theme.down
-
-        RightColor ->
-            theme.right
-
-        LeftColor ->
-            theme.left
-
-        FrontColor ->
-            theme.front
-
-        BackColor ->
-            theme.back
-
-        PlasticColor ->
-            theme.plastic
-
-
-{-| We only use ints for now so it makes some things a bit easier
-but there's no real reason other than simpler code a few places that they
-can't be floats
--}
-type alias Coordinates =
-    { fromFront : Int
-    , fromLeft : Int
-    , fromTop : Int
-    }
-
-
-type SingleRotation
-    = XRotateDegrees Float
-    | YRotateDegrees Float
-    | ZRotateDegrees Float
-
-
-{-| 3D Rotation. Note rotations are applied from left to right
--}
-type alias Rotation =
-    List SingleRotation
-
-
-getRenderedCorners : Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates )
-getRenderedCorners rendering =
-    List.Nonempty.map (getRenderedCorner rendering) cornerLocations
-
-
-getRenderedCorner : Rendering -> CornerLocation -> ( CubieRendering, Coordinates )
-getRenderedCorner rendering location =
-    let
-        cornerRendering =
-            case location of
-                ( U, F, L ) ->
-                    rendering.ufl
-
-                ( U, F, R ) ->
-                    rendering.ufr
-
-                ( U, B, R ) ->
-                    rendering.ubr
-
-                ( U, B, L ) ->
-                    rendering.ubl
-
-                ( D, B, L ) ->
-                    rendering.dbl
-
-                ( D, B, R ) ->
-                    rendering.dbr
-
-                ( D, F, R ) ->
-                    rendering.dfr
-
-                ( D, F, L ) ->
-                    rendering.dfl
-    in
-    ( cornerRendering, getCornerCoordinates location )
-
-
-getCornerCoordinates : CornerLocation -> Coordinates
-getCornerCoordinates ( uOrD, fOrB, lOrR ) =
-    { fromFront =
-        if fOrB == F then
-            0
-
-        else
-            2
-    , fromLeft =
-        if lOrR == L then
-            0
-
-        else
-            2
-    , fromTop =
-        if uOrD == U then
-            0
-
-        else
-            2
-    }
-
-
-getRenderedEdges : Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates )
-getRenderedEdges rendering =
-    List.Nonempty.map (getRenderedEdge rendering) edgeLocations
-
-
-getRenderedEdge : Rendering -> EdgeLocation -> ( CubieRendering, Coordinates )
-getRenderedEdge rendering location =
-    let
-        edgeRendering =
-            case location of
-                M ( U, F ) ->
-                    rendering.uf
-
-                M ( U, B ) ->
-                    rendering.ub
-
-                M ( D, F ) ->
-                    rendering.df
-
-                M ( D, B ) ->
-                    rendering.db
-
-                S ( U, L ) ->
-                    rendering.ul
-
-                S ( U, R ) ->
-                    rendering.ur
-
-                S ( D, L ) ->
-                    rendering.dl
-
-                S ( D, R ) ->
-                    rendering.dr
-
-                E ( F, L ) ->
-                    rendering.fl
-
-                E ( F, R ) ->
-                    rendering.fr
-
-                E ( B, L ) ->
-                    rendering.bl
-
-                E ( B, R ) ->
-                    rendering.br
-    in
-    ( edgeRendering, getEdgeCoordinates location )
-
-
-getEdgeCoordinates : EdgeLocation -> Coordinates
-getEdgeCoordinates location =
-    case location of
-        M ( uOrD, fOrB ) ->
-            { fromFront =
-                if fOrB == F then
-                    0
-
-                else
-                    2
-            , fromLeft = 1
-            , fromTop =
-                if uOrD == U then
-                    0
-
-                else
-                    2
-            }
-
-        S ( uOrD, lOrR ) ->
-            { fromFront = 1
-            , fromLeft =
-                if lOrR == L then
-                    0
-
-                else
-                    2
-            , fromTop =
-                if uOrD == U then
-                    0
-
-                else
-                    2
-            }
-
-        E ( fOrB, lOrR ) ->
-            { fromFront =
-                if fOrB == F then
-                    0
-
-                else
-                    2
-            , fromLeft =
-                if lOrR == L then
-                    0
-
-                else
-                    2
-            , fromTop = 1
-            }
-
-
-getRenderedCenters : Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates )
-getRenderedCenters rendering =
-    List.Nonempty.map (getRenderedCenter rendering) centerLocations
-
-
-getRenderedCenter : Rendering -> CenterLocation -> ( CubieRendering, Coordinates )
-getRenderedCenter rendering location =
-    let
-        centerRendering =
-            case location of
-                CenterLocation (UpOrDown U) ->
-                    rendering.u
-
-                CenterLocation (UpOrDown D) ->
-                    rendering.d
-
-                CenterLocation (LeftOrRight L) ->
-                    rendering.l
-
-                CenterLocation (LeftOrRight R) ->
-                    rendering.r
-
-                CenterLocation (FrontOrBack F) ->
-                    rendering.f
-
-                CenterLocation (FrontOrBack B) ->
-                    rendering.b
-    in
-    ( centerRendering
-    , getCenterCoordinates location
-    )
-
-
 meshF : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
 meshF theme { height, centerPosition, rotate } =
     let
@@ -2449,46 +2327,6 @@ meshF theme { height, centerPosition, rotate } =
                     )
             )
         |> WebGL.triangles
-
-
-noTransformationVertex : { color : Vec3, position : Vec3 } -> Vertex
-noTransformationVertex { color, position } =
-    { color = color
-    , position = position
-    , transformation = Mat4.identity
-    }
-
-
-setTransformation : Mat4 -> Vertex -> Vertex
-setTransformation newTransformation oldVertex =
-    { oldVertex | transformation = newTransformation }
-
-
-mapPosition : (Vec3 -> Vec3) -> Vertex -> Vertex
-mapPosition fn original =
-    { original | position = fn original.position }
-
-
-twoDTrianglesToColored3d : { zCoordinate : Float, color : Vec3 } -> List ( Vec2, Vec2, Vec2 ) -> List ( Vertex, Vertex, Vertex )
-twoDTrianglesToColored3d { zCoordinate, color } triangles =
-    triangles
-        |> List.map (mapTriple <| twoDTo3d zCoordinate)
-        |> List.map (mapTriple <| positionToVertex { color = color })
-
-
-twoDTo3d : Float -> Vec2 -> Vec3
-twoDTo3d zCoordinate xy =
-    Vec3.vec3 (Vec2.getX xy) (Vec2.getY xy) zCoordinate
-
-
-positionToVertex : { color : Vec3 } -> Vec3 -> Vertex
-positionToVertex { color } position =
-    { position = position, color = color, transformation = Mat4.identity }
-
-
-mapTriple : (a -> b) -> ( a, a, a ) -> ( b, b, b )
-mapTriple fn ( x, y, z ) =
-    ( fn x, fn y, fn z )
 
 
 meshL : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
@@ -2593,271 +2431,6 @@ meshU theme { height, centerPosition, rotate } =
                     )
             )
         |> WebGL.triangles
-
-
-square :
-    { center : Vec3
-    , innerColor : Vec3
-    , borderColor : Vec3
-    , orthogonalPlaneDirection1 : Vec3
-    , orthogonalPlaneDirection2 : Vec3
-    , totalWidthAndHeight : Float
-    , borderWidth : Float
-    }
-    -> List ( Vertex, Vertex, Vertex )
-square { center, innerColor, orthogonalPlaneDirection1, orthogonalPlaneDirection2, totalWidthAndHeight, borderWidth, borderColor } =
-    let
-        innerVertex position =
-            { color = Vec3.scale (1 / 255) innerColor, position = position }
-
-        borderVertex position =
-            { color = Vec3.scale (1 / 255) borderColor, position = position }
-
-        innerWidthAndHeight =
-            totalWidthAndHeight - 2 * borderWidth
-
-        addHalfWidthInDirection width direction point =
-            direction
-                |> Vec3.normalize
-                |> Vec3.scale (width / 2)
-                |> Vec3.add point
-
-        -- Inner Corners
-        { a, b, c, d } =
-            { a =
-                center
-                    -- The scale by 1 are just for readability of the -1 and 1 difference
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
-            , b =
-                center
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
-            , c =
-                center
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
-            , d =
-                center
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
-            }
-
-        -- Corresponding Outer Corners
-        { aa, bb, cc, dd } =
-            { aa =
-                center
-                    -- The scale by 1 are just for readability of the -1 and 1 difference
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
-            , bb =
-                center
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
-            , cc =
-                center
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
-            , dd =
-                center
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
-            }
-    in
-    [ ( innerVertex a, innerVertex b, innerVertex c )
-    , ( innerVertex c, innerVertex d, innerVertex a )
-    , ( borderVertex aa, borderVertex bb, borderVertex b )
-    , ( borderVertex b, borderVertex a, borderVertex aa )
-    , ( borderVertex bb, borderVertex cc, borderVertex c )
-    , ( borderVertex c, borderVertex b, borderVertex bb )
-    , ( borderVertex cc, borderVertex dd, borderVertex d )
-    , ( borderVertex d, borderVertex c, borderVertex cc )
-    , ( borderVertex dd, borderVertex aa, borderVertex a )
-    , ( borderVertex a, borderVertex d, borderVertex dd )
-    ]
-        |> List.map (mapTriple noTransformationVertex)
-
-
-triangleLine : { from : Vec2, to : Vec2, zCoordinate : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex )
-triangleLine { from, to, width, color, zCoordinate } =
-    let
-        diff =
-            Vec2.sub to from
-
-        normal =
-            Vec2.vec2 -(Vec2.getY diff) (Vec2.getX diff)
-                |> Vec2.normalize
-
-        halfWidthLengthNormal =
-            Vec2.scale (width / 2) normal
-
-        a =
-            Vec2.add from halfWidthLengthNormal
-
-        b =
-            Vec2.add a diff
-
-        c =
-            Vec2.sub b (Vec2.scale 2 halfWidthLengthNormal)
-
-        d =
-            Vec2.sub c diff
-    in
-    [ ( a, b, c ), ( c, a, d ) ]
-        |> twoDTrianglesToColored3d { zCoordinate = zCoordinate, color = color }
-
-
-{-| Granularity is the length of each line segment in the curve
--}
-halfEllipse :
-    { height : Float
-    , centerYCoordinate : Float
-    , zCoordinate : Float
-    , startX : Float
-    , endX : Float
-    , granularity : Float
-    , strokeWidth : Float
-    , color : Vec3
-    }
-    -> List ( Vertex, Vertex, Vertex )
-halfEllipse params =
-    let
-        width =
-            params.endX - params.startX
-
-        center =
-            Vec3.vec3 (params.startX + width / 2) params.centerYCoordinate params.zCoordinate
-    in
-    halfEllipseHelper
-        { width = width
-        , height = params.height
-        , granularity = params.granularity
-        , strokeWidth = params.strokeWidth
-        , color = params.color
-        }
-        { x = -width / 2, triangles = [] }
-        |> addBeginningEllipseLine
-            { startX = -width / 2
-            , startY = 0
-            , width = params.strokeWidth
-            , color = params.color
-            }
-        |> addEndingEllipseLine
-            { startX = width / 2
-            , startY = 0
-            , width = params.strokeWidth
-            , color = params.color
-            }
-        |> List.map (mapTriple <| mapPosition <| Vec3.add center)
-
-
-halfEllipseHelper : { width : Float, height : Float, granularity : Float, strokeWidth : Float, color : Vec3 } -> { x : Float, triangles : List ( Vertex, Vertex, Vertex ) } -> List ( Vertex, Vertex, Vertex )
-halfEllipseHelper params { x, triangles } =
-    let
-        rx =
-            params.width / 2
-
-        ry =
-            params.height
-
-        startCoordinates =
-            getPositiveEllipseCoordinatesFromX { rx = rx, ry = ry } x
-
-        endCoordinates =
-            getNextCoordinates { rx = rx, ry = ry, granularity = params.granularity } startCoordinates
-
-        newLineSegment =
-            triangleLine { from = startCoordinates, to = endCoordinates, width = params.strokeWidth, zCoordinate = 0, color = params.color }
-    in
-    if rx - Vec2.getX endCoordinates < params.granularity / 20 then
-        triangles ++ newLineSegment
-
-    else
-        halfEllipseHelper params { x = Vec2.getX endCoordinates, triangles = triangles ++ newLineSegment }
-
-
-getNextCoordinates : { rx : Float, ry : Float, granularity : Float } -> Vec2 -> Vec2
-getNextCoordinates { rx, ry, granularity } current =
-    binarySearchEllipseDistance
-        { rx = rx
-        , ry = ry
-        , targetDistance = granularity
-        , minX = Vec2.getX current
-        , maxX = Basics.min rx (Vec2.getX current + granularity)
-        , startPoint = current
-        }
-
-
-binarySearchEllipseDistance : { rx : Float, ry : Float, targetDistance : Float, minX : Float, maxX : Float, startPoint : Vec2 } -> Vec2
-binarySearchEllipseDistance ({ rx, ry, targetDistance, minX, maxX, startPoint } as params) =
-    let
-        xToTest =
-            (minX + maxX) / 2
-
-        testEndPoint =
-            getPositiveEllipseCoordinatesFromX { rx = rx, ry = ry } xToTest
-
-        testDistance =
-            Vec2.distance startPoint testEndPoint
-    in
-    if testDistance - targetDistance < targetDistance / 10 then
-        testEndPoint
-
-    else if maxX - minX < targetDistance / 10 then
-        getPositiveEllipseCoordinatesFromX { rx = rx, ry = ry } maxX
-
-    else if testDistance >= targetDistance then
-        binarySearchEllipseDistance { params | maxX = xToTest }
-
-    else
-        binarySearchEllipseDistance { params | minX = xToTest }
-
-
-getPositiveEllipseCoordinatesFromX : { rx : Float, ry : Float } -> Float -> Vec2
-getPositiveEllipseCoordinatesFromX { rx, ry } x =
-    Vec2.fromRecord
-        { x = x
-        , y = ry * sqrt (rx * rx - x * x) / rx
-        }
-
-
-addBeginningEllipseLine : { startX : Float, startY : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
-addBeginningEllipseLine { startX, startY, width, color } vertices =
-    case vertices of
-        first :: second :: _ ->
-            let
-                firstLineCorners =
-                    List.Nonempty.Nonempty first [ second ]
-                        |> List.Nonempty.map (\( a, b, c ) -> List.Nonempty.Nonempty a [ b, c ])
-                        |> List.Nonempty.concat
-
-                minXVertex =
-                    firstLineCorners
-                        |> List.Nonempty.sortBy (.position >> Vec3.getX)
-                        |> List.Nonempty.head
-
-                beginningLine =
-                    triangleLine { from = Vec2.vec2 startX startY, to = Vec2.vec2 startX (Vec3.getY minXVertex.position), zCoordinate = 0, width = width, color = color }
-            in
-            beginningLine ++ vertices
-
-        _ ->
-            vertices
-
-
-addEndingEllipseLine : { startX : Float, startY : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
-addEndingEllipseLine params vertices =
-    vertices
-        |> negateAllXCoordinates
-        |> List.reverse
-        |> addBeginningEllipseLine { params | startX = -params.startX }
-        |> negateAllXCoordinates
-        |> List.reverse
-
-
-negateAllXCoordinates : List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
-negateAllXCoordinates =
-    List.map (mapTriple <| mapPosition (\pos -> Vec3.setX (-1 * Vec3.getX pos) pos))
 
 
 meshD : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
@@ -3077,6 +2650,258 @@ meshB theme { height, centerPosition, rotate } =
         |> WebGL.triangles
 
 
+
+-- LOGIC AND MAPPINGS
+
+
+getRgb255Color : CubeTheme -> Color -> Rgb255Color
+getRgb255Color theme color =
+    case color of
+        UpColor ->
+            theme.up
+
+        DownColor ->
+            theme.down
+
+        RightColor ->
+            theme.right
+
+        LeftColor ->
+            theme.left
+
+        FrontColor ->
+            theme.front
+
+        BackColor ->
+            theme.back
+
+        PlasticColor ->
+            theme.plastic
+
+
+rgb255ColorToColorVector : Rgb255Color -> Vec3
+rgb255ColorToColorVector ( x, y, z ) =
+    Vec3.vec3 (toFloat x) (toFloat y) (toFloat z)
+
+
+{-| We only use ints for now so it makes some things a bit easier
+but there's no real reason other than simpler code a few places that they
+can't be floats
+-}
+type alias Coordinates =
+    { fromFront : Int
+    , fromLeft : Int
+    , fromTop : Int
+    }
+
+
+type SingleRotation
+    = -- It was unused so erroring linting
+      -- XRotateDegrees Float
+      YRotateDegrees Float
+    | ZRotateDegrees Float
+
+
+{-| 3D Rotation. Note rotations are applied from left to right
+-}
+type alias Rotation =
+    List SingleRotation
+
+
+getRenderedCorners : Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates )
+getRenderedCorners rendering =
+    List.Nonempty.map (getRenderedCorner rendering) cornerLocations
+
+
+getRenderedCorner : Rendering -> CornerLocation -> ( CubieRendering, Coordinates )
+getRenderedCorner rendering location =
+    let
+        cornerRendering =
+            case location of
+                ( U, F, L ) ->
+                    rendering.ufl
+
+                ( U, F, R ) ->
+                    rendering.ufr
+
+                ( U, B, R ) ->
+                    rendering.ubr
+
+                ( U, B, L ) ->
+                    rendering.ubl
+
+                ( D, B, L ) ->
+                    rendering.dbl
+
+                ( D, B, R ) ->
+                    rendering.dbr
+
+                ( D, F, R ) ->
+                    rendering.dfr
+
+                ( D, F, L ) ->
+                    rendering.dfl
+    in
+    ( cornerRendering, getCornerCoordinates location )
+
+
+getCornerCoordinates : CornerLocation -> Coordinates
+getCornerCoordinates ( uOrD, fOrB, lOrR ) =
+    { fromFront =
+        if fOrB == F then
+            0
+
+        else
+            2
+    , fromLeft =
+        if lOrR == L then
+            0
+
+        else
+            2
+    , fromTop =
+        if uOrD == U then
+            0
+
+        else
+            2
+    }
+
+
+getRenderedEdges : Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates )
+getRenderedEdges rendering =
+    List.Nonempty.map (getRenderedEdge rendering) edgeLocations
+
+
+getRenderedEdge : Rendering -> EdgeLocation -> ( CubieRendering, Coordinates )
+getRenderedEdge rendering location =
+    let
+        edgeRendering =
+            case location of
+                M ( U, F ) ->
+                    rendering.uf
+
+                M ( U, B ) ->
+                    rendering.ub
+
+                M ( D, F ) ->
+                    rendering.df
+
+                M ( D, B ) ->
+                    rendering.db
+
+                S ( U, L ) ->
+                    rendering.ul
+
+                S ( U, R ) ->
+                    rendering.ur
+
+                S ( D, L ) ->
+                    rendering.dl
+
+                S ( D, R ) ->
+                    rendering.dr
+
+                E ( F, L ) ->
+                    rendering.fl
+
+                E ( F, R ) ->
+                    rendering.fr
+
+                E ( B, L ) ->
+                    rendering.bl
+
+                E ( B, R ) ->
+                    rendering.br
+    in
+    ( edgeRendering, getEdgeCoordinates location )
+
+
+getEdgeCoordinates : EdgeLocation -> Coordinates
+getEdgeCoordinates location =
+    case location of
+        M ( uOrD, fOrB ) ->
+            { fromFront =
+                if fOrB == F then
+                    0
+
+                else
+                    2
+            , fromLeft = 1
+            , fromTop =
+                if uOrD == U then
+                    0
+
+                else
+                    2
+            }
+
+        S ( uOrD, lOrR ) ->
+            { fromFront = 1
+            , fromLeft =
+                if lOrR == L then
+                    0
+
+                else
+                    2
+            , fromTop =
+                if uOrD == U then
+                    0
+
+                else
+                    2
+            }
+
+        E ( fOrB, lOrR ) ->
+            { fromFront =
+                if fOrB == F then
+                    0
+
+                else
+                    2
+            , fromLeft =
+                if lOrR == L then
+                    0
+
+                else
+                    2
+            , fromTop = 1
+            }
+
+
+getRenderedCenters : Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates )
+getRenderedCenters rendering =
+    List.Nonempty.map (getRenderedCenter rendering) centerLocations
+
+
+getRenderedCenter : Rendering -> CenterLocation -> ( CubieRendering, Coordinates )
+getRenderedCenter rendering location =
+    let
+        centerRendering =
+            case location of
+                CenterLocation (UpOrDown U) ->
+                    rendering.u
+
+                CenterLocation (UpOrDown D) ->
+                    rendering.d
+
+                CenterLocation (LeftOrRight L) ->
+                    rendering.l
+
+                CenterLocation (LeftOrRight R) ->
+                    rendering.r
+
+                CenterLocation (FrontOrBack F) ->
+                    rendering.f
+
+                CenterLocation (FrontOrBack B) ->
+                    rendering.b
+    in
+    ( centerRendering
+    , getCenterCoordinates location
+    )
+
+
 getCenterCoordinates : CenterLocation -> Coordinates
 getCenterCoordinates location =
     case location of
@@ -3117,131 +2942,306 @@ getCenterCoordinates location =
             }
 
 
-{-| See [Cube.algorithmResultsAreEquivalent](Cube#algorithmResultsAreEquivalent)
--}
-algorithmResultsAreEquivalent : Algorithm -> Algorithm -> Bool
-algorithmResultsAreEquivalent a b =
-    solved
-        |> applyAlgorithm a
-        |> applyAlgorithm (Algorithm.inverse b)
-        |> (==) solved
-
-
-{-| See [Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation](Cube#algorithmResultsAreEquivalentIndependentOfRotation)
--}
-algorithmResultsAreEquivalentIndependentOfFinalRotation : Algorithm -> Algorithm -> Bool
-algorithmResultsAreEquivalentIndependentOfFinalRotation a b =
-    algorithmResultsAreEquivalent
-        (makeAlgorithmMaintainOrientation a)
-        (makeAlgorithmMaintainOrientation b)
-
-
-{-| See [Cube.makeAlgorithmMaintainOrientation](Cube#makeAlgorithmMaintainOrientation)
--}
-makeAlgorithmMaintainOrientation : Algorithm -> Algorithm
-makeAlgorithmMaintainOrientation algorithm =
+square :
+    { center : Vec3
+    , innerColor : Vec3
+    , borderColor : Vec3
+    , orthogonalPlaneDirection1 : Vec3
+    , orthogonalPlaneDirection2 : Vec3
+    , totalWidthAndHeight : Float
+    , borderWidth : Float
+    }
+    -> List ( Vertex, Vertex, Vertex )
+square { center, innerColor, orthogonalPlaneDirection1, orthogonalPlaneDirection2, totalWidthAndHeight, borderWidth, borderColor } =
     let
-        faceToMoveToU =
-            findFaceWithCenterColor
-                UpColor
-                (render <| applyAlgorithm algorithm solved)
+        innerVertex position =
+            { color = Vec3.scale (1 / 255) innerColor, position = position }
 
-        allYRotations =
-            Algorithm.allTurnLengths
-                |> List.Nonempty.map (\length -> Algorithm.Turn Algorithm.Y length Algorithm.Clockwise)
-                |> List.Nonempty.map (List.singleton >> Algorithm.fromTurnList)
-                |> List.Nonempty.cons Algorithm.empty
+        borderVertex position =
+            { color = Vec3.scale (1 / 255) borderColor, position = position }
+
+        innerWidthAndHeight =
+            totalWidthAndHeight - 2 * borderWidth
+
+        addHalfWidthInDirection width direction point =
+            direction
+                |> Vec3.normalize
+                |> Vec3.scale (width / 2)
+                |> Vec3.add point
+
+        -- Inner Corners
+        { a, b, c, d } =
+            { a =
+                center
+                    -- The scale by 1 are just for readability of the -1 and 1 difference
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
+            , b =
+                center
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
+            , c =
+                center
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
+            , d =
+                center
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
+            }
+
+        -- Corresponding Outer Corners
+        { aa, bb, cc, dd } =
+            { aa =
+                center
+                    -- The scale by 1 are just for readability of the -1 and 1 difference
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
+            , bb =
+                center
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
+            , cc =
+                center
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
+            , dd =
+                center
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
+            }
     in
-    algorithm
-        -- We first fix the U (and D) face
-        |> rotateSoFaceIsOnU faceToMoveToU
-        -- Now we should be able to use a y-axis rotation to fix the last 4 faces
-        |> (\uFixedAlgorithm ->
-                let
-                    yRotationPossibilities =
-                        List.Nonempty.map
-                            (Algorithm.append uFixedAlgorithm)
-                            allYRotations
-                in
-                List.Nonempty.filter
-                    hasStartingOrientation
-                    uFixedAlgorithm
-                    yRotationPossibilities
-           )
-        -- We use a default with the filter etc. above, so it is definitely important
-        -- this code has some good tests to ensure confidence in the logic
-        |> List.Nonempty.head
+    [ ( innerVertex a, innerVertex b, innerVertex c )
+    , ( innerVertex c, innerVertex d, innerVertex a )
+    , ( borderVertex aa, borderVertex bb, borderVertex b )
+    , ( borderVertex b, borderVertex a, borderVertex aa )
+    , ( borderVertex bb, borderVertex cc, borderVertex c )
+    , ( borderVertex c, borderVertex b, borderVertex bb )
+    , ( borderVertex cc, borderVertex dd, borderVertex d )
+    , ( borderVertex d, borderVertex c, borderVertex cc )
+    , ( borderVertex dd, borderVertex aa, borderVertex a )
+    , ( borderVertex a, borderVertex d, borderVertex dd )
+    ]
+        |> List.map (mapTriple noTransformationVertex)
 
 
-findFaceWithCenterColor : Color -> Rendering -> Face
-findFaceWithCenterColor color rendering =
-    List.Nonempty.map (\face -> ( centerColorOnFace face rendering, face )) faces
-        -- We trust the tests here by using the default this nonempty filter requires
-        -- as this case should never happen but in case it does good tests hopefully catch it
-        |> List.Nonempty.filter (Tuple.first >> (==) color) ( UpColor, UpOrDown U )
-        |> List.Nonempty.head
-        |> Tuple.second
+triangleLine : { from : Vec2, to : Vec2, zCoordinate : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex )
+triangleLine { from, to, width, color, zCoordinate } =
+    let
+        diff =
+            Vec2.sub to from
+
+        normal =
+            Vec2.vec2 -(Vec2.getY diff) (Vec2.getX diff)
+                |> Vec2.normalize
+
+        halfWidthLengthNormal =
+            Vec2.scale (width / 2) normal
+
+        a =
+            Vec2.add from halfWidthLengthNormal
+
+        b =
+            Vec2.add a diff
+
+        c =
+            Vec2.sub b (Vec2.scale 2 halfWidthLengthNormal)
+
+        d =
+            Vec2.sub c diff
+    in
+    [ ( a, b, c ), ( c, a, d ) ]
+        |> twoDTrianglesToColored3d { zCoordinate = zCoordinate, color = color }
 
 
-centerColorOnFace : Face -> Rendering -> Color
-centerColorOnFace face rendering =
-    case face of
-        UpOrDown U ->
-            rendering.u.u
-
-        UpOrDown D ->
-            rendering.d.d
-
-        LeftOrRight R ->
-            rendering.r.r
-
-        LeftOrRight L ->
-            rendering.l.l
-
-        FrontOrBack F ->
-            rendering.f.f
-
-        FrontOrBack B ->
-            rendering.b.b
+twoDTrianglesToColored3d : { zCoordinate : Float, color : Vec3 } -> List ( Vec2, Vec2, Vec2 ) -> List ( Vertex, Vertex, Vertex )
+twoDTrianglesToColored3d { zCoordinate, color } triangles =
+    triangles
+        |> List.map (mapTriple <| twoDTo3d zCoordinate)
+        |> List.map (mapTriple <| positionToVertex { color = color })
 
 
-rotateSoFaceIsOnU : Face -> Algorithm -> Algorithm
-rotateSoFaceIsOnU face algorithm =
-    Algorithm.append algorithm <|
-        case face of
-            UpOrDown U ->
-                Algorithm.empty
-
-            UpOrDown D ->
-                Algorithm.fromTurnList
-                    [ Algorithm.Turn Algorithm.X Algorithm.Halfway Algorithm.Clockwise ]
-
-            LeftOrRight R ->
-                Algorithm.fromTurnList
-                    [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.CounterClockwise ]
-
-            LeftOrRight L ->
-                Algorithm.fromTurnList
-                    [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise ]
-
-            FrontOrBack F ->
-                Algorithm.fromTurnList
-                    [ Algorithm.Turn Algorithm.X Algorithm.OneQuarter Algorithm.Clockwise ]
-
-            FrontOrBack B ->
-                Algorithm.fromTurnList
-                    [ Algorithm.Turn Algorithm.X Algorithm.OneQuarter Algorithm.CounterClockwise ]
+twoDTo3d : Float -> Vec2 -> Vec3
+twoDTo3d zCoordinate xy =
+    Vec3.vec3 (Vec2.getX xy) (Vec2.getY xy) zCoordinate
 
 
-hasStartingOrientation : Algorithm -> Bool
-hasStartingOrientation algorithm =
-    faces
-        |> List.Nonempty.map
-            (\face ->
-                ( centerColorOnFace
-                    face
-                    (render <| applyAlgorithm algorithm solved)
-                , centerColorOnFace face (render solved)
-                )
-            )
-        |> List.Nonempty.all (\( colorA, colorB ) -> colorA == colorB)
+{-| Granularity is the length of each line segment in the curve
+-}
+halfEllipse :
+    { height : Float
+    , centerYCoordinate : Float
+    , zCoordinate : Float
+    , startX : Float
+    , endX : Float
+    , granularity : Float
+    , strokeWidth : Float
+    , color : Vec3
+    }
+    -> List ( Vertex, Vertex, Vertex )
+halfEllipse params =
+    let
+        width =
+            params.endX - params.startX
+
+        center =
+            Vec3.vec3 (params.startX + width / 2) params.centerYCoordinate params.zCoordinate
+    in
+    halfEllipseHelper
+        { width = width
+        , height = params.height
+        , granularity = params.granularity
+        , strokeWidth = params.strokeWidth
+        , color = params.color
+        }
+        { x = -width / 2, triangles = [] }
+        |> addBeginningEllipseLine
+            { startX = -width / 2
+            , startY = 0
+            , width = params.strokeWidth
+            , color = params.color
+            }
+        |> addEndingEllipseLine
+            { startX = width / 2
+            , startY = 0
+            , width = params.strokeWidth
+            , color = params.color
+            }
+        |> List.map (mapTriple <| mapPosition <| Vec3.add center)
+
+
+halfEllipseHelper : { width : Float, height : Float, granularity : Float, strokeWidth : Float, color : Vec3 } -> { x : Float, triangles : List ( Vertex, Vertex, Vertex ) } -> List ( Vertex, Vertex, Vertex )
+halfEllipseHelper params { x, triangles } =
+    let
+        rx =
+            params.width / 2
+
+        ry =
+            params.height
+
+        startCoordinates =
+            getPositiveEllipseCoordinatesFromX { rx = rx, ry = ry } x
+
+        endCoordinates =
+            getNextCoordinates { rx = rx, ry = ry, granularity = params.granularity } startCoordinates
+
+        newLineSegment =
+            triangleLine { from = startCoordinates, to = endCoordinates, width = params.strokeWidth, zCoordinate = 0, color = params.color }
+    in
+    if rx - Vec2.getX endCoordinates < params.granularity / 20 then
+        triangles ++ newLineSegment
+
+    else
+        halfEllipseHelper params { x = Vec2.getX endCoordinates, triangles = triangles ++ newLineSegment }
+
+
+getNextCoordinates : { rx : Float, ry : Float, granularity : Float } -> Vec2 -> Vec2
+getNextCoordinates { rx, ry, granularity } current =
+    binarySearchEllipseDistance
+        { rx = rx
+        , ry = ry
+        , targetDistance = granularity
+        , minX = Vec2.getX current
+        , maxX = Basics.min rx (Vec2.getX current + granularity)
+        , startPoint = current
+        }
+
+
+binarySearchEllipseDistance : { rx : Float, ry : Float, targetDistance : Float, minX : Float, maxX : Float, startPoint : Vec2 } -> Vec2
+binarySearchEllipseDistance ({ rx, ry, targetDistance, minX, maxX, startPoint } as params) =
+    let
+        xToTest =
+            (minX + maxX) / 2
+
+        testEndPoint =
+            getPositiveEllipseCoordinatesFromX { rx = rx, ry = ry } xToTest
+
+        testDistance =
+            Vec2.distance startPoint testEndPoint
+    in
+    if testDistance - targetDistance < targetDistance / 10 then
+        testEndPoint
+
+    else if maxX - minX < targetDistance / 10 then
+        getPositiveEllipseCoordinatesFromX { rx = rx, ry = ry } maxX
+
+    else if testDistance >= targetDistance then
+        binarySearchEllipseDistance { params | maxX = xToTest }
+
+    else
+        binarySearchEllipseDistance { params | minX = xToTest }
+
+
+getPositiveEllipseCoordinatesFromX : { rx : Float, ry : Float } -> Float -> Vec2
+getPositiveEllipseCoordinatesFromX { rx, ry } x =
+    Vec2.fromRecord
+        { x = x
+        , y = ry * sqrt (rx * rx - x * x) / rx
+        }
+
+
+addBeginningEllipseLine : { startX : Float, startY : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
+addBeginningEllipseLine { startX, startY, width, color } vertices =
+    case vertices of
+        first :: second :: _ ->
+            let
+                firstLineCorners =
+                    List.Nonempty.Nonempty first [ second ]
+                        |> List.Nonempty.map (\( a, b, c ) -> List.Nonempty.Nonempty a [ b, c ])
+                        |> List.Nonempty.concat
+
+                minXVertex =
+                    firstLineCorners
+                        |> List.Nonempty.sortBy (.position >> Vec3.getX)
+                        |> List.Nonempty.head
+
+                beginningLine =
+                    triangleLine { from = Vec2.vec2 startX startY, to = Vec2.vec2 startX (Vec3.getY minXVertex.position), zCoordinate = 0, width = width, color = color }
+            in
+            beginningLine ++ vertices
+
+        _ ->
+            vertices
+
+
+addEndingEllipseLine : { startX : Float, startY : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
+addEndingEllipseLine params vertices =
+    vertices
+        |> negateAllXCoordinates
+        |> List.reverse
+        |> addBeginningEllipseLine { params | startX = -params.startX }
+        |> negateAllXCoordinates
+        |> List.reverse
+
+
+negateAllXCoordinates : List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
+negateAllXCoordinates =
+    List.map (mapTriple <| mapPosition (\pos -> Vec3.setX (-1 * Vec3.getX pos) pos))
+
+
+noTransformationVertex : { color : Vec3, position : Vec3 } -> Vertex
+noTransformationVertex { color, position } =
+    { color = color
+    , position = position
+    , transformation = Mat4.identity
+    }
+
+
+setTransformation : Mat4 -> Vertex -> Vertex
+setTransformation newTransformation oldVertex =
+    { oldVertex | transformation = newTransformation }
+
+
+mapPosition : (Vec3 -> Vec3) -> Vertex -> Vertex
+mapPosition fn original =
+    { original | position = fn original.position }
+
+
+positionToVertex : { color : Vec3 } -> Vec3 -> Vertex
+positionToVertex { color } position =
+    { position = position, color = color, transformation = Mat4.identity }
+
+
+mapTriple : (a -> b) -> ( a, a, a ) -> ( b, b, b )
+mapTriple fn ( x, y, z ) =
+    ( fn x, fn y, fn z )
