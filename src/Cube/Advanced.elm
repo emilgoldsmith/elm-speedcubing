@@ -1781,6 +1781,7 @@ viewHelper { turnCurrentlyAnimating } attributes { pixelSize, displayAngle, anno
 
             else
                 Nothing
+        , theme = defaultTheme
         }
         cube
 
@@ -1790,29 +1791,66 @@ viewHelper { turnCurrentlyAnimating } attributes { pixelSize, displayAngle, anno
 
 
 type alias CubeTheme =
-    { up : CssColor
-    , down : CssColor
-    , right : CssColor
-    , left : CssColor
-    , front : CssColor
-    , back : CssColor
-    , plastic : CssColor
+    { up : Rgb255Color
+    , down : Rgb255Color
+    , right : Rgb255Color
+    , left : Rgb255Color
+    , front : Rgb255Color
+    , back : Rgb255Color
+    , plastic : Rgb255Color
+    , annotations : Rgb255Color
     }
 
 
-type alias CssColor =
-    String
+type alias Rgb255Color =
+    ( Int, Int, Int )
+
+
+white : Rgb255Color
+white =
+    ( 200, 200, 200 )
+
+
+red : Rgb255Color
+red =
+    ( 255, 0, 0 )
+
+
+blue : Rgb255Color
+blue =
+    ( 0, 0, 255 )
+
+
+orange : Rgb255Color
+orange =
+    ( 245, 121, 0 )
+
+
+green : Rgb255Color
+green =
+    ( 0, 255, 0 )
+
+
+yellow : Rgb255Color
+yellow =
+    ( 237, 212, 0 )
+
+
+black : Rgb255Color
+black =
+    ( 0, 0, 0 )
 
 
 defaultTheme : CubeTheme
 defaultTheme =
-    { up = "white"
-    , down = "yellow"
-    , right = "red"
-    , left = "orange"
-    , front = "green"
-    , back = "blue"
-    , plastic = "black"
+    { up = yellow
+    , down = white
+    , right = orange
+    , left = red
+    , front = green
+    , back = blue
+    , plastic = black
+    , annotations = black
     }
 
 
@@ -1881,10 +1919,11 @@ getCubeHtml :
                 , f : Rotation
                 , b : Rotation
                 }
+        , theme : CubeTheme
         }
     -> Cube
     -> Html msg
-getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelSize } cube =
+getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelSize, theme } cube =
     WebGL.toHtml
         ([ width (pixelSize * 2)
          , height (pixelSize * 2)
@@ -1897,20 +1936,21 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
         (WebGL.entity
             vertexShader
             fragmentShader
-            cubeMesh
+            (cubeMesh theme (render cube))
             { perspective =
                 perspective
             , rotation =
                 rotationToWebgl rotation Mat4.identity
             }
-            :: (Maybe.map (faceAnnotations rotation) annotateFaces
+            :: (Maybe.map (faceAnnotations theme rotation) annotateFaces
                     |> Maybe.withDefault []
                )
         )
 
 
 faceAnnotations :
-    Rotation
+    CubeTheme
+    -> Rotation
     ->
         { u : Rotation
         , d : Rotation
@@ -1920,12 +1960,12 @@ faceAnnotations :
         , b : Rotation
         }
     -> List WebGL.Entity
-faceAnnotations rotation adjustments =
+faceAnnotations theme rotation adjustments =
     -- The .51 instead of just .5s are so that the annotations display in front of the cube instead of blending into the face itself
     [ WebGL.entity
         vertexShader
         fragmentShader
-        (meshF { height = 0.6, centerPosition = Vec3.vec3 0 0 1.51, rotate = identity >> rotationToWebgl adjustments.f })
+        (meshF theme { height = 0.6, centerPosition = Vec3.vec3 0 0 1.51, rotate = identity >> rotationToWebgl adjustments.f })
         { perspective =
             perspective
         , rotation =
@@ -1934,7 +1974,7 @@ faceAnnotations rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshL { height = 0.6, centerPosition = Vec3.vec3 -1.51 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j >> rotationToWebgl adjustments.l })
+        (meshL theme { height = 0.6, centerPosition = Vec3.vec3 -1.51 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j >> rotationToWebgl adjustments.l })
         { perspective =
             perspective
         , rotation =
@@ -1943,7 +1983,7 @@ faceAnnotations rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshU { height = 0.6, centerPosition = Vec3.vec3 0 1.51 0, rotate = Mat4.rotate (degrees -90) Vec3.i >> rotationToWebgl adjustments.u })
+        (meshU theme { height = 0.6, centerPosition = Vec3.vec3 0 1.51 0, rotate = Mat4.rotate (degrees -90) Vec3.i >> rotationToWebgl adjustments.u })
         { perspective =
             perspective
         , rotation =
@@ -1952,7 +1992,7 @@ faceAnnotations rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshD { height = 0.6, centerPosition = Vec3.vec3 0 -1.51 0, rotate = Mat4.rotate (degrees 90) Vec3.i >> rotationToWebgl adjustments.d })
+        (meshD theme { height = 0.6, centerPosition = Vec3.vec3 0 -1.51 0, rotate = Mat4.rotate (degrees 90) Vec3.i >> rotationToWebgl adjustments.d })
         { perspective =
             perspective
         , rotation =
@@ -1961,7 +2001,7 @@ faceAnnotations rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshR { height = 0.6, centerPosition = Vec3.vec3 1.51 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j >> rotationToWebgl adjustments.r })
+        (meshR theme { height = 0.6, centerPosition = Vec3.vec3 1.51 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j >> rotationToWebgl adjustments.r })
         { perspective =
             perspective
         , rotation =
@@ -1970,7 +2010,7 @@ faceAnnotations rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshB { height = 0.6, centerPosition = Vec3.vec3 0 0 -1.51, rotate = Mat4.rotate (degrees 180) Vec3.j >> rotationToWebgl adjustments.b })
+        (meshB theme { height = 0.6, centerPosition = Vec3.vec3 0 0 -1.51, rotate = Mat4.rotate (degrees 180) Vec3.j >> rotationToWebgl adjustments.b })
         { perspective =
             perspective
         , rotation =
@@ -2014,17 +2054,17 @@ perspective =
         (Mat4.makeLookAt eye viewportTranslation Vec3.j)
 
 
-cubeMesh : WebGL.Mesh Vertex
-cubeMesh =
+cubeMesh : CubeTheme -> Rendering -> WebGL.Mesh Vertex
+cubeMesh theme rendering =
     List.map
-        cubieMesh
-        allCubieData
+        (cubieMesh theme)
+        (allCubieData theme rendering)
         |> List.concat
         |> WebGL.triangles
 
 
-cubieMesh : CubieData -> List ( Vertex, Vertex, Vertex )
-cubieMesh { colors, center } =
+cubieMesh : CubeTheme -> CubieData -> List ( Vertex, Vertex, Vertex )
+cubieMesh theme { colors, center } =
     let
         totalCubieWidth =
             1
@@ -2072,7 +2112,7 @@ cubieMesh { colors, center } =
                 , orthogonalPlaneDirection2 = params.orthogonalPlaneDirection2
                 , totalWidthAndHeight = totalCubieWidth
                 , borderWidth = borderWidth
-                , borderColor = black
+                , borderColor = theme.plastic |> rgb255ColorToColorVector
                 }
             )
         |> List.map square
@@ -2201,157 +2241,44 @@ fragmentShader =
 -- Mesh
 
 
-white : Vec3
-white =
-    Vec3.vec3 200 200 200
-
-
-red : Vec3
-red =
-    Vec3.vec3 255 0 0
-
-
-blue : Vec3
-blue =
-    Vec3.vec3 0 0 255
-
-
-orange : Vec3
-orange =
-    Vec3.vec3 245 121 0
-
-
-green : Vec3
-green =
-    Vec3.vec3 0 255 0
-
-
-yellow : Vec3
-yellow =
-    Vec3.vec3 237 212 0
-
-
-black : Vec3
-black =
-    Vec3.vec3 0 0 0
-
-
 type alias CubieData =
     { colors : { up : Vec3, down : Vec3, front : Vec3, back : Vec3, left : Vec3, right : Vec3 }, center : Vec3 }
 
 
-allCubieData : List CubieData
-allCubieData =
-    let
-        up =
-            -1
-
-        down =
-            1
-
-        front =
-            -1
-
-        back =
-            1
-
-        left =
-            -1
-
-        right =
-            1
-
-        middle =
-            0
-    in
-    [ { center = ( up, left, front )
-      , colors = { up = yellow, down = black, front = black, back = blue, left = red, right = black }
-      }
-    , { center = ( up, left, middle )
-      , colors = { up = yellow, down = black, front = black, back = black, left = red, right = black }
-      }
-    , { center = ( up, left, back )
-      , colors = { up = yellow, down = black, front = green, back = black, left = red, right = black }
-      }
-    , { center = ( up, middle, front )
-      , colors = { up = black, down = black, front = black, back = blue, left = red, right = black }
-      }
-    , { center = ( up, middle, middle )
-      , colors = { up = black, down = black, front = black, back = black, left = red, right = black }
-      }
-    , { center = ( up, middle, back )
-      , colors = { up = black, down = black, front = green, back = black, left = red, right = black }
-      }
-    , { center = ( up, right, front )
-      , colors = { up = black, down = white, front = black, back = blue, left = red, right = black }
-      }
-    , { center = ( up, right, middle )
-      , colors = { up = black, down = white, front = black, back = black, left = red, right = black }
-      }
-    , { center = ( up, right, back )
-      , colors = { up = black, down = white, front = green, back = black, left = red, right = black }
-      }
-    , { center = ( middle, left, front )
-      , colors = { up = yellow, down = black, front = black, back = blue, left = black, right = black }
-      }
-    , { center = ( middle, left, middle )
-      , colors = { up = yellow, down = black, front = black, back = black, left = black, right = black }
-      }
-    , { center = ( middle, left, back )
-      , colors = { up = yellow, down = black, front = green, back = black, left = black, right = black }
-      }
-    , { center = ( middle, middle, front )
-      , colors = { up = black, down = black, front = black, back = blue, left = black, right = black }
-      }
-    , { center = ( middle, middle, middle )
-      , colors = { up = black, down = black, front = black, back = black, left = black, right = black }
-      }
-    , { center = ( middle, middle, back )
-      , colors = { up = black, down = black, front = green, back = black, left = black, right = black }
-      }
-    , { center = ( middle, right, front )
-      , colors = { up = black, down = white, front = black, back = blue, left = black, right = black }
-      }
-    , { center = ( middle, right, middle )
-      , colors = { up = black, down = white, front = black, back = black, left = black, right = black }
-      }
-    , { center = ( middle, right, back )
-      , colors = { up = black, down = white, front = green, back = black, left = black, right = black }
-      }
-    , { center = ( down, left, front )
-      , colors = { up = yellow, down = black, front = black, back = blue, left = black, right = orange }
-      }
-    , { center = ( down, left, middle )
-      , colors = { up = yellow, down = black, front = black, back = black, left = black, right = orange }
-      }
-    , { center = ( down, left, back )
-      , colors = { up = yellow, down = black, front = green, back = black, left = black, right = orange }
-      }
-    , { center = ( down, middle, front )
-      , colors = { up = black, down = black, front = black, back = blue, left = black, right = orange }
-      }
-    , { center = ( down, middle, middle )
-      , colors = { up = black, down = black, front = black, back = black, left = black, right = orange }
-      }
-    , { center = ( down, middle, back )
-      , colors = { up = black, down = black, front = green, back = black, left = black, right = orange }
-      }
-    , { center = ( down, right, front )
-      , colors = { up = black, down = white, front = black, back = blue, left = black, right = orange }
-      }
-    , { center = ( down, right, middle )
-      , colors = { up = black, down = white, front = black, back = black, left = black, right = orange }
-      }
-    , { center = ( down, right, back )
-      , colors = { up = black, down = white, front = green, back = black, left = black, right = orange }
-      }
-    ]
-        |> List.map (\{ center, colors } -> { center = tripleToVector center, colors = colors })
+allCubieData : CubeTheme -> Rendering -> List CubieData
+allCubieData theme rendering =
+    List.map
+        (\( cubieRendering, coordinates ) ->
+            { center = coordinatesToCenterVector coordinates, colors = cubieRenderingToColorVectors theme cubieRendering }
+        )
+        (getRenderedCorners rendering
+            |> List.Nonempty.append
+                (getRenderedEdges rendering)
+            |> List.Nonempty.append
+                (getRenderedCenters rendering)
+            |> List.Nonempty.toList
+        )
 
 
-tripleToVector : ( Float, Float, Float ) -> Vec3
-tripleToVector ( x, y, z ) =
-    Vec3.vec3 x y z
+coordinatesToCenterVector : Coordinates -> Vec3
+coordinatesToCenterVector { fromFront, fromTop, fromLeft } =
+    Vec3.vec3 (toFloat fromLeft - 1) (toFloat fromTop - 1) (1 - toFloat fromFront)
+
+
+cubieRenderingToColorVectors : CubeTheme -> CubieRendering -> { up : Vec3, down : Vec3, front : Vec3, back : Vec3, left : Vec3, right : Vec3 }
+cubieRenderingToColorVectors theme rendering =
+    { up = rendering.u |> getRgb255Color theme |> rgb255ColorToColorVector
+    , down = rendering.d |> getRgb255Color theme |> rgb255ColorToColorVector
+    , front = rendering.f |> getRgb255Color theme |> rgb255ColorToColorVector
+    , back = rendering.b |> getRgb255Color theme |> rgb255ColorToColorVector
+    , left = rendering.l |> getRgb255Color theme |> rgb255ColorToColorVector
+    , right = rendering.r |> getRgb255Color theme |> rgb255ColorToColorVector
+    }
+
+
+rgb255ColorToColorVector : Rgb255Color -> Vec3
+rgb255ColorToColorVector ( x, y, z ) =
+    Vec3.vec3 (toFloat x) (toFloat y) (toFloat z)
 
 
 
@@ -2471,8 +2398,8 @@ getFaceColor face rendering =
             rendering.r
 
 
-getColorString : CubeTheme -> Color -> String
-getColorString theme color =
+getRgb255Color : CubeTheme -> Color -> Rgb255Color
+getRgb255Color theme color =
     case color of
         UpColor ->
             theme.up
@@ -2519,13 +2446,13 @@ type alias Rotation =
     List SingleRotation
 
 
-getRenderedCorners : { annotateFaces : Bool } -> Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
-getRenderedCorners arguments rendering =
-    List.Nonempty.map (getRenderedCorner arguments rendering) cornerLocations
+getRenderedCorners : Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates )
+getRenderedCorners rendering =
+    List.Nonempty.map (getRenderedCorner rendering) cornerLocations
 
 
-getRenderedCorner : { annotateFaces : Bool } -> Rendering -> CornerLocation -> ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
-getRenderedCorner _ rendering location =
+getRenderedCorner : Rendering -> CornerLocation -> ( CubieRendering, Coordinates )
+getRenderedCorner rendering location =
     let
         cornerRendering =
             case location of
@@ -2553,7 +2480,7 @@ getRenderedCorner _ rendering location =
                 ( D, F, L ) ->
                     rendering.dfl
     in
-    ( cornerRendering, getCornerCoordinates location, noAnnotations )
+    ( cornerRendering, getCornerCoordinates location )
 
 
 getCornerCoordinates : CornerLocation -> Coordinates
@@ -2600,13 +2527,13 @@ noAnnotations =
     }
 
 
-getRenderedEdges : { annotateFaces : Bool } -> Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
-getRenderedEdges arguments rendering =
-    List.Nonempty.map (getRenderedEdge arguments rendering) edgeLocations
+getRenderedEdges : Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates )
+getRenderedEdges rendering =
+    List.Nonempty.map (getRenderedEdge rendering) edgeLocations
 
 
-getRenderedEdge : { annotateFaces : Bool } -> Rendering -> EdgeLocation -> ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
-getRenderedEdge _ rendering location =
+getRenderedEdge : Rendering -> EdgeLocation -> ( CubieRendering, Coordinates )
+getRenderedEdge rendering location =
     let
         edgeRendering =
             case location of
@@ -2646,7 +2573,7 @@ getRenderedEdge _ rendering location =
                 E ( B, R ) ->
                     rendering.br
     in
-    ( edgeRendering, getEdgeCoordinates location, noAnnotations )
+    ( edgeRendering, getEdgeCoordinates location )
 
 
 getEdgeCoordinates : EdgeLocation -> Coordinates
@@ -2701,41 +2628,36 @@ getEdgeCoordinates location =
             }
 
 
-getRenderedCenters : { annotateFaces : Bool } -> Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
-getRenderedCenters arguments rendering =
-    List.Nonempty.map (getRenderedCenter arguments rendering) centerLocations
+getRenderedCenters : Rendering -> List.Nonempty.Nonempty ( CubieRendering, Coordinates )
+getRenderedCenters rendering =
+    List.Nonempty.map (getRenderedCenter rendering) centerLocations
 
 
-getRenderedCenter : { annotateFaces : Bool } -> Rendering -> CenterLocation -> ( CubieRendering, Coordinates, ExtraCubieAnnotations msg )
-getRenderedCenter { annotateFaces } rendering location =
+getRenderedCenter : Rendering -> CenterLocation -> ( CubieRendering, Coordinates )
+getRenderedCenter rendering location =
     let
-        ( centerRendering, textAnnotations ) =
+        centerRendering =
             case location of
                 CenterLocation (UpOrDown U) ->
-                    ( rendering.u, { noAnnotations | u = Just (px >> svgU) } )
+                    rendering.u
 
                 CenterLocation (UpOrDown D) ->
-                    ( rendering.d, { noAnnotations | d = Just (px >> svgD) } )
+                    rendering.d
 
                 CenterLocation (LeftOrRight L) ->
-                    ( rendering.l, { noAnnotations | l = Just (px >> svgL) } )
+                    rendering.l
 
                 CenterLocation (LeftOrRight R) ->
-                    ( rendering.r, { noAnnotations | r = Just (px >> svgR) } )
+                    rendering.r
 
                 CenterLocation (FrontOrBack F) ->
-                    ( rendering.f, { noAnnotations | f = Just (px >> svgF) } )
+                    rendering.f
 
                 CenterLocation (FrontOrBack B) ->
-                    ( rendering.b, { noAnnotations | b = Just (px >> svgB) } )
+                    rendering.b
     in
     ( centerRendering
     , getCenterCoordinates location
-    , if annotateFaces then
-        textAnnotations
-
-      else
-        noAnnotations
     )
 
 
@@ -2748,8 +2670,8 @@ svgF size =
         ]
 
 
-meshF : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
-meshF { height, centerPosition, rotate } =
+meshF : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
+meshF theme { height, centerPosition, rotate } =
     let
         -- Bounding box pre-scaling is 150 (width) x 225 (height)
         boundingWidth =
@@ -2772,21 +2694,21 @@ meshF { height, centerPosition, rotate } =
         , to = Vec2.vec2 (stemWidth / 2) boundingHeight
         , zCoordinate = 0
         , width = stemWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , triangleLine
         { from = Vec2.vec2 0 (boundingHeight - branchesWidth / 2)
         , to = Vec2.vec2 boundingWidth (boundingHeight - branchesWidth / 2)
         , zCoordinate = 0
         , width = branchesWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , triangleLine
         { from = Vec2.vec2 0 (boundingHeight / 2)
         , to = Vec2.vec2 (boundingWidth * 13 / 15) (boundingHeight / 2)
         , zCoordinate = 0
         , width = branchesWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     ]
         |> List.concat
@@ -2872,8 +2794,8 @@ svgL size =
         ]
 
 
-meshL : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
-meshL { height, centerPosition, rotate } =
+meshL : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
+meshL theme { height, centerPosition, rotate } =
     let
         -- Bounding box pre-scaling is 150 (width) x 225 (height)
         boundingWidth =
@@ -2896,14 +2818,14 @@ meshL { height, centerPosition, rotate } =
         , to = Vec2.vec2 (stemWidth / 2) boundingHeight
         , zCoordinate = 0
         , width = stemWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , triangleLine
         { from = Vec2.vec2 0 (branchesWidth / 2)
         , to = Vec2.vec2 boundingWidth (branchesWidth / 2)
         , zCoordinate = 0
         , width = branchesWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     ]
         |> List.concat
@@ -2927,8 +2849,8 @@ svgU size =
         ]
 
 
-meshU : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
-meshU { height, centerPosition, rotate } =
+meshU : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
+meshU theme { height, centerPosition, rotate } =
     let
         -- Bounding box pre-scaling is 220 (width) x 300 (height)
         boundingWidth =
@@ -2948,7 +2870,7 @@ meshU { height, centerPosition, rotate } =
         , to = Vec2.vec2 (strokeWidth / 2) (boundingHeight * 2 / 3)
         , zCoordinate = 0
         , width = strokeWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , halfEllipse
         { startX = strokeWidth / 2
@@ -2958,13 +2880,14 @@ meshU { height, centerPosition, rotate } =
         , height = 82.5
         , granularity = 10
         , strokeWidth = strokeWidth
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , triangleLine
         { from = Vec2.vec2 (boundingWidth - strokeWidth / 2) 0
         , to = Vec2.vec2 (boundingWidth - strokeWidth / 2) (boundingHeight * 2 / 3)
         , zCoordinate = 0
         , width = strokeWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     ]
         |> List.concat
@@ -2984,7 +2907,17 @@ meshU { height, centerPosition, rotate } =
 
 {-| Granularity is the length of each line segment in the curve
 -}
-halfEllipse : { height : Float, centerYCoordinate : Float, zCoordinate : Float, startX : Float, endX : Float, granularity : Float, strokeWidth : Float } -> List ( Vertex, Vertex, Vertex )
+halfEllipse :
+    { height : Float
+    , centerYCoordinate : Float
+    , zCoordinate : Float
+    , startX : Float
+    , endX : Float
+    , granularity : Float
+    , strokeWidth : Float
+    , color : Vec3
+    }
+    -> List ( Vertex, Vertex, Vertex )
 halfEllipse params =
     let
         width =
@@ -2998,19 +2931,20 @@ halfEllipse params =
         , height = params.height
         , granularity = params.granularity
         , strokeWidth = params.strokeWidth
+        , color = params.color
         }
         { x = -width / 2, triangles = [] }
         |> addBeginningEllipseLine
             { startX = -width / 2
             , startY = 0
             , width = params.strokeWidth
-            , color = black
+            , color = params.color
             }
         |> addEndingEllipseLine
             { startX = width / 2
             , startY = 0
             , width = params.strokeWidth
-            , color = black
+            , color = params.color
             }
         |> List.map (mapTriple <| mapPosition <| Vec3.add center)
 
@@ -3024,7 +2958,7 @@ debug string value =
     value
 
 
-halfEllipseHelper : { width : Float, height : Float, granularity : Float, strokeWidth : Float } -> { x : Float, triangles : List ( Vertex, Vertex, Vertex ) } -> List ( Vertex, Vertex, Vertex )
+halfEllipseHelper : { width : Float, height : Float, granularity : Float, strokeWidth : Float, color : Vec3 } -> { x : Float, triangles : List ( Vertex, Vertex, Vertex ) } -> List ( Vertex, Vertex, Vertex )
 halfEllipseHelper params { x, triangles } =
     let
         rx =
@@ -3040,7 +2974,7 @@ halfEllipseHelper params { x, triangles } =
             getNextCoordinates { rx = rx, ry = ry, granularity = params.granularity } startCoordinates
 
         newLineSegment =
-            triangleLine { from = startCoordinates, to = endCoordinates, width = params.strokeWidth, zCoordinate = 0, color = black }
+            triangleLine { from = startCoordinates, to = endCoordinates, width = params.strokeWidth, zCoordinate = 0, color = params.color }
     in
     if rx - Vec2.getX endCoordinates < params.granularity / 20 then
         triangles ++ newLineSegment
@@ -3140,8 +3074,8 @@ svgD size =
         ]
 
 
-meshD : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
-meshD { height, centerPosition, rotate } =
+meshD : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
+meshD theme { height, centerPosition, rotate } =
     let
         -- Bounding box pre-scaling and rotation is 290 (width) x 230 (height)
         -- and for ease of ellipse use we are drawing the D "lying down"
@@ -3167,7 +3101,7 @@ meshD { height, centerPosition, rotate } =
         , to = Vec2.vec2 boundingWidth (strokeWidth / 2)
         , zCoordinate = 0
         , width = strokeWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , halfEllipse
         { startX = strokeWidth / 2
@@ -3177,6 +3111,7 @@ meshD { height, centerPosition, rotate } =
         , height = boundingHeight - strokeWidth * 3 / 2
         , granularity = 10
         , strokeWidth = strokeWidth
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     ]
         |> List.concat
@@ -3201,8 +3136,8 @@ svgR size =
         ]
 
 
-meshR : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
-meshR { height, centerPosition, rotate } =
+meshR : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
+meshR theme { height, centerPosition, rotate } =
     let
         -- Bounding box pre-scaling and rotation is 290 (width) x 255 (height)
         -- and for ease of ellipse use we are drawing the R "lying down"
@@ -3228,14 +3163,14 @@ meshR { height, centerPosition, rotate } =
         , to = Vec2.vec2 boundingWidth (strokeWidth / 2)
         , zCoordinate = 0
         , width = strokeWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , triangleLine
         { from = Vec2.vec2 (strokeWidth / 2) 0
         , to = Vec2.vec2 (strokeWidth / 2) (boundingHeight * 10 / 21)
         , zCoordinate = 0
         , width = strokeWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , halfEllipse
         { startX = strokeWidth / 2
@@ -3245,20 +3180,21 @@ meshR { height, centerPosition, rotate } =
         , height = boundingHeight * 95 / 210
         , granularity = 10
         , strokeWidth = strokeWidth
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , triangleLine
         { from = Vec2.vec2 (boundingWidth / 2) (boundingHeight * 10 / 21)
         , to = Vec2.vec2 (boundingWidth / 2) 0
         , zCoordinate = 0
         , width = strokeWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , triangleLine
         { from = Vec2.vec2 (boundingWidth / 2) (boundingHeight * 12 / 21)
         , to = Vec2.vec2 boundingWidth (boundingWidth * 2 / 3)
         , zCoordinate = 0
         , width = strokeWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     ]
         |> List.concat
@@ -3283,8 +3219,8 @@ svgB size =
         ]
 
 
-meshB : { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
-meshB { height, centerPosition, rotate } =
+meshB : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
+meshB theme { height, centerPosition, rotate } =
     let
         -- Bounding box pre-scaling and rotation is 290 (width) x 230 (height)
         -- and for ease of ellipse use we are drawing the B "lying down"
@@ -3310,14 +3246,14 @@ meshB { height, centerPosition, rotate } =
         , to = Vec2.vec2 boundingWidth (strokeWidth / 2)
         , zCoordinate = 0
         , width = strokeWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , triangleLine
         { from = Vec2.vec2 (strokeWidth / 2) 0
         , to = Vec2.vec2 (strokeWidth / 2) (boundingHeight * 10 / 23)
         , zCoordinate = 0
         , width = strokeWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , halfEllipse
         { startX = strokeWidth / 2
@@ -3327,13 +3263,14 @@ meshB { height, centerPosition, rotate } =
         , height = boundingHeight * 95 / 255
         , granularity = 10
         , strokeWidth = strokeWidth
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , triangleLine
         { from = Vec2.vec2 (boundingWidth / 2) (boundingHeight * 10 / 23)
         , to = Vec2.vec2 (boundingWidth / 2) 0
         , zCoordinate = 0
         , width = strokeWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , halfEllipse
         { startX = boundingWidth / 2
@@ -3343,13 +3280,14 @@ meshB { height, centerPosition, rotate } =
         , height = boundingHeight * 95 / 255
         , granularity = 10
         , strokeWidth = strokeWidth
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     , triangleLine
         { from = Vec2.vec2 (boundingWidth - strokeWidth / 2) (boundingHeight * 10 / 23)
         , to = Vec2.vec2 (boundingWidth - strokeWidth / 2) 0
         , zCoordinate = 0
         , width = strokeWidth
-        , color = black
+        , color = theme.annotations |> rgb255ColorToColorVector
         }
     ]
         |> List.concat
