@@ -2032,12 +2032,12 @@ cubieMesh { colors, center } =
         borderWidth =
             0.05
     in
-    [ { innerColor = colors.top
+    [ { innerColor = colors.up
       , center = Vec3.add center (Vec3.vec3 0 (-0.5 * totalCubieWidth) 0)
       , orthogonalPlaneDirection1 = Vec3.i
       , orthogonalPlaneDirection2 = Vec3.k
       }
-    , { innerColor = colors.bottom
+    , { innerColor = colors.down
       , center = Vec3.add center (Vec3.vec3 0 (0.5 * totalCubieWidth) 0)
       , orthogonalPlaneDirection1 = Vec3.i
       , orthogonalPlaneDirection2 = Vec3.k
@@ -2237,39 +2237,121 @@ black =
 
 
 type alias CubieData =
-    { colors : { top : Vec3, bottom : Vec3, front : Vec3, back : Vec3, left : Vec3, right : Vec3 }, center : Vec3 }
+    { colors : { up : Vec3, down : Vec3, front : Vec3, back : Vec3, left : Vec3, right : Vec3 }, center : Vec3 }
 
 
 allCubieData : List CubieData
 allCubieData =
-    [ { center = Vec3.vec3 -1 -1 -1, colors = { right = black, top = yellow, front = black, back = blue, left = red, bottom = black } }
-    , { center = Vec3.vec3 -1 -1 0, colors = { right = black, top = yellow, front = black, back = black, left = red, bottom = black } }
-    , { center = Vec3.vec3 -1 -1 1, colors = { right = black, top = yellow, front = green, back = black, left = red, bottom = black } }
-    , { center = Vec3.vec3 -1 0 -1, colors = { right = black, top = black, front = black, back = blue, left = red, bottom = black } }
-    , { center = Vec3.vec3 -1 0 0, colors = { right = black, top = black, front = black, back = black, left = red, bottom = black } }
-    , { center = Vec3.vec3 -1 0 1, colors = { right = black, top = black, front = green, back = black, left = red, bottom = black } }
-    , { center = Vec3.vec3 -1 1 -1, colors = { right = black, top = black, front = black, back = blue, left = red, bottom = white } }
-    , { center = Vec3.vec3 -1 1 0, colors = { right = black, top = black, front = black, back = black, left = red, bottom = white } }
-    , { center = Vec3.vec3 -1 1 1, colors = { right = black, top = black, front = green, back = black, left = red, bottom = white } }
-    , { center = Vec3.vec3 0 -1 -1, colors = { right = black, top = yellow, front = black, back = blue, left = black, bottom = black } }
-    , { center = Vec3.vec3 0 -1 0, colors = { right = black, top = yellow, front = black, back = black, left = black, bottom = black } }
-    , { center = Vec3.vec3 0 -1 1, colors = { right = black, top = yellow, front = green, back = black, left = black, bottom = black } }
-    , { center = Vec3.vec3 0 0 -1, colors = { right = black, top = black, front = black, back = blue, left = black, bottom = black } }
-    , { center = Vec3.vec3 0 0 0, colors = { right = black, top = black, front = black, back = black, left = black, bottom = black } }
-    , { center = Vec3.vec3 0 0 1, colors = { right = black, top = black, front = green, back = black, left = black, bottom = black } }
-    , { center = Vec3.vec3 0 1 -1, colors = { right = black, top = black, front = black, back = blue, left = black, bottom = white } }
-    , { center = Vec3.vec3 0 1 0, colors = { right = black, top = black, front = black, back = black, left = black, bottom = white } }
-    , { center = Vec3.vec3 0 1 1, colors = { right = black, top = black, front = green, back = black, left = black, bottom = white } }
-    , { center = Vec3.vec3 1 -1 -1, colors = { right = orange, top = yellow, front = black, back = blue, left = black, bottom = black } }
-    , { center = Vec3.vec3 1 -1 0, colors = { right = orange, top = yellow, front = black, back = black, left = black, bottom = black } }
-    , { center = Vec3.vec3 1 -1 1, colors = { right = orange, top = yellow, front = green, back = black, left = black, bottom = black } }
-    , { center = Vec3.vec3 1 0 -1, colors = { right = orange, top = black, front = black, back = blue, left = black, bottom = black } }
-    , { center = Vec3.vec3 1 0 0, colors = { right = orange, top = black, front = black, back = black, left = black, bottom = black } }
-    , { center = Vec3.vec3 1 0 1, colors = { right = orange, top = black, front = green, back = black, left = black, bottom = black } }
-    , { center = Vec3.vec3 1 1 -1, colors = { right = orange, top = black, front = black, back = blue, left = black, bottom = white } }
-    , { center = Vec3.vec3 1 1 0, colors = { right = orange, top = black, front = black, back = black, left = black, bottom = white } }
-    , { center = Vec3.vec3 1 1 1, colors = { right = orange, top = black, front = green, back = black, left = black, bottom = white } }
+    let
+        up =
+            -1
+
+        down =
+            1
+
+        front =
+            -1
+
+        back =
+            1
+
+        left =
+            -1
+
+        right =
+            1
+
+        middle =
+            0
+    in
+    [ { center = ( up, left, front )
+      , colors = { up = yellow, down = black, front = black, back = blue, left = red, right = black }
+      }
+    , { center = ( up, left, middle )
+      , colors = { up = yellow, down = black, front = black, back = black, left = red, right = black }
+      }
+    , { center = ( up, left, back )
+      , colors = { up = yellow, down = black, front = green, back = black, left = red, right = black }
+      }
+    , { center = ( up, middle, front )
+      , colors = { up = black, down = black, front = black, back = blue, left = red, right = black }
+      }
+    , { center = ( up, middle, middle )
+      , colors = { up = black, down = black, front = black, back = black, left = red, right = black }
+      }
+    , { center = ( up, middle, back )
+      , colors = { up = black, down = black, front = green, back = black, left = red, right = black }
+      }
+    , { center = ( up, right, front )
+      , colors = { up = black, down = white, front = black, back = blue, left = red, right = black }
+      }
+    , { center = ( up, right, middle )
+      , colors = { up = black, down = white, front = black, back = black, left = red, right = black }
+      }
+    , { center = ( up, right, back )
+      , colors = { up = black, down = white, front = green, back = black, left = red, right = black }
+      }
+    , { center = ( middle, left, front )
+      , colors = { up = yellow, down = black, front = black, back = blue, left = black, right = black }
+      }
+    , { center = ( middle, left, middle )
+      , colors = { up = yellow, down = black, front = black, back = black, left = black, right = black }
+      }
+    , { center = ( middle, left, back )
+      , colors = { up = yellow, down = black, front = green, back = black, left = black, right = black }
+      }
+    , { center = ( middle, middle, front )
+      , colors = { up = black, down = black, front = black, back = blue, left = black, right = black }
+      }
+    , { center = ( middle, middle, middle )
+      , colors = { up = black, down = black, front = black, back = black, left = black, right = black }
+      }
+    , { center = ( middle, middle, back )
+      , colors = { up = black, down = black, front = green, back = black, left = black, right = black }
+      }
+    , { center = ( middle, right, front )
+      , colors = { up = black, down = white, front = black, back = blue, left = black, right = black }
+      }
+    , { center = ( middle, right, middle )
+      , colors = { up = black, down = white, front = black, back = black, left = black, right = black }
+      }
+    , { center = ( middle, right, back )
+      , colors = { up = black, down = white, front = green, back = black, left = black, right = black }
+      }
+    , { center = ( down, left, front )
+      , colors = { up = yellow, down = black, front = black, back = blue, left = black, right = orange }
+      }
+    , { center = ( down, left, middle )
+      , colors = { up = yellow, down = black, front = black, back = black, left = black, right = orange }
+      }
+    , { center = ( down, left, back )
+      , colors = { up = yellow, down = black, front = green, back = black, left = black, right = orange }
+      }
+    , { center = ( down, middle, front )
+      , colors = { up = black, down = black, front = black, back = blue, left = black, right = orange }
+      }
+    , { center = ( down, middle, middle )
+      , colors = { up = black, down = black, front = black, back = black, left = black, right = orange }
+      }
+    , { center = ( down, middle, back )
+      , colors = { up = black, down = black, front = green, back = black, left = black, right = orange }
+      }
+    , { center = ( down, right, front )
+      , colors = { up = black, down = white, front = black, back = blue, left = black, right = orange }
+      }
+    , { center = ( down, right, middle )
+      , colors = { up = black, down = white, front = black, back = black, left = black, right = orange }
+      }
+    , { center = ( down, right, back )
+      , colors = { up = black, down = white, front = green, back = black, left = black, right = orange }
+      }
     ]
+        |> List.map (\{ center, colors } -> { center = tripleToVector center, colors = colors })
+
+
+tripleToVector : ( Float, Float, Float ) -> Vec3
+tripleToVector ( x, y, z ) =
+    Vec3.vec3 x y z
 
 
 
