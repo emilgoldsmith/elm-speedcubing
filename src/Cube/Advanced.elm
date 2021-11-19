@@ -1713,25 +1713,7 @@ view :
         }
     -> Cube
     -> Html msg
-view =
-    viewHelper
-        { turnCurrentlyAnimating = Nothing
-        }
-
-
-viewHelper :
-    { turnCurrentlyAnimating : Maybe Algorithm.Turn
-    }
-    -> List (Attribute msg)
-    ->
-        { a
-            | pixelSize : Int
-            , displayAngle : DisplayAngle
-            , annotateFaces : Bool
-        }
-    -> Cube
-    -> Html msg
-viewHelper { turnCurrentlyAnimating } attributes { pixelSize, displayAngle, annotateFaces } cube =
+view attributes { pixelSize, displayAngle, annotateFaces } cube =
     let
         { mainRotation, annotationAdjustments } =
             case displayAngle of
@@ -1773,7 +1755,6 @@ viewHelper { turnCurrentlyAnimating } attributes { pixelSize, displayAngle, anno
     in
     getCubeHtml attributes
         { rotation = mainRotation
-        , turnCurrentlyAnimating = turnCurrentlyAnimating
         , pixelSize = pixelSize
         , annotateFaces =
             if annotateFaces then
@@ -1854,35 +1835,6 @@ defaultTheme =
     }
 
 
-containerSideLength : Int -> Int
-containerSideLength size =
-    size * 1
-
-
-wholeCubeSideLength : Int -> Int
-wholeCubeSideLength size =
-    containerSideLength size
-        |> toFloat
-        |> (\x -> x / 1.4)
-        |> round
-
-
-cubieSideLength : Int -> Int
-cubieSideLength size =
-    wholeCubeSideLength size
-        |> toFloat
-        |> (\x -> x / 3)
-        |> round
-
-
-cubieBorderWidth : Int -> Int
-cubieBorderWidth size =
-    cubieSideLength size
-        |> toFloat
-        |> (\x -> x / 10)
-        |> round
-
-
 
 -- HTML
 
@@ -1891,24 +1843,10 @@ type alias Size =
     Int
 
 
-type alias Vertex =
-    { color : Vec3
-    , position : Vec3
-    , transformation : Mat4
-    }
-
-
-type alias Uniforms =
-    { perspective : Mat4
-    , rotation : Mat4
-    }
-
-
 getCubeHtml :
     List (Attribute msg)
     ->
         { rotation : Rotation
-        , turnCurrentlyAnimating : Maybe Algorithm.Turn
         , pixelSize : Size
         , annotateFaces :
             Maybe
@@ -1923,8 +1861,10 @@ getCubeHtml :
         }
     -> Cube
     -> Html msg
-getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelSize, theme } cube =
+getCubeHtml attributes { rotation, annotateFaces, pixelSize, theme } cube =
     WebGL.toHtml
+        -- All these properties including the double size of width and height
+        -- are all just the suggestions in the toHtml documentation
         ([ width (pixelSize * 2)
          , height (pixelSize * 2)
          , style "width" (String.fromInt pixelSize ++ "px")
@@ -1946,6 +1886,179 @@ getCubeHtml attributes { rotation, turnCurrentlyAnimating, annotateFaces, pixelS
                     |> Maybe.withDefault []
                )
         )
+
+
+
+-- WebGL stuff
+
+
+type alias Vertex =
+    { color : Vec3
+    , position : Vec3
+    , transformation : Mat4
+    }
+
+
+type alias Uniforms =
+    { perspective : Mat4
+    , rotation : Mat4
+    }
+
+
+perspective : Mat4
+perspective =
+    let
+        viewportTranslation =
+            Vec3.vec3 -0.2 -0.3 0
+
+        eye =
+            Vec3.vec3 0.6 0.6 1
+                |> Vec3.normalize
+                |> Vec3.scale 10.5
+                |> Vec3.add viewportTranslation
+    in
+    Mat4.mul
+        (Mat4.makePerspective 25 1 0.01 150)
+        (Mat4.makeLookAt eye viewportTranslation Vec3.j)
+
+
+{-| All this WebGL code is highly inspired by
+<https://github.com/maxf/elm-webgl-rubik/tree/28f20972aee898c262461b93dbb6e45b67859b29>
+-}
+cubeMesh : CubeTheme -> Rendering -> WebGL.Mesh Vertex
+cubeMesh theme rendering =
+    List.map
+        (cubieMesh theme)
+        (allCubieData theme rendering)
+        |> List.concat
+        |> WebGL.triangles
+
+
+cubieMesh : CubeTheme -> CubieData -> List ( Vertex, Vertex, Vertex )
+cubieMesh theme { colors, center } =
+    let
+        totalCubieWidth =
+            1
+
+        borderWidth =
+            0.05
+    in
+    [ { innerColor = colors.up
+      , center = Vec3.add center (Vec3.vec3 0 (-0.5 * totalCubieWidth) 0)
+      , orthogonalPlaneDirection1 = Vec3.i
+      , orthogonalPlaneDirection2 = Vec3.k
+      }
+    , { innerColor = colors.down
+      , center = Vec3.add center (Vec3.vec3 0 (0.5 * totalCubieWidth) 0)
+      , orthogonalPlaneDirection1 = Vec3.i
+      , orthogonalPlaneDirection2 = Vec3.k
+      }
+    , { innerColor = colors.front
+      , center = Vec3.add center (Vec3.vec3 0 0 (0.5 * totalCubieWidth))
+      , orthogonalPlaneDirection1 = Vec3.i
+      , orthogonalPlaneDirection2 = Vec3.j
+      }
+    , { innerColor = colors.back
+      , center = Vec3.add center (Vec3.vec3 0 0 (-0.5 * totalCubieWidth))
+      , orthogonalPlaneDirection1 = Vec3.i
+      , orthogonalPlaneDirection2 = Vec3.j
+      }
+    , { innerColor = colors.left
+      , center = Vec3.add center (Vec3.vec3 (-0.5 * totalCubieWidth) 0 0)
+      , orthogonalPlaneDirection1 = Vec3.j
+      , orthogonalPlaneDirection2 = Vec3.k
+      }
+    , { innerColor = colors.right
+      , center = Vec3.add center (Vec3.vec3 (0.5 * totalCubieWidth) 0 0)
+      , orthogonalPlaneDirection1 = Vec3.j
+      , orthogonalPlaneDirection2 = Vec3.k
+      }
+    ]
+        -- Add the shared arguments
+        |> List.map
+            (\params ->
+                { innerColor = params.innerColor
+                , center = params.center
+                , orthogonalPlaneDirection1 = params.orthogonalPlaneDirection1
+                , orthogonalPlaneDirection2 = params.orthogonalPlaneDirection2
+                , totalWidthAndHeight = totalCubieWidth
+                , borderWidth = borderWidth
+                , borderColor = theme.plastic |> rgb255ColorToColorVector
+                }
+            )
+        |> List.map square
+        |> List.concat
+
+
+vertexShader : WebGL.Shader Vertex Uniforms { vcolor : Vec3 }
+vertexShader =
+    [glsl|
+        attribute vec3 position;
+        attribute vec3 color;
+        attribute mat4 transformation;
+        uniform mat4 rotation;
+        uniform mat4 perspective;
+        varying vec3 vcolor;
+        void main () {
+            gl_Position = perspective * rotation * transformation * vec4(position, 1.0);
+            vcolor = color;
+        }
+    |]
+
+
+fragmentShader : WebGL.Shader {} Uniforms { vcolor : Vec3 }
+fragmentShader =
+    [glsl|
+        precision mediump float;
+        varying vec3 vcolor;
+        void main () {
+            gl_FragColor = vec4(vcolor, 1.0);
+        }
+    |]
+
+
+
+-- Mesh
+
+
+type alias CubieData =
+    { colors : { up : Vec3, down : Vec3, front : Vec3, back : Vec3, left : Vec3, right : Vec3 }, center : Vec3 }
+
+
+allCubieData : CubeTheme -> Rendering -> List CubieData
+allCubieData theme rendering =
+    List.map
+        (\( cubieRendering, coordinates ) ->
+            { center = coordinatesToCenterVector coordinates, colors = cubieRenderingToColorVectors theme cubieRendering }
+        )
+        (getRenderedCorners rendering
+            |> List.Nonempty.append
+                (getRenderedEdges rendering)
+            |> List.Nonempty.append
+                (getRenderedCenters rendering)
+            |> List.Nonempty.toList
+        )
+
+
+coordinatesToCenterVector : Coordinates -> Vec3
+coordinatesToCenterVector { fromFront, fromTop, fromLeft } =
+    Vec3.vec3 (toFloat fromLeft - 1) (toFloat fromTop - 1) (1 - toFloat fromFront)
+
+
+cubieRenderingToColorVectors : CubeTheme -> CubieRendering -> { up : Vec3, down : Vec3, front : Vec3, back : Vec3, left : Vec3, right : Vec3 }
+cubieRenderingToColorVectors theme rendering =
+    { up = rendering.u |> getRgb255Color theme |> rgb255ColorToColorVector
+    , down = rendering.d |> getRgb255Color theme |> rgb255ColorToColorVector
+    , front = rendering.f |> getRgb255Color theme |> rgb255ColorToColorVector
+    , back = rendering.b |> getRgb255Color theme |> rgb255ColorToColorVector
+    , left = rendering.l |> getRgb255Color theme |> rgb255ColorToColorVector
+    , right = rendering.r |> getRgb255Color theme |> rgb255ColorToColorVector
+    }
+
+
+rgb255ColorToColorVector : Rgb255Color -> Vec3
+rgb255ColorToColorVector ( x, y, z ) =
+    Vec3.vec3 (toFloat x) (toFloat y) (toFloat z)
 
 
 faceAnnotations :
@@ -2037,365 +2150,8 @@ rotationToWebgl rotation =
         rotation
 
 
-perspective : Mat4
-perspective =
-    let
-        viewportTranslation =
-            Vec3.vec3 -0.2 -0.3 0
 
-        eye =
-            Vec3.vec3 0.6 0.6 1
-                |> Vec3.normalize
-                |> Vec3.scale 10.5
-                |> Vec3.add viewportTranslation
-    in
-    Mat4.mul
-        (Mat4.makePerspective 25 1 0.01 150)
-        (Mat4.makeLookAt eye viewportTranslation Vec3.j)
-
-
-cubeMesh : CubeTheme -> Rendering -> WebGL.Mesh Vertex
-cubeMesh theme rendering =
-    List.map
-        (cubieMesh theme)
-        (allCubieData theme rendering)
-        |> List.concat
-        |> WebGL.triangles
-
-
-cubieMesh : CubeTheme -> CubieData -> List ( Vertex, Vertex, Vertex )
-cubieMesh theme { colors, center } =
-    let
-        totalCubieWidth =
-            1
-
-        borderWidth =
-            0.05
-    in
-    [ { innerColor = colors.up
-      , center = Vec3.add center (Vec3.vec3 0 (-0.5 * totalCubieWidth) 0)
-      , orthogonalPlaneDirection1 = Vec3.i
-      , orthogonalPlaneDirection2 = Vec3.k
-      }
-    , { innerColor = colors.down
-      , center = Vec3.add center (Vec3.vec3 0 (0.5 * totalCubieWidth) 0)
-      , orthogonalPlaneDirection1 = Vec3.i
-      , orthogonalPlaneDirection2 = Vec3.k
-      }
-    , { innerColor = colors.front
-      , center = Vec3.add center (Vec3.vec3 0 0 (0.5 * totalCubieWidth))
-      , orthogonalPlaneDirection1 = Vec3.i
-      , orthogonalPlaneDirection2 = Vec3.j
-      }
-    , { innerColor = colors.back
-      , center = Vec3.add center (Vec3.vec3 0 0 (-0.5 * totalCubieWidth))
-      , orthogonalPlaneDirection1 = Vec3.i
-      , orthogonalPlaneDirection2 = Vec3.j
-      }
-    , { innerColor = colors.left
-      , center = Vec3.add center (Vec3.vec3 (-0.5 * totalCubieWidth) 0 0)
-      , orthogonalPlaneDirection1 = Vec3.j
-      , orthogonalPlaneDirection2 = Vec3.k
-      }
-    , { innerColor = colors.right
-      , center = Vec3.add center (Vec3.vec3 (0.5 * totalCubieWidth) 0 0)
-      , orthogonalPlaneDirection1 = Vec3.j
-      , orthogonalPlaneDirection2 = Vec3.k
-      }
-    ]
-        -- Add the shared arguments
-        |> List.map
-            (\params ->
-                { innerColor = params.innerColor
-                , center = params.center
-                , orthogonalPlaneDirection1 = params.orthogonalPlaneDirection1
-                , orthogonalPlaneDirection2 = params.orthogonalPlaneDirection2
-                , totalWidthAndHeight = totalCubieWidth
-                , borderWidth = borderWidth
-                , borderColor = theme.plastic |> rgb255ColorToColorVector
-                }
-            )
-        |> List.map square
-        |> List.concat
-
-
-square :
-    { center : Vec3
-    , innerColor : Vec3
-    , borderColor : Vec3
-    , orthogonalPlaneDirection1 : Vec3
-    , orthogonalPlaneDirection2 : Vec3
-    , totalWidthAndHeight : Float
-    , borderWidth : Float
-    }
-    -> List ( Vertex, Vertex, Vertex )
-square { center, innerColor, orthogonalPlaneDirection1, orthogonalPlaneDirection2, totalWidthAndHeight, borderWidth, borderColor } =
-    let
-        innerVertex position =
-            { color = Vec3.scale (1 / 255) innerColor, position = position }
-
-        borderVertex position =
-            { color = Vec3.scale (1 / 255) borderColor, position = position }
-
-        innerWidthAndHeight =
-            totalWidthAndHeight - 2 * borderWidth
-
-        addHalfWidthInDirection width direction point =
-            direction
-                |> Vec3.normalize
-                |> Vec3.scale (width / 2)
-                |> Vec3.add point
-
-        -- Inner Corners
-        { a, b, c, d } =
-            { a =
-                center
-                    -- The scale by 1 are just for readability of the -1 and 1 difference
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
-            , b =
-                center
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
-            , c =
-                center
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
-            , d =
-                center
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
-            }
-
-        -- Corresponding Outer Corners
-        { aa, bb, cc, dd } =
-            { aa =
-                center
-                    -- The scale by 1 are just for readability of the -1 and 1 difference
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
-            , bb =
-                center
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
-            , cc =
-                center
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
-            , dd =
-                center
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
-                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
-            }
-    in
-    [ ( innerVertex a, innerVertex b, innerVertex c )
-    , ( innerVertex c, innerVertex d, innerVertex a )
-    , ( borderVertex aa, borderVertex bb, borderVertex b )
-    , ( borderVertex b, borderVertex a, borderVertex aa )
-    , ( borderVertex bb, borderVertex cc, borderVertex c )
-    , ( borderVertex c, borderVertex b, borderVertex bb )
-    , ( borderVertex cc, borderVertex dd, borderVertex d )
-    , ( borderVertex d, borderVertex c, borderVertex cc )
-    , ( borderVertex dd, borderVertex aa, borderVertex a )
-    , ( borderVertex a, borderVertex d, borderVertex dd )
-    ]
-        |> List.map (mapTriple noTransformationVertex)
-
-
-noTransformationVertex : { color : Vec3, position : Vec3 } -> Vertex
-noTransformationVertex { color, position } =
-    { color = color
-    , position = position
-    , transformation = Mat4.identity
-    }
-
-
-vertexShader : WebGL.Shader Vertex Uniforms { vcolor : Vec3 }
-vertexShader =
-    [glsl|
-        attribute vec3 position;
-        attribute vec3 color;
-        attribute mat4 transformation;
-        uniform mat4 rotation;
-        uniform mat4 perspective;
-        varying vec3 vcolor;
-        void main () {
-            gl_Position = perspective * rotation * transformation * vec4(position, 1.0);
-            vcolor = color;
-        }
-    |]
-
-
-fragmentShader : WebGL.Shader {} Uniforms { vcolor : Vec3 }
-fragmentShader =
-    [glsl|
-        precision mediump float;
-        varying vec3 vcolor;
-        void main () {
-            gl_FragColor = vec4(vcolor, 1.0);
-        }
-    |]
-
-
-
--- Mesh
-
-
-type alias CubieData =
-    { colors : { up : Vec3, down : Vec3, front : Vec3, back : Vec3, left : Vec3, right : Vec3 }, center : Vec3 }
-
-
-allCubieData : CubeTheme -> Rendering -> List CubieData
-allCubieData theme rendering =
-    List.map
-        (\( cubieRendering, coordinates ) ->
-            { center = coordinatesToCenterVector coordinates, colors = cubieRenderingToColorVectors theme cubieRendering }
-        )
-        (getRenderedCorners rendering
-            |> List.Nonempty.append
-                (getRenderedEdges rendering)
-            |> List.Nonempty.append
-                (getRenderedCenters rendering)
-            |> List.Nonempty.toList
-        )
-
-
-coordinatesToCenterVector : Coordinates -> Vec3
-coordinatesToCenterVector { fromFront, fromTop, fromLeft } =
-    Vec3.vec3 (toFloat fromLeft - 1) (toFloat fromTop - 1) (1 - toFloat fromFront)
-
-
-cubieRenderingToColorVectors : CubeTheme -> CubieRendering -> { up : Vec3, down : Vec3, front : Vec3, back : Vec3, left : Vec3, right : Vec3 }
-cubieRenderingToColorVectors theme rendering =
-    { up = rendering.u |> getRgb255Color theme |> rgb255ColorToColorVector
-    , down = rendering.d |> getRgb255Color theme |> rgb255ColorToColorVector
-    , front = rendering.f |> getRgb255Color theme |> rgb255ColorToColorVector
-    , back = rendering.b |> getRgb255Color theme |> rgb255ColorToColorVector
-    , left = rendering.l |> getRgb255Color theme |> rgb255ColorToColorVector
-    , right = rendering.r |> getRgb255Color theme |> rgb255ColorToColorVector
-    }
-
-
-rgb255ColorToColorVector : Rgb255Color -> Vec3
-rgb255ColorToColorVector ( x, y, z ) =
-    Vec3.vec3 (toFloat x) (toFloat y) (toFloat z)
-
-
-
--- let
---     rendering =
---         render cube
--- in
--- div
---     ([ style "width" (px <| containerSideLength pixelSize)
---      , style "height" (px <| containerSideLength pixelSize)
---      , style "display" "flex"
---      , style "justify-content" "center"
---      , style "align-items" "center"
---      , style "perspective" "0"
---      ]
---         ++ attributes
---     )
---     [ div
---         [ style "width" (px <| wholeCubeSideLength pixelSize)
---         , style "height" (px <| wholeCubeSideLength pixelSize)
---         , style "position" "relative"
---         , style "transform-style" "preserve-3d"
---         , cssTransformCube rotation (wholeCubeSideLength pixelSize)
---         ]
---       <|
---         List.map
---             (\( cubieRendering, coordinates, extraCubieAnnotations ) ->
---                 displayCubie
---                     { generateExtraStyles = generateExtraCubieStyles
---                     , theme = defaultTheme
---                     , size = pixelSize
---                     , coordinates = coordinates
---                     , turnCurrentlyAnimating = turnCurrentlyAnimating
---                     , extraCubieAnnotations = extraCubieAnnotations
---                     }
---                     cubieRendering
---             )
---             (getRenderedCorners { annotateFaces = annotateFaces } rendering
---                 |> List.Nonempty.append
---                     (getRenderedEdges { annotateFaces = annotateFaces } rendering)
---                 |> List.Nonempty.append
---                     (getRenderedCenters { annotateFaces = annotateFaces } rendering)
---                 |> List.Nonempty.toList
---             )
---     ]
 -- LOGIC AND MAPPINGS
-
-
-px : Int -> String
-px pixels =
-    String.fromInt pixels ++ "px"
-
-
-getFaceAnnotation : ExtraCubieAnnotations msg -> Face -> Maybe (Size -> Html msg)
-getFaceAnnotation annotations face =
-    case face of
-        UpOrDown U ->
-            annotations.u
-
-        UpOrDown D ->
-            annotations.d
-
-        FrontOrBack F ->
-            annotations.f
-
-        FrontOrBack B ->
-            annotations.b
-
-        LeftOrRight L ->
-            annotations.l
-
-        LeftOrRight R ->
-            annotations.r
-
-
-getFaceRotation : Face -> SingleRotation
-getFaceRotation face =
-    case face of
-        UpOrDown U ->
-            XRotateDegrees 90
-
-        UpOrDown D ->
-            XRotateDegrees -90
-
-        FrontOrBack F ->
-            XRotateDegrees 0
-
-        FrontOrBack B ->
-            YRotateDegrees 180
-
-        LeftOrRight L ->
-            YRotateDegrees -90
-
-        LeftOrRight R ->
-            YRotateDegrees 90
-
-
-getFaceColor : Face -> CubieRendering -> Color
-getFaceColor face rendering =
-    case face of
-        UpOrDown U ->
-            rendering.u
-
-        UpOrDown D ->
-            rendering.d
-
-        FrontOrBack F ->
-            rendering.f
-
-        FrontOrBack B ->
-            rendering.b
-
-        LeftOrRight L ->
-            rendering.l
-
-        LeftOrRight R ->
-            rendering.r
 
 
 getRgb255Color : CubeTheme -> Color -> Rgb255Color
@@ -2503,27 +2259,6 @@ getCornerCoordinates ( uOrD, fOrB, lOrR ) =
 
         else
             2
-    }
-
-
-type alias ExtraCubieAnnotations msg =
-    { u : Maybe (Size -> Html msg)
-    , d : Maybe (Size -> Html msg)
-    , f : Maybe (Size -> Html msg)
-    , b : Maybe (Size -> Html msg)
-    , l : Maybe (Size -> Html msg)
-    , r : Maybe (Size -> Html msg)
-    }
-
-
-noAnnotations : ExtraCubieAnnotations msg
-noAnnotations =
-    { u = Nothing
-    , d = Nothing
-    , f = Nothing
-    , b = Nothing
-    , l = Nothing
-    , r = Nothing
     }
 
 
@@ -2661,15 +2396,6 @@ getRenderedCenter rendering location =
     )
 
 
-svgF : String -> Html msg
-svgF size =
-    svg [ viewBox "0 0 150 225", Svg.Attributes.height size ]
-        [ line [ x1 "15", y1 "0", x2 "15", y2 "225", stroke "black", strokeWidth "30" ] []
-        , line [ x1 "0", y1 "12.5", x2 "150", y2 "12.5", stroke "black", strokeWidth "25" ] []
-        , line [ x1 "0", y1 "112.5", x2 "130", y2 "112.5", stroke "black", strokeWidth "25" ] []
-        ]
-
-
 meshF : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
 meshF theme { height, centerPosition, rotate } =
     let
@@ -2725,6 +2451,14 @@ meshF theme { height, centerPosition, rotate } =
         |> WebGL.triangles
 
 
+noTransformationVertex : { color : Vec3, position : Vec3 } -> Vertex
+noTransformationVertex { color, position } =
+    { color = color
+    , position = position
+    , transformation = Mat4.identity
+    }
+
+
 setTransformation : Mat4 -> Vertex -> Vertex
 setTransformation newTransformation oldVertex =
     { oldVertex | transformation = newTransformation }
@@ -2733,35 +2467,6 @@ setTransformation newTransformation oldVertex =
 mapPosition : (Vec3 -> Vec3) -> Vertex -> Vertex
 mapPosition fn original =
     { original | position = fn original.position }
-
-
-triangleLine : { from : Vec2, to : Vec2, zCoordinate : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex )
-triangleLine { from, to, width, color, zCoordinate } =
-    let
-        diff =
-            Vec2.sub to from
-
-        normal =
-            Vec2.vec2 -(Vec2.getY diff) (Vec2.getX diff)
-                |> Vec2.normalize
-
-        halfWidthLengthNormal =
-            Vec2.scale (width / 2) normal
-
-        a =
-            Vec2.add from halfWidthLengthNormal
-
-        b =
-            Vec2.add a diff
-
-        c =
-            Vec2.sub b (Vec2.scale 2 halfWidthLengthNormal)
-
-        d =
-            Vec2.sub c diff
-    in
-    [ ( a, b, c ), ( c, a, d ) ]
-        |> twoDTrianglesToColored3d { zCoordinate = zCoordinate, color = color }
 
 
 twoDTrianglesToColored3d : { zCoordinate : Float, color : Vec3 } -> List ( Vec2, Vec2, Vec2 ) -> List ( Vertex, Vertex, Vertex )
@@ -2784,14 +2489,6 @@ positionToVertex { color } position =
 mapTriple : (a -> b) -> ( a, a, a ) -> ( b, b, b )
 mapTriple fn ( x, y, z ) =
     ( fn x, fn y, fn z )
-
-
-svgL : String -> Html msg
-svgL size =
-    svg [ viewBox "-15 0 150 225", Svg.Attributes.height size ]
-        [ line [ x1 "0", y1 "0", x2 "0", y2 "225", stroke "black", strokeWidth "30" ] []
-        , line [ x1 "0", y1 "212.5", x2 "150", y2 "212.5", stroke "black", strokeWidth "25" ] []
-        ]
 
 
 meshL : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
@@ -2840,13 +2537,6 @@ meshL theme { height, centerPosition, rotate } =
                     )
             )
         |> WebGL.triangles
-
-
-svgU : String -> Html msg
-svgU size =
-    svg [ viewBox "-17.5 0 219 300", Svg.Attributes.height size ]
-        [ path [ d "M 0,0 l 0,200 a 92.5,82.5 0 0 0 185,0 l 0,-200", fill "transparent", strokeWidth "35", stroke "black" ] []
-        ]
 
 
 meshU : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
@@ -2905,6 +2595,118 @@ meshU theme { height, centerPosition, rotate } =
         |> WebGL.triangles
 
 
+square :
+    { center : Vec3
+    , innerColor : Vec3
+    , borderColor : Vec3
+    , orthogonalPlaneDirection1 : Vec3
+    , orthogonalPlaneDirection2 : Vec3
+    , totalWidthAndHeight : Float
+    , borderWidth : Float
+    }
+    -> List ( Vertex, Vertex, Vertex )
+square { center, innerColor, orthogonalPlaneDirection1, orthogonalPlaneDirection2, totalWidthAndHeight, borderWidth, borderColor } =
+    let
+        innerVertex position =
+            { color = Vec3.scale (1 / 255) innerColor, position = position }
+
+        borderVertex position =
+            { color = Vec3.scale (1 / 255) borderColor, position = position }
+
+        innerWidthAndHeight =
+            totalWidthAndHeight - 2 * borderWidth
+
+        addHalfWidthInDirection width direction point =
+            direction
+                |> Vec3.normalize
+                |> Vec3.scale (width / 2)
+                |> Vec3.add point
+
+        -- Inner Corners
+        { a, b, c, d } =
+            { a =
+                center
+                    -- The scale by 1 are just for readability of the -1 and 1 difference
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
+            , b =
+                center
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
+            , c =
+                center
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
+            , d =
+                center
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection innerWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
+            }
+
+        -- Corresponding Outer Corners
+        { aa, bb, cc, dd } =
+            { aa =
+                center
+                    -- The scale by 1 are just for readability of the -1 and 1 difference
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
+            , bb =
+                center
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection2)
+            , cc =
+                center
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
+            , dd =
+                center
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale 1 orthogonalPlaneDirection1)
+                    |> addHalfWidthInDirection totalWidthAndHeight (Vec3.scale -1 orthogonalPlaneDirection2)
+            }
+    in
+    [ ( innerVertex a, innerVertex b, innerVertex c )
+    , ( innerVertex c, innerVertex d, innerVertex a )
+    , ( borderVertex aa, borderVertex bb, borderVertex b )
+    , ( borderVertex b, borderVertex a, borderVertex aa )
+    , ( borderVertex bb, borderVertex cc, borderVertex c )
+    , ( borderVertex c, borderVertex b, borderVertex bb )
+    , ( borderVertex cc, borderVertex dd, borderVertex d )
+    , ( borderVertex d, borderVertex c, borderVertex cc )
+    , ( borderVertex dd, borderVertex aa, borderVertex a )
+    , ( borderVertex a, borderVertex d, borderVertex dd )
+    ]
+        |> List.map (mapTriple noTransformationVertex)
+
+
+triangleLine : { from : Vec2, to : Vec2, zCoordinate : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex )
+triangleLine { from, to, width, color, zCoordinate } =
+    let
+        diff =
+            Vec2.sub to from
+
+        normal =
+            Vec2.vec2 -(Vec2.getY diff) (Vec2.getX diff)
+                |> Vec2.normalize
+
+        halfWidthLengthNormal =
+            Vec2.scale (width / 2) normal
+
+        a =
+            Vec2.add from halfWidthLengthNormal
+
+        b =
+            Vec2.add a diff
+
+        c =
+            Vec2.sub b (Vec2.scale 2 halfWidthLengthNormal)
+
+        d =
+            Vec2.sub c diff
+    in
+    [ ( a, b, c ), ( c, a, d ) ]
+        |> twoDTrianglesToColored3d { zCoordinate = zCoordinate, color = color }
+
+
 {-| Granularity is the length of each line segment in the curve
 -}
 halfEllipse :
@@ -2947,15 +2749,6 @@ halfEllipse params =
             , color = params.color
             }
         |> List.map (mapTriple <| mapPosition <| Vec3.add center)
-
-
-debug : String -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
-debug string value =
-    let
-        x =
-            Debug.log string (List.map (mapTriple .position) value)
-    in
-    value
 
 
 halfEllipseHelper : { width : Float, height : Float, granularity : Float, strokeWidth : Float, color : Vec3 } -> { x : Float, triangles : List ( Vertex, Vertex, Vertex ) } -> List ( Vertex, Vertex, Vertex )
@@ -3067,13 +2860,6 @@ negateAllXCoordinates =
     List.map (mapTriple <| mapPosition (\pos -> Vec3.setX (-1 * Vec3.getX pos) pos))
 
 
-svgD : String -> Html msg
-svgD size =
-    svg [ viewBox "-17.5 0 230 290", Svg.Attributes.height size ]
-        [ path [ d "M 0,0 l 0,272.5 l 100,0 a 95,127.5 0 0 0 0,-255 l -100,0", fill "transparent", strokeWidth "35", stroke "black" ] []
-        ]
-
-
 meshD : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
 meshD theme { height, centerPosition, rotate } =
     let
@@ -3127,13 +2913,6 @@ meshD theme { height, centerPosition, rotate } =
                     )
             )
         |> WebGL.triangles
-
-
-svgR : String -> Html msg
-svgR size =
-    svg [ viewBox "-17.5 0 255 290", Svg.Attributes.height size ]
-        [ path [ d "M 0,290 l 0,-272.5 l 100,0 a 95,63.75 0 0 1 0,127.5 l -100,0 l 120,0 l 200,300", fill "transparent", strokeWidth "35", stroke "black" ] []
-        ]
 
 
 meshR : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
@@ -3210,13 +2989,6 @@ meshR theme { height, centerPosition, rotate } =
                     )
             )
         |> WebGL.triangles
-
-
-svgB : String -> Html msg
-svgB size =
-    svg [ viewBox "-17.5 0 230 290", Svg.Attributes.height size ]
-        [ path [ d "M 0,290 l 0,-272.5 l 100,0 a 95,63.75 0 0 1 0,127.5 l -100,0 m 100,0 a 95,63.75 0 0 1 0,127.5 l -100,0", fill "transparent", strokeWidth "35", stroke "black" ] []
-        ]
 
 
 meshB : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
@@ -3473,415 +3245,3 @@ hasStartingOrientation algorithm =
                 )
             )
         |> List.Nonempty.all (\( colorA, colorB ) -> colorA == colorB)
-
-
-
--- ANIMATION IMPLEMENTATIONS
-
-
-{-| See [Cube.AnimationState](Cube#AnimationState)
--}
-type AnimationState
-    = AnimationState
-        { toApply : List Algorithm.Turn
-        , alreadyApplied : Algorithm
-        , inBetweenTurns : Bool
-        , paused : Bool
-        }
-
-
-{-| See [Cube.animateAlgorithm](Cube#animateAlgorithm)
--}
-animateAlgorithm : Algorithm -> AnimationState
-animateAlgorithm algorithm =
-    AnimationState
-        { toApply = Algorithm.toTurnList algorithm
-        , alreadyApplied = Algorithm.empty
-        , inBetweenTurns = False
-        , paused = False
-        }
-
-
-{-| See [Cube.noAnimation](Cube#noAnimation)
--}
-noAnimation : AnimationState
-noAnimation =
-    AnimationState
-        { toApply = []
-        , alreadyApplied = Algorithm.empty
-        , inBetweenTurns = True
-        , paused = False
-        }
-
-
-{-| See [Cube.pauseAnimation](Cube#pauseAnimation)
--}
-pauseAnimation : AnimationState -> AnimationState
-pauseAnimation (AnimationState animationState) =
-    AnimationState { animationState | paused = True }
-
-
-{-| See [Cube.unpauseAnimation](Cube#unpauseAnimation)
--}
-unpauseAnimation : AnimationState -> AnimationState
-unpauseAnimation (AnimationState animationState) =
-    AnimationState { animationState | paused = False, inBetweenTurns = False }
-
-
-{-| See [Cube.currentTurnAnimating](Cube#currentTurnAnimating)
--}
-currentTurnAnimating : AnimationState -> Maybe Algorithm.Turn
-currentTurnAnimating (AnimationState { toApply, inBetweenTurns, paused }) =
-    if inBetweenTurns || paused then
-        Nothing
-
-    else
-        List.head toApply
-
-
-{-| See [Cube.viewAnimatable](Cube#viewAnimatable)
--}
-viewAnimatable :
-    List (Attribute msg)
-    ->
-        { animationState : AnimationState
-        , toMsg : AnimationMsg -> msg
-        , pixelSize : Int
-        , displayAngle : DisplayAngle
-        , annotateFaces : Bool
-        }
-    -> Cube
-    -> Html msg
-viewAnimatable attributes ({ animationState, toMsg } as arguments) cube =
-    let
-        (AnimationState animationStateInternal) =
-            animationState
-
-        cubeIncludingAnimatedTurns =
-            applyAlgorithm animationStateInternal.alreadyApplied cube
-    in
-    viewHelper
-        { turnCurrentlyAnimating = currentTurnAnimating animationState
-        }
-        (List.map (Html.Attributes.map UserMsg) attributes)
-        arguments
-        cubeIncludingAnimatedTurns
-        |> Html.map (unwrapAnimationOrUserMsg toMsg)
-
-
-wrappedAnimationStyle : Size -> Coordinates -> Maybe Algorithm.Turn -> List (Attribute (AnimationOrUserMsg msg))
-wrappedAnimationStyle a b c =
-    List.map (Html.Attributes.map AnimationMsg) (animationStyle a b c)
-
-
-type AnimationOrUserMsg msg
-    = AnimationMsg AnimationMsg
-    | UserMsg msg
-
-
-unwrapAnimationOrUserMsg : (AnimationMsg -> msg) -> AnimationOrUserMsg msg -> msg
-unwrapAnimationOrUserMsg toMsg wrappedMsg =
-    case wrappedMsg of
-        AnimationMsg animationMsg ->
-            toMsg animationMsg
-
-        UserMsg msg ->
-            msg
-
-
-{-| See [Cube.AnimationMsg](Cube#AnimationMsg)
--}
-type AnimationMsg
-    = TurnFinished
-    | StartNextTurn
-
-
-{-| See [Cube.handleAnimationMsg](Cube#handleAnimationMsg)
--}
-handleAnimationMsg :
-    { toMsg : AnimationMsg -> msg, animationDoneMsg : msg }
-    -> AnimationState
-    -> AnimationMsg
-    -> ( AnimationState, Cmd msg )
-handleAnimationMsg { toMsg, animationDoneMsg } (AnimationState animationState) msg =
-    case msg of
-        TurnFinished ->
-            if animationState.inBetweenTurns then
-                ( AnimationState animationState, Cmd.none )
-
-            else
-                case animationState.toApply of
-                    [] ->
-                        ( AnimationState { animationState | inBetweenTurns = True }
-                        , Task.perform (always animationDoneMsg) (Task.succeed ())
-                        )
-
-                    x :: xs ->
-                        ( AnimationState
-                            { animationState
-                                | toApply = xs
-                                , alreadyApplied =
-                                    Algorithm.append
-                                        animationState.alreadyApplied
-                                        (Algorithm.fromTurnList [ x ])
-                                , inBetweenTurns = True
-                            }
-                        , if xs /= [] then
-                            Task.perform (always (toMsg StartNextTurn)) (Process.sleep 0)
-
-                          else
-                            Task.perform (always animationDoneMsg) (Task.succeed ())
-                        )
-
-        StartNextTurn ->
-            if animationState.paused then
-                ( AnimationState animationState, Cmd.none )
-
-            else
-                ( AnimationState { animationState | inBetweenTurns = False }, Cmd.none )
-
-
-animationStyle : Size -> Coordinates -> Maybe Algorithm.Turn -> List (Attribute AnimationMsg)
-animationStyle size coordinates animationTurn =
-    animationTurn
-        |> Maybe.andThen
-            (\turn ->
-                if isCubieTurning turn coordinates then
-                    Just turn
-
-                else
-                    Nothing
-            )
-        |> Maybe.map
-            (\turn ->
-                [ Html.Events.on "transitionend" (Json.Decode.succeed TurnFinished)
-                , style "transition"
-                    ("transform "
-                        ++ String.fromInt (getTurnMilliseconds turn)
-                        ++ "ms"
-                    )
-                , style "transform"
-                    (getTurnTransformation turn)
-                , style "transform-style" "preserve-3d"
-                , style "transform-origin" <|
-                    String.fromInt (wholeCubeSideLength size // 2)
-                        ++ "px "
-                        ++ String.fromInt (wholeCubeSideLength size // 2)
-                        ++ "px "
-                        ++ String.fromInt (wholeCubeSideLength size // 2 * -1)
-                        ++ "px"
-                ]
-            )
-        |> Maybe.withDefault
-            [ style "transform-style" "preserve-3d"
-            ]
-
-
-isCubieTurning : Algorithm.Turn -> Coordinates -> Bool
-isCubieTurning (Algorithm.Turn turnable _ _) { fromFront, fromLeft, fromTop } =
-    case turnable of
-        Algorithm.U ->
-            fromTop == 0
-
-        Algorithm.E ->
-            fromTop == 1
-
-        Algorithm.D ->
-            fromTop == 2
-
-        Algorithm.Y ->
-            True
-
-        Algorithm.Uw ->
-            fromTop /= 2
-
-        Algorithm.Dw ->
-            fromTop /= 0
-
-        Algorithm.L ->
-            fromLeft == 0
-
-        Algorithm.M ->
-            fromLeft == 1
-
-        Algorithm.R ->
-            fromLeft == 2
-
-        Algorithm.Z ->
-            True
-
-        Algorithm.Rw ->
-            fromLeft /= 0
-
-        Algorithm.Lw ->
-            fromLeft /= 2
-
-        Algorithm.F ->
-            fromFront == 0
-
-        Algorithm.S ->
-            fromFront == 1
-
-        Algorithm.B ->
-            fromFront == 2
-
-        Algorithm.Fw ->
-            fromFront /= 2
-
-        Algorithm.Bw ->
-            fromFront /= 0
-
-        Algorithm.X ->
-            True
-
-
-getTurnMilliseconds : Algorithm.Turn -> Int
-getTurnMilliseconds (Algorithm.Turn _ turnLength _) =
-    case turnLength of
-        Algorithm.OneQuarter ->
-            750
-
-        Algorithm.Halfway ->
-            1250
-
-        Algorithm.ThreeQuarters ->
-            1750
-
-
-getTurnTransformation : Algorithm.Turn -> String
-getTurnTransformation (Algorithm.Turn turnable turnLength turnDirection) =
-    let
-        degrees =
-            case turnLength of
-                Algorithm.OneQuarter ->
-                    "90deg"
-
-                Algorithm.Halfway ->
-                    "180deg"
-
-                Algorithm.ThreeQuarters ->
-                    "270deg"
-
-        axis =
-            case turnable of
-                Algorithm.U ->
-                    "Y"
-
-                Algorithm.E ->
-                    "Y"
-
-                Algorithm.D ->
-                    "Y"
-
-                Algorithm.Y ->
-                    "Y"
-
-                Algorithm.Uw ->
-                    "Y"
-
-                Algorithm.Dw ->
-                    "Y"
-
-                Algorithm.L ->
-                    "X"
-
-                Algorithm.M ->
-                    "X"
-
-                Algorithm.R ->
-                    "X"
-
-                Algorithm.Z ->
-                    "Z"
-
-                Algorithm.Rw ->
-                    "X"
-
-                Algorithm.Lw ->
-                    "X"
-
-                Algorithm.F ->
-                    "Z"
-
-                Algorithm.S ->
-                    "Z"
-
-                Algorithm.B ->
-                    "Z"
-
-                Algorithm.Fw ->
-                    "Z"
-
-                Algorithm.Bw ->
-                    "Z"
-
-                Algorithm.X ->
-                    "X"
-
-        shouldHaveMinusSign =
-            case turnable of
-                Algorithm.U ->
-                    turnDirection == Algorithm.Clockwise
-
-                Algorithm.E ->
-                    turnDirection == Algorithm.CounterClockwise
-
-                Algorithm.D ->
-                    turnDirection == Algorithm.CounterClockwise
-
-                Algorithm.Y ->
-                    turnDirection == Algorithm.Clockwise
-
-                Algorithm.Uw ->
-                    turnDirection == Algorithm.Clockwise
-
-                Algorithm.Dw ->
-                    turnDirection == Algorithm.CounterClockwise
-
-                Algorithm.L ->
-                    turnDirection == Algorithm.Clockwise
-
-                Algorithm.M ->
-                    turnDirection == Algorithm.Clockwise
-
-                Algorithm.R ->
-                    turnDirection == Algorithm.CounterClockwise
-
-                Algorithm.Z ->
-                    turnDirection == Algorithm.CounterClockwise
-
-                Algorithm.Rw ->
-                    turnDirection == Algorithm.CounterClockwise
-
-                Algorithm.Lw ->
-                    turnDirection == Algorithm.Clockwise
-
-                Algorithm.F ->
-                    turnDirection == Algorithm.CounterClockwise
-
-                Algorithm.S ->
-                    turnDirection == Algorithm.CounterClockwise
-
-                Algorithm.B ->
-                    turnDirection == Algorithm.Clockwise
-
-                Algorithm.Fw ->
-                    turnDirection == Algorithm.CounterClockwise
-
-                Algorithm.Bw ->
-                    turnDirection == Algorithm.Clockwise
-
-                Algorithm.X ->
-                    turnDirection == Algorithm.CounterClockwise
-    in
-    "rotate"
-        ++ axis
-        ++ "("
-        ++ (if shouldHaveMinusSign then
-                "-"
-
-            else
-                ""
-           )
-        ++ degrees
-        ++ ")"
