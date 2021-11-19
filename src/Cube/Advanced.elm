@@ -2228,11 +2228,18 @@ faceAnnotations :
         }
     -> List WebGL.Entity
 faceAnnotations theme rotation adjustments =
-    -- The .51 instead of just .5s are so that the annotations display in front of the cube instead of blending into the face itself
+    let
+        -- The .51 instead of just .5s are so that the annotations display in front of the cube instead of blending into the face itself
+        distanceFromCenter =
+            1.51
+
+        height =
+            0.6
+    in
     [ WebGL.entity
         vertexShader
         fragmentShader
-        (meshF theme { height = 0.6, centerPosition = Vec3.vec3 0 0 1.51, rotate = identity >> rotationToWebgl adjustments.f })
+        (meshF theme { height = height, centerPosition = Vec3.vec3 0 0 distanceFromCenter, rotate = identity >> rotationToWebgl adjustments.f })
         { perspective =
             perspective
         , rotation =
@@ -2241,7 +2248,7 @@ faceAnnotations theme rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshL theme { height = 0.6, centerPosition = Vec3.vec3 -1.51 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j >> rotationToWebgl adjustments.l })
+        (meshL theme { height = height, centerPosition = Vec3.vec3 -distanceFromCenter 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j >> rotationToWebgl adjustments.l })
         { perspective =
             perspective
         , rotation =
@@ -2250,7 +2257,7 @@ faceAnnotations theme rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshU theme { height = 0.6, centerPosition = Vec3.vec3 0 1.51 0, rotate = Mat4.rotate (degrees -90) Vec3.i >> rotationToWebgl adjustments.u })
+        (meshU theme { height = height, centerPosition = Vec3.vec3 0 distanceFromCenter 0, rotate = Mat4.rotate (degrees -90) Vec3.i >> rotationToWebgl adjustments.u })
         { perspective =
             perspective
         , rotation =
@@ -2259,7 +2266,7 @@ faceAnnotations theme rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshD theme { height = 0.6, centerPosition = Vec3.vec3 0 -1.51 0, rotate = Mat4.rotate (degrees 90) Vec3.i >> rotationToWebgl adjustments.d })
+        (meshD theme { height = height, centerPosition = Vec3.vec3 0 -distanceFromCenter 0, rotate = Mat4.rotate (degrees 90) Vec3.i >> rotationToWebgl adjustments.d })
         { perspective =
             perspective
         , rotation =
@@ -2268,7 +2275,7 @@ faceAnnotations theme rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshR theme { height = 0.6, centerPosition = Vec3.vec3 1.51 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j >> rotationToWebgl adjustments.r })
+        (meshR theme { height = height, centerPosition = Vec3.vec3 distanceFromCenter 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j >> rotationToWebgl adjustments.r })
         { perspective =
             perspective
         , rotation =
@@ -2277,7 +2284,7 @@ faceAnnotations theme rotation adjustments =
     , WebGL.entity
         vertexShader
         fragmentShader
-        (meshB theme { height = 0.6, centerPosition = Vec3.vec3 0 0 -1.51, rotate = Mat4.rotate (degrees 180) Vec3.j >> rotationToWebgl adjustments.b })
+        (meshB theme { height = height, centerPosition = Vec3.vec3 0 0 -distanceFromCenter, rotate = Mat4.rotate (degrees 180) Vec3.j >> rotationToWebgl adjustments.b })
         { perspective =
             perspective
         , rotation =
@@ -2967,10 +2974,10 @@ square :
 square { center, innerColor, orthogonalPlaneDirection1, orthogonalPlaneDirection2, totalWidthAndHeight, borderWidth, borderColor } =
     let
         innerVertex position =
-            { color = Vec3.scale (1 / 255) innerColor, position = position }
+            positionToVertex { color = innerColor } position
 
         borderVertex position =
-            { color = Vec3.scale (1 / 255) borderColor, position = position }
+            positionToVertex { color = borderColor } position
 
         innerWidthAndHeight =
             totalWidthAndHeight - 2 * borderWidth
@@ -3034,7 +3041,6 @@ square { center, innerColor, orthogonalPlaneDirection1, orthogonalPlaneDirection
     , ( borderVertex dd, borderVertex aa, borderVertex a )
     , ( borderVertex a, borderVertex d, borderVertex dd )
     ]
-        |> List.map (mapTriple noTransformationVertex)
 
 
 triangleLine : { from : Vec2, to : Vec2, zCoordinate : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex )
@@ -3231,14 +3237,6 @@ negateAllXCoordinates =
     List.map (mapTriple <| mapPosition (\pos -> Vec3.setX (-1 * Vec3.getX pos) pos))
 
 
-noTransformationVertex : { color : Vec3, position : Vec3 } -> Vertex
-noTransformationVertex { color, position } =
-    { color = color
-    , position = position
-    , transformation = Mat4.identity
-    }
-
-
 setTransformation : Mat4 -> Vertex -> Vertex
 setTransformation newTransformation oldVertex =
     { oldVertex | transformation = newTransformation }
@@ -3251,7 +3249,7 @@ mapPosition fn original =
 
 positionToVertex : { color : Vec3 } -> Vec3 -> Vertex
 positionToVertex { color } position =
-    { position = position, color = color, transformation = Mat4.identity }
+    { position = position, color = Vec3.scale (1 / 255) color, transformation = Mat4.identity }
 
 
 mapTriple : (a -> b) -> ( a, a, a ) -> ( b, b, b )
