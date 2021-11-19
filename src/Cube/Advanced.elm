@@ -1835,42 +1835,7 @@ view :
 view attributes { pixelSize, displayAngle, annotateFaces } cube =
     let
         { mainRotation, annotationAdjustments } =
-            case displayAngle of
-                UFRDisplayAngle ->
-                    { mainRotation = []
-                    , annotationAdjustments =
-                        { u = []
-                        , d = []
-                        , f = []
-                        , b = []
-                        , l = []
-                        , r = []
-                        }
-                    }
-
-                UBLDisplayAngle ->
-                    { mainRotation = [ YRotateDegrees 180 ]
-                    , annotationAdjustments =
-                        { u = [ ZRotateDegrees 180 ]
-                        , d = []
-                        , f = []
-                        , b = []
-                        , l = []
-                        , r = []
-                        }
-                    }
-
-                DBLDisplayAngle ->
-                    { mainRotation = [ ZRotateDegrees 180, YRotateDegrees 90 ]
-                    , annotationAdjustments =
-                        { u = []
-                        , d = [ ZRotateDegrees -90 ]
-                        , f = [ ZRotateDegrees 180 ]
-                        , b = [ ZRotateDegrees 180 ]
-                        , l = [ ZRotateDegrees 180 ]
-                        , r = [ ZRotateDegrees 180 ]
-                        }
-                    }
+            getRotations displayAngle
     in
     getCubeHtml attributes
         { rotation = mainRotation
@@ -1884,6 +1849,52 @@ view attributes { pixelSize, displayAngle, annotateFaces } cube =
         , theme = defaultTheme
         }
         cube
+
+
+getRotations :
+    DisplayAngle
+    ->
+        { mainRotation : Rotation
+        , annotationAdjustments :
+            { u : Rotation, d : Rotation, f : Rotation, b : Rotation, l : Rotation, r : Rotation }
+        }
+getRotations displayAngle =
+    case displayAngle of
+        UFRDisplayAngle ->
+            { mainRotation = []
+            , annotationAdjustments =
+                { u = []
+                , d = []
+                , f = []
+                , b = []
+                , l = []
+                , r = []
+                }
+            }
+
+        UBLDisplayAngle ->
+            { mainRotation = [ YRotateDegrees 180 ]
+            , annotationAdjustments =
+                { u = [ ZRotateDegrees 180 ]
+                , d = []
+                , f = []
+                , b = []
+                , l = []
+                , r = []
+                }
+            }
+
+        DBLDisplayAngle ->
+            { mainRotation = [ ZRotateDegrees 180, YRotateDegrees 90 ]
+            , annotationAdjustments =
+                { u = []
+                , d = [ ZRotateDegrees -90 ]
+                , f = [ ZRotateDegrees 180 ]
+                , b = [ ZRotateDegrees 180 ]
+                , l = [ ZRotateDegrees 180 ]
+                , r = [ ZRotateDegrees 180 ]
+                }
+            }
 
 
 
