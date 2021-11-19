@@ -22,6 +22,7 @@ cubeToView1 =
                 ]
             )
 
+
 cubeToView2 : Cube
 cubeToView2 =
     Cube.solved
@@ -36,7 +37,7 @@ cubeToView2 =
 main : Html msg
 main =
     div [ style "display" "flex", style "flex-wrap" "wrap" ]
-        [ div [ ]
+        [ div []
             [ Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.ufrDisplayAngle
@@ -50,7 +51,7 @@ main =
                 }
                 cubeToView2
             ]
-        , div [ ]
+        , div []
             [ Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.ublDisplayAngle
@@ -64,7 +65,7 @@ main =
                 }
                 cubeToView2
             ]
-        , div [ ]
+        , div []
             [ Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.dblDisplayAngle
