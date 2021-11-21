@@ -2082,7 +2082,7 @@ cubieMesh theme { colors, center } =
             , orthogonalPlaneDirection2 = params.orthogonalPlaneDirection2
             , totalWidthAndHeight = totalCubieWidth
             , borderWidth = borderWidth
-            , borderColor = theme.plastic |> rgb255ColorToColorVector
+            , borderColor = theme.plastic
             }
         )
         >> List.map square
@@ -2154,12 +2154,12 @@ fragmentShader =
 
 type alias CubieData =
     { colors :
-        { up : Vec3
-        , down : Vec3
-        , front : Vec3
-        , back : Vec3
-        , left : Vec3
-        , right : Vec3
+        { up : Rgb255Color
+        , down : Rgb255Color
+        , front : Rgb255Color
+        , back : Rgb255Color
+        , left : Rgb255Color
+        , right : Rgb255Color
         }
     , center : Vec3
     }
@@ -2169,7 +2169,7 @@ allCubieData : CubeTheme -> Rendering -> List CubieData
 allCubieData theme rendering =
     List.map
         (\( cubieRendering, coordinates ) ->
-            { center = coordinatesToCenterVector coordinates, colors = cubieRenderingToColorVectors theme cubieRendering }
+            { center = coordinatesToCenterVector coordinates, colors = cubieRenderingToRgbColors theme cubieRendering }
         )
         (getRenderedCorners rendering
             |> List.Nonempty.append
@@ -2180,14 +2180,24 @@ allCubieData theme rendering =
         )
 
 
-cubieRenderingToColorVectors : CubeTheme -> CubieRendering -> { up : Vec3, down : Vec3, front : Vec3, back : Vec3, left : Vec3, right : Vec3 }
-cubieRenderingToColorVectors theme rendering =
-    { up = rendering.u |> getRgb255Color theme |> rgb255ColorToColorVector
-    , down = rendering.d |> getRgb255Color theme |> rgb255ColorToColorVector
-    , front = rendering.f |> getRgb255Color theme |> rgb255ColorToColorVector
-    , back = rendering.b |> getRgb255Color theme |> rgb255ColorToColorVector
-    , left = rendering.l |> getRgb255Color theme |> rgb255ColorToColorVector
-    , right = rendering.r |> getRgb255Color theme |> rgb255ColorToColorVector
+cubieRenderingToRgbColors :
+    CubeTheme
+    -> CubieRendering
+    ->
+        { up : Rgb255Color
+        , down : Rgb255Color
+        , front : Rgb255Color
+        , back : Rgb255Color
+        , left : Rgb255Color
+        , right : Rgb255Color
+        }
+cubieRenderingToRgbColors theme rendering =
+    { up = rendering.u |> getRgb255Color theme
+    , down = rendering.d |> getRgb255Color theme
+    , front = rendering.f |> getRgb255Color theme
+    , back = rendering.b |> getRgb255Color theme
+    , left = rendering.l |> getRgb255Color theme
+    , right = rendering.r |> getRgb255Color theme
     }
 
 
@@ -2232,69 +2242,35 @@ faceAnnotations theme rotation adjustments =
         -- The .51 instead of just .5s are so that the annotations display in front of the cube instead of blending into the face itself
         distanceFromCenter =
             1.51
-
-        height =
-            0.6
     in
-    [ WebGL.entity
-        vertexShader
-        fragmentShader
-        (meshF theme { height = height, centerPosition = Vec3.vec3 0 0 distanceFromCenter, rotate = identity >> rotationToWebgl adjustments.f })
-        { perspective =
-            perspective
-        , rotation =
-            rotationToWebgl rotation Mat4.identity
-        }
-    , WebGL.entity
-        vertexShader
-        fragmentShader
-        (meshL theme { height = height, centerPosition = Vec3.vec3 -distanceFromCenter 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j >> rotationToWebgl adjustments.l })
-        { perspective =
-            perspective
-        , rotation =
-            rotationToWebgl rotation Mat4.identity
-        }
-    , WebGL.entity
-        vertexShader
-        fragmentShader
-        (meshU theme { height = height, centerPosition = Vec3.vec3 0 distanceFromCenter 0, rotate = Mat4.rotate (degrees -90) Vec3.i >> rotationToWebgl adjustments.u })
-        { perspective =
-            perspective
-        , rotation =
-            rotationToWebgl rotation Mat4.identity
-        }
-    , WebGL.entity
-        vertexShader
-        fragmentShader
-        (meshD theme { height = height, centerPosition = Vec3.vec3 0 -distanceFromCenter 0, rotate = Mat4.rotate (degrees 90) Vec3.i >> rotationToWebgl adjustments.d })
-        { perspective =
-            perspective
-        , rotation =
-            rotationToWebgl rotation Mat4.identity
-        }
-    , WebGL.entity
-        vertexShader
-        fragmentShader
-        (meshR theme { height = height, centerPosition = Vec3.vec3 distanceFromCenter 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j >> rotationToWebgl adjustments.r })
-        { perspective =
-            perspective
-        , rotation =
-            rotationToWebgl rotation Mat4.identity
-        }
-    , WebGL.entity
-        vertexShader
-        fragmentShader
-        (meshB theme { height = height, centerPosition = Vec3.vec3 0 0 -distanceFromCenter, rotate = Mat4.rotate (degrees 180) Vec3.j >> rotationToWebgl adjustments.b })
-        { perspective =
-            perspective
-        , rotation =
-            rotationToWebgl rotation Mat4.identity
-        }
-    ]
+    List.map
+        (\( letterFn, adjustment, { centerPosition, rotate } ) ->
+            WebGL.entity
+                vertexShader
+                fragmentShader
+                (letterFn
+                    { centerPosition = centerPosition
+                    , rotate = rotate >> rotationToWebgl adjustment
+                    , height = 0.6
+                    , granularity = 0.01
+                    , color = theme.annotations
+                    }
+                )
+                { perspective = perspective
+                , rotation = rotationToWebgl rotation Mat4.identity
+                }
+        )
+        [ ( meshF, adjustments.f, { centerPosition = Vec3.vec3 0 0 distanceFromCenter, rotate = identity } )
+        , ( meshL, adjustments.l, { centerPosition = Vec3.vec3 -distanceFromCenter 0 0, rotate = Mat4.rotate (degrees -90) Vec3.j } )
+        , ( meshU, adjustments.u, { centerPosition = Vec3.vec3 0 distanceFromCenter 0, rotate = Mat4.rotate (degrees -90) Vec3.i } )
+        , ( meshD, adjustments.d, { centerPosition = Vec3.vec3 0 -distanceFromCenter 0, rotate = Mat4.rotate (degrees 90) Vec3.i } )
+        , ( meshR, adjustments.r, { centerPosition = Vec3.vec3 distanceFromCenter 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j } )
+        , ( meshB, adjustments.b, { centerPosition = Vec3.vec3 0 0 -distanceFromCenter, rotate = Mat4.rotate (degrees 180) Vec3.j } )
+        ]
 
 
-meshF : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
-meshF theme { height, centerPosition, rotate } =
+meshF : MeshLetterParams -> WebGL.Mesh Vertex
+meshF params =
     let
         -- Bounding box pre-scaling is 150 (width) x 225 (height)
         boundingWidth =
@@ -2303,53 +2279,28 @@ meshF theme { height, centerPosition, rotate } =
         boundingHeight =
             225
 
-        width =
-            height * boundingWidth / boundingHeight
-
-        stemWidth =
+        strokeWidth =
             30
-
-        branchesWidth =
-            25
     in
-    [ triangleLine
-        { from = Vec2.vec2 (stemWidth / 2) 0
-        , to = Vec2.vec2 (stemWidth / 2) boundingHeight
-        , zCoordinate = 0
-        , width = stemWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , triangleLine
-        { from = Vec2.vec2 0 (boundingHeight - branchesWidth / 2)
-        , to = Vec2.vec2 boundingWidth (boundingHeight - branchesWidth / 2)
-        , zCoordinate = 0
-        , width = branchesWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , triangleLine
-        { from = Vec2.vec2 0 (boundingHeight / 2)
-        , to = Vec2.vec2 (boundingWidth * 13 / 15) (boundingHeight / 2)
-        , zCoordinate = 0
-        , width = branchesWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    ]
-        |> List.concat
-        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| height / boundingHeight)
-        |> List.map
-            (mapTriple <|
-                setTransformation
-                    (Mat4.identity
-                        |> Mat4.translate centerPosition
-                        |> rotate
-                        |> Mat4.translate3 -(width / 2) -(height / 2) 0
-                    )
-            )
-        |> WebGL.triangles
+    meshLetter params
+        { boundingWidth = boundingWidth, boundingHeight = boundingHeight, strokeWidth = strokeWidth }
+        [ Line
+            { from = ( strokeWidth / 2, 0 )
+            , to = ( strokeWidth / 2, boundingHeight )
+            }
+        , Line
+            { from = ( 0, boundingHeight - strokeWidth / 2 )
+            , to = ( boundingWidth, boundingHeight - strokeWidth / 2 )
+            }
+        , Line
+            { from = ( 0, boundingHeight / 2 )
+            , to = ( boundingWidth * 13 / 15, boundingHeight / 2 )
+            }
+        ]
 
 
-meshL : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
-meshL theme { height, centerPosition, rotate } =
+meshL : MeshLetterParams -> WebGL.Mesh Vertex
+meshL params =
     let
         -- Bounding box pre-scaling is 150 (width) x 225 (height)
         boundingWidth =
@@ -2358,46 +2309,28 @@ meshL theme { height, centerPosition, rotate } =
         boundingHeight =
             225
 
-        width =
-            height * boundingWidth / boundingHeight
-
-        stemWidth =
+        strokeWidth =
             30
-
-        branchesWidth =
-            25
     in
-    [ triangleLine
-        { from = Vec2.vec2 (stemWidth / 2) 0
-        , to = Vec2.vec2 (stemWidth / 2) boundingHeight
-        , zCoordinate = 0
-        , width = stemWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , triangleLine
-        { from = Vec2.vec2 0 (branchesWidth / 2)
-        , to = Vec2.vec2 boundingWidth (branchesWidth / 2)
-        , zCoordinate = 0
-        , width = branchesWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    ]
-        |> List.concat
-        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| height / boundingHeight)
-        |> List.map
-            (mapTriple <|
-                setTransformation
-                    (Mat4.identity
-                        |> Mat4.translate centerPosition
-                        |> rotate
-                        |> Mat4.translate3 -(width / 2) -(height / 2) 0
-                    )
-            )
-        |> WebGL.triangles
+    meshLetter params
+        { boundingWidth = boundingWidth, boundingHeight = boundingHeight, strokeWidth = strokeWidth }
+        [ Line
+            { from = ( strokeWidth / 2, 0 )
+            , to = ( strokeWidth / 2, boundingHeight )
+            }
+        , Line
+            { from = ( 0, strokeWidth / 2 )
+            , to = ( boundingWidth, strokeWidth / 2 )
+            }
+        ]
 
 
-meshU : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
-meshU theme { height, centerPosition, rotate } =
+type alias MeshLetterParams =
+    { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4, color : Rgb255Color, granularity : Float }
+
+
+meshU : MeshLetterParams -> WebGL.Mesh Vertex
+meshU params =
     let
         -- Bounding box pre-scaling is 220 (width) x 300 (height)
         boundingWidth =
@@ -2406,54 +2339,31 @@ meshU theme { height, centerPosition, rotate } =
         boundingHeight =
             300
 
-        width =
-            height * boundingWidth / boundingHeight
-
         strokeWidth =
             35
     in
-    [ triangleLine
-        { from = Vec2.vec2 (strokeWidth / 2) 0
-        , to = Vec2.vec2 (strokeWidth / 2) (boundingHeight * 2 / 3)
-        , zCoordinate = 0
-        , width = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , halfEllipse
-        { startX = strokeWidth / 2
-        , endX = boundingWidth - strokeWidth / 2
-        , centerYCoordinate = boundingHeight * 2 / 3
-        , zCoordinate = 0
-        , height = 82.5
-        , granularity = 10
-        , strokeWidth = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , triangleLine
-        { from = Vec2.vec2 (boundingWidth - strokeWidth / 2) 0
-        , to = Vec2.vec2 (boundingWidth - strokeWidth / 2) (boundingHeight * 2 / 3)
-        , zCoordinate = 0
-        , width = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    ]
-        |> List.concat
-        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| height / boundingHeight)
-        |> List.map
-            (mapTriple <|
-                setTransformation
-                    (Mat4.identity
-                        |> Mat4.translate centerPosition
-                        |> rotate
-                        |> Mat4.rotate (degrees 180) Vec3.k
-                        |> Mat4.translate3 -(width / 2) -(height / 2) 0
-                    )
-            )
-        |> WebGL.triangles
+    meshLetter
+        { params | rotate = params.rotate >> Mat4.rotate (degrees 180) Vec3.k }
+        { boundingWidth = boundingWidth, boundingHeight = boundingHeight, strokeWidth = strokeWidth }
+        [ Line
+            { from = ( strokeWidth / 2, 0 )
+            , to = ( strokeWidth / 2, boundingHeight * 2 / 3 )
+            }
+        , HalfEllipse
+            { startX = strokeWidth / 2
+            , endX = boundingWidth - strokeWidth / 2
+            , centerYCoordinate = boundingHeight * 2 / 3
+            , height = 82.5
+            }
+        , Line
+            { from = ( boundingWidth - strokeWidth / 2, 0 )
+            , to = ( boundingWidth - strokeWidth / 2, boundingHeight * 2 / 3 )
+            }
+        ]
 
 
-meshD : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
-meshD theme { height, centerPosition, rotate } =
+meshD : MeshLetterParams -> WebGL.Mesh Vertex
+meshD params =
     let
         -- Bounding box pre-scaling and rotation is 290 (width) x 230 (height)
         -- and for ease of ellipse use we are drawing the D "lying down"
@@ -2466,7 +2376,7 @@ meshD theme { height, centerPosition, rotate } =
         -- Since we'll be doing some rotation that will actually swap
         -- the width and height
         preRotateWidth =
-            height
+            params.height
 
         preRotateHeight =
             preRotateWidth * boundingHeight / boundingWidth
@@ -2474,41 +2384,24 @@ meshD theme { height, centerPosition, rotate } =
         strokeWidth =
             35
     in
-    [ triangleLine
-        { from = Vec2.vec2 0 (strokeWidth / 2)
-        , to = Vec2.vec2 boundingWidth (strokeWidth / 2)
-        , zCoordinate = 0
-        , width = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , halfEllipse
-        { startX = strokeWidth / 2
-        , endX = boundingWidth - strokeWidth / 2
-        , centerYCoordinate = strokeWidth
-        , zCoordinate = 0
-        , height = boundingHeight - strokeWidth * 3 / 2
-        , granularity = 10
-        , strokeWidth = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    ]
-        |> List.concat
-        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| preRotateHeight / boundingHeight)
-        |> List.map
-            (mapTriple <|
-                setTransformation
-                    (Mat4.identity
-                        |> Mat4.translate centerPosition
-                        |> rotate
-                        |> Mat4.rotate (degrees -90) Vec3.k
-                        |> Mat4.translate3 -(preRotateWidth / 2) -(preRotateHeight / 2) 0
-                    )
-            )
-        |> WebGL.triangles
+    meshLetter
+        { params | rotate = params.rotate >> Mat4.rotate (degrees -90) Vec3.k, height = preRotateHeight }
+        { boundingWidth = boundingWidth, boundingHeight = boundingHeight, strokeWidth = strokeWidth }
+        [ Line
+            { from = ( 0, strokeWidth / 2 )
+            , to = ( boundingWidth, strokeWidth / 2 )
+            }
+        , HalfEllipse
+            { startX = strokeWidth / 2
+            , endX = boundingWidth - strokeWidth / 2
+            , centerYCoordinate = strokeWidth
+            , height = boundingHeight - strokeWidth * 3 / 2
+            }
+        ]
 
 
-meshR : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
-meshR theme { height, centerPosition, rotate } =
+meshR : MeshLetterParams -> WebGL.Mesh Vertex
+meshR params =
     let
         -- Bounding box pre-scaling and rotation is 290 (width) x 255 (height)
         -- and for ease of ellipse use we are drawing the R "lying down"
@@ -2521,7 +2414,7 @@ meshR theme { height, centerPosition, rotate } =
         -- Since we'll be doing some rotation that will actually swap
         -- the width and height
         preRotateWidth =
-            height
+            params.height
 
         preRotateHeight =
             preRotateWidth * boundingHeight / boundingWidth
@@ -2529,62 +2422,36 @@ meshR theme { height, centerPosition, rotate } =
         strokeWidth =
             35
     in
-    [ triangleLine
-        { from = Vec2.vec2 0 (strokeWidth / 2)
-        , to = Vec2.vec2 boundingWidth (strokeWidth / 2)
-        , zCoordinate = 0
-        , width = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , triangleLine
-        { from = Vec2.vec2 (strokeWidth / 2) 0
-        , to = Vec2.vec2 (strokeWidth / 2) (boundingHeight * 10 / 21)
-        , zCoordinate = 0
-        , width = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , halfEllipse
-        { startX = strokeWidth / 2
-        , endX = boundingWidth / 2
-        , centerYCoordinate = boundingHeight * 10 / 21
-        , zCoordinate = 0
-        , height = boundingHeight * 95 / 210
-        , granularity = 10
-        , strokeWidth = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , triangleLine
-        { from = Vec2.vec2 (boundingWidth / 2) (boundingHeight * 10 / 21)
-        , to = Vec2.vec2 (boundingWidth / 2) 0
-        , zCoordinate = 0
-        , width = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , triangleLine
-        { from = Vec2.vec2 (boundingWidth / 2) (boundingHeight * 12 / 21)
-        , to = Vec2.vec2 boundingWidth (boundingWidth * 2 / 3)
-        , zCoordinate = 0
-        , width = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    ]
-        |> List.concat
-        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| preRotateHeight / boundingHeight)
-        |> List.map
-            (mapTriple <|
-                setTransformation
-                    (Mat4.identity
-                        |> Mat4.translate centerPosition
-                        |> rotate
-                        |> Mat4.rotate (degrees -90) Vec3.k
-                        |> Mat4.translate3 -(preRotateWidth / 2) -(preRotateHeight / 2) 0
-                    )
-            )
-        |> WebGL.triangles
+    meshLetter
+        { params | rotate = params.rotate >> Mat4.rotate (degrees -90) Vec3.k, height = preRotateHeight }
+        { boundingWidth = boundingWidth, boundingHeight = boundingHeight, strokeWidth = strokeWidth }
+        [ Line
+            { from = ( 0, strokeWidth / 2 )
+            , to = ( boundingWidth, strokeWidth / 2 )
+            }
+        , Line
+            { from = ( strokeWidth / 2, 0 )
+            , to = ( strokeWidth / 2, boundingHeight * 10 / 21 )
+            }
+        , HalfEllipse
+            { startX = strokeWidth / 2
+            , endX = boundingWidth / 2
+            , centerYCoordinate = boundingHeight * 10 / 21
+            , height = boundingHeight * 95 / 210
+            }
+        , Line
+            { from = ( boundingWidth / 2, boundingHeight * 10 / 21 )
+            , to = ( boundingWidth / 2, 0 )
+            }
+        , Line
+            { from = ( boundingWidth / 2, boundingHeight * 12 / 21 )
+            , to = ( boundingWidth, boundingWidth * 2 / 3 )
+            }
+        ]
 
 
-meshB : CubeTheme -> { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4 } -> WebGL.Mesh Vertex
-meshB theme { height, centerPosition, rotate } =
+meshB : MeshLetterParams -> WebGL.Mesh Vertex
+meshB params =
     let
         -- Bounding box pre-scaling and rotation is 290 (width) x 230 (height)
         -- and for ease of ellipse use we are drawing the B "lying down"
@@ -2597,7 +2464,7 @@ meshB theme { height, centerPosition, rotate } =
         -- Since we'll be doing some rotation that will actually swap
         -- the width and height
         preRotateWidth =
-            height
+            params.height
 
         preRotateHeight =
             preRotateWidth * boundingHeight / boundingWidth
@@ -2605,72 +2472,109 @@ meshB theme { height, centerPosition, rotate } =
         strokeWidth =
             35
     in
-    [ triangleLine
-        { from = Vec2.vec2 0 (strokeWidth / 2)
-        , to = Vec2.vec2 boundingWidth (strokeWidth / 2)
-        , zCoordinate = 0
-        , width = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , triangleLine
-        { from = Vec2.vec2 (strokeWidth / 2) 0
-        , to = Vec2.vec2 (strokeWidth / 2) (boundingHeight * 10 / 23)
-        , zCoordinate = 0
-        , width = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , halfEllipse
-        { startX = strokeWidth / 2
-        , endX = boundingWidth / 2
-        , centerYCoordinate = boundingHeight * 10 / 23
-        , zCoordinate = 0
-        , height = boundingHeight * 95 / 255
-        , granularity = 10
-        , strokeWidth = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , triangleLine
-        { from = Vec2.vec2 (boundingWidth / 2) (boundingHeight * 10 / 23)
-        , to = Vec2.vec2 (boundingWidth / 2) 0
-        , zCoordinate = 0
-        , width = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , halfEllipse
-        { startX = boundingWidth / 2
-        , endX = boundingWidth - strokeWidth / 2
-        , centerYCoordinate = boundingHeight * 10 / 23
-        , zCoordinate = 0
-        , height = boundingHeight * 95 / 255
-        , granularity = 10
-        , strokeWidth = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    , triangleLine
-        { from = Vec2.vec2 (boundingWidth - strokeWidth / 2) (boundingHeight * 10 / 23)
-        , to = Vec2.vec2 (boundingWidth - strokeWidth / 2) 0
-        , zCoordinate = 0
-        , width = strokeWidth
-        , color = theme.annotations |> rgb255ColorToColorVector
-        }
-    ]
+    meshLetter
+        { params | rotate = params.rotate >> Mat4.rotate (degrees -90) Vec3.k, height = preRotateHeight }
+        { boundingWidth = boundingWidth, boundingHeight = boundingHeight, strokeWidth = strokeWidth }
+        [ Line
+            { from = ( 0, strokeWidth / 2 )
+            , to = ( boundingWidth, strokeWidth / 2 )
+            }
+        , Line
+            { from = ( strokeWidth / 2, 0 )
+            , to = ( strokeWidth / 2, boundingHeight * 10 / 23 )
+            }
+        , HalfEllipse
+            { startX = strokeWidth / 2
+            , endX = boundingWidth / 2
+            , centerYCoordinate = boundingHeight * 10 / 23
+            , height = boundingHeight * 95 / 255
+            }
+        , Line
+            { from = ( boundingWidth / 2, boundingHeight * 10 / 23 )
+            , to = ( boundingWidth / 2, 0 )
+            }
+        , HalfEllipse
+            { startX = boundingWidth / 2
+            , endX = boundingWidth - strokeWidth / 2
+            , centerYCoordinate = boundingHeight * 10 / 23
+            , height = boundingHeight * 95 / 255
+            }
+        , Line
+            { from = ( boundingWidth - strokeWidth / 2, boundingHeight * 10 / 23 )
+            , to = ( boundingWidth - strokeWidth / 2, 0 )
+            }
+        ]
+
+
+
+-- LOGIC AND MAPPINGS
+
+
+type LetterSegment
+    = Line { from : ( Float, Float ), to : ( Float, Float ) }
+    | HalfEllipse { startX : Float, endX : Float, centerYCoordinate : Float, height : Float }
+
+
+meshLetter :
+    MeshLetterParams
+    -> { boundingWidth : Float, boundingHeight : Float, strokeWidth : Float }
+    -> List LetterSegment
+    -> WebGL.Mesh Vertex
+meshLetter { centerPosition, height, rotate, color, granularity } { boundingWidth, boundingHeight, strokeWidth } segments =
+    let
+        width =
+            height * boundingWidth / boundingHeight
+
+        scale =
+            height / boundingHeight
+
+        scaleAdjustedGranularity =
+            granularity / scale
+    in
+    segments
+        |> List.map (segmentToTriangles { strokeWidth = strokeWidth, color = color, granularity = scaleAdjustedGranularity })
         |> List.concat
-        |> List.map (mapTriple <| mapPosition <| Vec3.scale <| preRotateHeight / boundingHeight)
+        |> List.map (mapTriple <| mapPosition <| Vec3.scale scale)
         |> List.map
             (mapTriple <|
                 setTransformation
                     (Mat4.identity
                         |> Mat4.translate centerPosition
                         |> rotate
-                        |> Mat4.rotate (degrees -90) Vec3.k
-                        |> Mat4.translate3 -(preRotateWidth / 2) -(preRotateHeight / 2) 0
+                        |> Mat4.translate3 -(width / 2) -(height / 2) 0
                     )
             )
         |> WebGL.triangles
 
 
+segmentToTriangles : { strokeWidth : Float, color : Rgb255Color, granularity : Float } -> LetterSegment -> List ( Vertex, Vertex, Vertex )
+segmentToTriangles { strokeWidth, color, granularity } segment =
+    case segment of
+        Line { from, to } ->
+            triangleLine
+                { from = tupleToVector from
+                , to = tupleToVector to
+                , width = strokeWidth
+                , color = color
+                , zCoordinate = 0
+                }
 
--- LOGIC AND MAPPINGS
+        HalfEllipse { startX, endX, centerYCoordinate, height } ->
+            halfEllipse
+                { startX = startX
+                , endX = endX
+                , centerYCoordinate = centerYCoordinate
+                , height = height
+                , granularity = granularity
+                , color = color
+                , zCoordinate = 0
+                , strokeWidth = strokeWidth
+                }
+
+
+tupleToVector : ( Float, Float ) -> Vec2
+tupleToVector ( x, y ) =
+    Vec2.vec2 x y
 
 
 getRgb255Color : CubeTheme -> Color -> Rgb255Color
@@ -2700,7 +2604,7 @@ getRgb255Color theme color =
 
 rgb255ColorToColorVector : Rgb255Color -> Vec3
 rgb255ColorToColorVector ( x, y, z ) =
-    Vec3.vec3 (toFloat x) (toFloat y) (toFloat z)
+    Vec3.vec3 (toFloat x / 255) (toFloat y / 255) (toFloat z / 255)
 
 
 {-| We only use ints for now so it makes some things a bit easier
@@ -2963,8 +2867,8 @@ getCenterCoordinates location =
 
 square :
     { center : Vec3
-    , innerColor : Vec3
-    , borderColor : Vec3
+    , innerColor : Rgb255Color
+    , borderColor : Rgb255Color
     , orthogonalPlaneDirection1 : Vec3
     , orthogonalPlaneDirection2 : Vec3
     , totalWidthAndHeight : Float
@@ -3043,7 +2947,7 @@ square { center, innerColor, orthogonalPlaneDirection1, orthogonalPlaneDirection
     ]
 
 
-triangleLine : { from : Vec2, to : Vec2, zCoordinate : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex )
+triangleLine : { from : Vec2, to : Vec2, zCoordinate : Float, width : Float, color : Rgb255Color } -> List ( Vertex, Vertex, Vertex )
 triangleLine { from, to, width, color, zCoordinate } =
     let
         diff =
@@ -3072,7 +2976,7 @@ triangleLine { from, to, width, color, zCoordinate } =
         |> twoDTrianglesToColored3d { zCoordinate = zCoordinate, color = color }
 
 
-twoDTrianglesToColored3d : { zCoordinate : Float, color : Vec3 } -> List ( Vec2, Vec2, Vec2 ) -> List ( Vertex, Vertex, Vertex )
+twoDTrianglesToColored3d : { zCoordinate : Float, color : Rgb255Color } -> List ( Vec2, Vec2, Vec2 ) -> List ( Vertex, Vertex, Vertex )
 twoDTrianglesToColored3d { zCoordinate, color } triangles =
     triangles
         |> List.map (mapTriple <| twoDTo3d zCoordinate)
@@ -3094,7 +2998,7 @@ halfEllipse :
     , endX : Float
     , granularity : Float
     , strokeWidth : Float
-    , color : Vec3
+    , color : Rgb255Color
     }
     -> List ( Vertex, Vertex, Vertex )
 halfEllipse params =
@@ -3128,7 +3032,7 @@ halfEllipse params =
         |> List.map (mapTriple <| mapPosition <| Vec3.add center)
 
 
-halfEllipseHelper : { width : Float, height : Float, granularity : Float, strokeWidth : Float, color : Vec3 } -> { x : Float, triangles : List ( Vertex, Vertex, Vertex ) } -> List ( Vertex, Vertex, Vertex )
+halfEllipseHelper : { width : Float, height : Float, granularity : Float, strokeWidth : Float, color : Rgb255Color } -> { x : Float, triangles : List ( Vertex, Vertex, Vertex ) } -> List ( Vertex, Vertex, Vertex )
 halfEllipseHelper params { x, triangles } =
     let
         rx =
@@ -3198,7 +3102,7 @@ getPositiveEllipseCoordinatesFromX { rx, ry } x =
         }
 
 
-addBeginningEllipseLine : { startX : Float, startY : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
+addBeginningEllipseLine : { startX : Float, startY : Float, width : Float, color : Rgb255Color } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
 addBeginningEllipseLine { startX, startY, width, color } vertices =
     case vertices of
         first :: second :: _ ->
@@ -3222,7 +3126,7 @@ addBeginningEllipseLine { startX, startY, width, color } vertices =
             vertices
 
 
-addEndingEllipseLine : { startX : Float, startY : Float, width : Float, color : Vec3 } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
+addEndingEllipseLine : { startX : Float, startY : Float, width : Float, color : Rgb255Color } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
 addEndingEllipseLine params vertices =
     vertices
         |> negateAllXCoordinates
@@ -3247,9 +3151,9 @@ mapPosition fn original =
     { original | position = fn original.position }
 
 
-positionToVertex : { color : Vec3 } -> Vec3 -> Vertex
+positionToVertex : { color : Rgb255Color } -> Vec3 -> Vertex
 positionToVertex { color } position =
-    { position = position, color = Vec3.scale (1 / 255) color, transformation = Mat4.identity }
+    { position = position, color = rgb255ColorToColorVector color, transformation = Mat4.identity }
 
 
 mapTriple : (a -> b) -> ( a, a, a ) -> ( b, b, b )

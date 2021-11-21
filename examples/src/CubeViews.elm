@@ -8,7 +8,7 @@ import Html.Attributes exposing (..)
 
 cubeSize : Int
 cubeSize =
-    400
+    1500
 
 
 cubeToView1 : Cube
@@ -41,7 +41,7 @@ main =
             [ Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.ufrDisplayAngle
-                , annotateFaces = False
+                , annotateFaces = True
                 }
                 cubeToView1
             , Cube.view []
