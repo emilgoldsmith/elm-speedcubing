@@ -8,7 +8,7 @@ import Html.Attributes exposing (..)
 
 cubeSize : Int
 cubeSize =
-    1500
+    200
 
 
 cubeToView1 : Cube
