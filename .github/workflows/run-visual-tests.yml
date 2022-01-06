@@ -35,6 +35,9 @@ jobs:
       - name: Setup Percy Configuration
         run: 'echo ''{ "version": 2, "snapshot": { "widths": [1280], "enableJavascript": true } }'' > percy-config.json'
 
+      - name: Preserve Drawing Buffer for WebGL so snapshots work
+        run: sed -i 's/WebGL.toHtml/WebGL.toHtmlWith [ WebGL.preserveDrawingBuffer ]/g' src/*.elm src/Cube/*.elm src/Monads/*.elm src/Utils/*.elm
+
       - name: Create snapshots of examples
         shell: bash
         run: |
