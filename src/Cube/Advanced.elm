@@ -2252,7 +2252,7 @@ faceAnnotations theme rotation adjustments =
                     { centerPosition = centerPosition
                     , rotate = rotate >> rotationToWebgl adjustment
                     , height = 0.6
-                    , granularity = 0.01
+                    , granularity = 0.07
                     , color = theme.annotations
                     }
                 )
@@ -2267,6 +2267,16 @@ faceAnnotations theme rotation adjustments =
         , ( meshR, adjustments.r, { centerPosition = Vec3.vec3 distanceFromCenter 0 0, rotate = Mat4.rotate (degrees 90) Vec3.j } )
         , ( meshB, adjustments.b, { centerPosition = Vec3.vec3 0 0 -distanceFromCenter, rotate = Mat4.rotate (degrees 180) Vec3.j } )
         ]
+
+
+type alias MeshLetterParams =
+    { height :
+        Float
+    , centerPosition : Vec3
+    , rotate : Mat4 -> Mat4
+    , color : Rgb255Color
+    , granularity : Float
+    }
 
 
 meshF : MeshLetterParams -> WebGL.Mesh Vertex
@@ -2323,10 +2333,6 @@ meshL params =
             , to = ( boundingWidth, strokeWidth / 2 )
             }
         ]
-
-
-type alias MeshLetterParams =
-    { height : Float, centerPosition : Vec3, rotate : Mat4 -> Mat4, color : Rgb255Color, granularity : Float }
 
 
 meshU : MeshLetterParams -> WebGL.Mesh Vertex
@@ -3016,7 +3022,9 @@ halfEllipse params =
         , strokeWidth = params.strokeWidth
         , color = params.color
         }
-        { x = -width / 2, triangles = [] }
+        { x = -width / 2, triangles = [], maybePrevStartCoordinates = Nothing }
+        |> List.reverse
+        |> addFillerTriangles
         |> addBeginningEllipseLine
             { startX = -width / 2
             , startY = 0
@@ -3032,8 +3040,15 @@ halfEllipse params =
         |> List.map (mapTriple <| mapPosition <| Vec3.add center)
 
 
-halfEllipseHelper : { width : Float, height : Float, granularity : Float, strokeWidth : Float, color : Rgb255Color } -> { x : Float, triangles : List ( Vertex, Vertex, Vertex ) } -> List ( Vertex, Vertex, Vertex )
-halfEllipseHelper params { x, triangles } =
+halfEllipseHelper :
+    { width : Float, height : Float, granularity : Float, strokeWidth : Float, color : Rgb255Color }
+    ->
+        { x : Float
+        , triangles : List (List ( Vertex, Vertex, Vertex ))
+        , maybePrevStartCoordinates : Maybe Vec2
+        }
+    -> List (List ( Vertex, Vertex, Vertex ))
+halfEllipseHelper params { x, triangles, maybePrevStartCoordinates } =
     let
         rx =
             params.width / 2
@@ -3049,12 +3064,67 @@ halfEllipseHelper params { x, triangles } =
 
         newLineSegment =
             triangleLine { from = startCoordinates, to = endCoordinates, width = params.strokeWidth, zCoordinate = 0, color = params.color }
+
+        newTriangles =
+            maybePrevStartCoordinates
+                |> Maybe.map
+                    (\prevStartCoordinates ->
+                        let
+                            prevDirection =
+                                Vec2.sub prevStartCoordinates startCoordinates
+
+                            currentDirection =
+                                Vec2.sub endCoordinates startCoordinates
+
+                            topLeftCorner =
+                                prevDirection
+                                    |> getVec2Normal
+                                    |> ensureDirectionIsYPositive
+                                    |> Vec2.normalize
+                                    |> Vec2.scale (params.strokeWidth / 2)
+                                    |> Vec2.add startCoordinates
+
+                            topRightCorner =
+                                currentDirection
+                                    |> getVec2Normal
+                                    |> ensureDirectionIsYPositive
+                                    |> Vec2.normalize
+                                    |> Vec2.scale (params.strokeWidth / 2)
+                                    |> Vec2.add startCoordinates
+
+                            fillerTriangle =
+                                ( startCoordinates, topLeftCorner, topRightCorner )
+                                    |> mapTriple (twoDTo3d 0)
+                                    |> mapTriple (positionToVertex { color = params.color })
+                                    |> List.singleton
+                        in
+                        newLineSegment :: fillerTriangle :: triangles
+                    )
+                |> Maybe.withDefault (newLineSegment :: triangles)
     in
     if rx - Vec2.getX endCoordinates < params.granularity / 20 then
-        triangles ++ newLineSegment
+        newTriangles
 
     else
-        halfEllipseHelper params { x = Vec2.getX endCoordinates, triangles = triangles ++ newLineSegment }
+        halfEllipseHelper params
+            { x = Vec2.getX endCoordinates
+            , triangles = newTriangles
+            , maybePrevStartCoordinates = Just startCoordinates
+            }
+
+
+getVec2Normal : Vec2 -> Vec2
+getVec2Normal vector =
+    Vec2.vec2 (Vec2.getY vector * -1) (Vec2.getX vector)
+
+
+ensureDirectionIsYPositive : Vec2 -> Vec2
+ensureDirectionIsYPositive vector =
+    if Vec2.getY vector < 0 then
+        Vec2.negate vector
+
+    else
+        vector
 
 
 getNextCoordinates : { rx : Float, ry : Float, granularity : Float } -> Vec2 -> Vec2
@@ -3081,10 +3151,7 @@ binarySearchEllipseDistance ({ rx, ry, targetDistance, minX, maxX, startPoint } 
         testDistance =
             Vec2.distance startPoint testEndPoint
     in
-    if testDistance - targetDistance < targetDistance / 10 then
-        testEndPoint
-
-    else if maxX - minX < targetDistance / 10 then
+    if maxX - minX < targetDistance / 10 then
         getPositiveEllipseCoordinatesFromX { rx = rx, ry = ry } maxX
 
     else if testDistance >= targetDistance then
@@ -3100,6 +3167,32 @@ getPositiveEllipseCoordinatesFromX { rx, ry } x =
         { x = x
         , y = ry * sqrt (rx * rx - x * x) / rx
         }
+
+
+addFillerTriangles : List (List ( Vertex, Vertex, Vertex )) -> List ( Vertex, Vertex, Vertex )
+addFillerTriangles triangleLineList =
+    List.foldl
+        (\nextLine { maybePrevLine, acc } ->
+            maybePrevLine
+                |> Maybe.map
+                    (\prevLine ->
+                        { acc = acc ++ addFillerTriangle prevLine nextLine
+                        , maybePrevLine = Just nextLine
+                        }
+                    )
+                |> Maybe.withDefault { acc = acc, maybePrevLine = Just nextLine }
+        )
+        { acc = []
+        , maybePrevLine = Nothing
+        }
+        triangleLineList
+        |> .acc
+        |> List.concat
+
+
+addFillerTriangle : List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex ) -> List (List ( Vertex, Vertex, Vertex ))
+addFillerTriangle first second =
+    [ first, second ]
 
 
 addBeginningEllipseLine : { startX : Float, startY : Float, width : Float, color : Rgb255Color } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
