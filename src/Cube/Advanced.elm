@@ -1992,7 +1992,7 @@ getCubeHtml :
     -> Cube
     -> Html msg
 getCubeHtml attributes { rotation, annotateFaces, pixelSize, theme } cube =
-    WebGL.toHtml
+    WebGL.toHtmlWith [ WebGL.preserveDrawingBuffer ]
         -- All these properties including the double size of width and height
         -- are all just the suggestions in the toHtml documentation
         ([ width (pixelSize * 2)
