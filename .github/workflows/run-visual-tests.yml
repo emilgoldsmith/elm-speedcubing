@@ -38,7 +38,9 @@ jobs:
       - name: Preserve Drawing Buffer for WebGL so snapshots work
         # Note that the alpha, antialias and depth options are the Elm WebGL defaults that we are just passing in here again, so we actually
         # only change the preserveDrawingBuffer
-        run: sed -i 's/WebGL.toHtml/WebGL.toHtmlWith [ WebGL.preserveDrawingBuffer, WebGL.alpha True, WebGL.antialias, WebGL.depth 1 ]/g' src/*.elm src/Cube/*.elm src/Monads/*.elm src/Utils/*.elm
+        run: |
+          sed -i 's/\bCube.view\b/Cube.Advanced.debugViewAllowingVisualTesting/g' ./examples/src/*.elm &&
+          sed -i '/^module .* exposing.*/a import Cube.Advanced' ./examples/src/*.elm
 
       - name: Create snapshots of examples
         shell: bash
