@@ -2,7 +2,7 @@ module Cube.Advanced exposing
     ( Cube
     , solved
     , applyAlgorithm
-    , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view
+    , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
     , Rendering, CubieRendering, Color(..), render
     , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
@@ -28,7 +28,7 @@ module Cube.Advanced exposing
 
 # Displayers
 
-@docs DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view
+@docs DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
 
 
 # Rendering
@@ -57,6 +57,7 @@ import Math.Vector3 as Vec3 exposing (Vec3)
 import Utils.Enumerator
 import Utils.MappedPermutation as MappedPermutation exposing (MappedPermutation)
 import WebGL
+import WebGL.Extra
 
 
 
@@ -1832,12 +1833,44 @@ view :
         }
     -> Cube
     -> Html msg
-view attributes { pixelSize, displayAngle, annotateFaces } cube =
+view =
+    viewHelper { preserveDrawingBuffer = False }
+
+
+{-| It's exactly the same as [Cube.view](Cube#view), except it allows for programmatic screenshotting
+of the application, and the cost of that is lowered performance. This is due to some WebGL internals which
+the cube rendering is implemented with
+-}
+debugViewAllowingVisualTesting :
+    List (Attribute msg)
+    ->
+        { pixelSize : Int
+        , displayAngle : DisplayAngle
+        , annotateFaces : Bool
+        }
+    -> Cube
+    -> Html msg
+debugViewAllowingVisualTesting =
+    viewHelper { preserveDrawingBuffer = True }
+
+
+viewHelper :
+    { preserveDrawingBuffer : Bool }
+    -> List (Attribute msg)
+    ->
+        { pixelSize : Int
+        , displayAngle : DisplayAngle
+        , annotateFaces : Bool
+        }
+    -> Cube
+    -> Html msg
+viewHelper { preserveDrawingBuffer } attributes { pixelSize, displayAngle, annotateFaces } cube =
     let
         { mainRotation, annotationAdjustments } =
             getRotations displayAngle
     in
-    getCubeHtml attributes
+    getCubeHtml
+        attributes
         { rotation = mainRotation
         , pixelSize = pixelSize
         , annotateFaces =
@@ -1847,6 +1880,7 @@ view attributes { pixelSize, displayAngle, annotateFaces } cube =
             else
                 Nothing
         , theme = defaultTheme
+        , preserveDrawingBuffer = preserveDrawingBuffer
         }
         cube
 
@@ -1988,11 +2022,20 @@ getCubeHtml :
                 , b : Rotation
                 }
         , theme : CubeTheme
+        , preserveDrawingBuffer : Bool
         }
     -> Cube
     -> Html msg
-getCubeHtml attributes { rotation, annotateFaces, pixelSize, theme } cube =
-    WebGL.toHtml
+getCubeHtml attributes { rotation, annotateFaces, pixelSize, theme, preserveDrawingBuffer } cube =
+    let
+        toHtmlOptions =
+            if preserveDrawingBuffer then
+                WebGL.preserveDrawingBuffer :: WebGL.Extra.toHtmlDefaultOptions
+
+            else
+                WebGL.Extra.toHtmlDefaultOptions
+    in
+    WebGL.toHtmlWith toHtmlOptions
         -- All these properties including the double size of width and height
         -- are all just the suggestions in the toHtml documentation
         ([ width (pixelSize * 2)
