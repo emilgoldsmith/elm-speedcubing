@@ -8,7 +8,7 @@ permissions: {}
 
 jobs:
   run-visual-tests:
-    name: Run Visual Tests on ${{ matrix.sizes.name }} screen size
+    name: Run Visual Tests
     runs-on: ubuntu-20.04
     permissions:
       contents: read
