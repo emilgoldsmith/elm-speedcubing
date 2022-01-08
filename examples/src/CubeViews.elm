@@ -37,7 +37,8 @@ cubeToView2 =
 main : Html msg
 main =
     div [ style "display" "flex", style "flex-wrap" "wrap", style "text-align" "center" ]
-        [ div []
+        [ -- ADD-STYLE-NODE-HERE-FOR-VISUAL-TESTING
+          div []
             [ text "UFR"
             , Cube.view []
                 { pixelSize = cubeSize

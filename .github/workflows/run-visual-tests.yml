@@ -39,7 +39,7 @@ jobs:
         run: |
           sed -i 's/\bCube.view\b/Cube.Advanced.debugViewAllowingVisualTesting/g' ./examples/src/*.elm &&
           sed -i '/^module .* exposing.*/a import Cube.Advanced' ./examples/src/*.elm &&
-          sed -i 's/Cube.Advanced.debugViewAllowingVisualTesting \[]/Cube.Advanced.debugViewAllowingVisualTesting \[style "display" "block"]/g' ./examples/src/CubeViews.elm
+          sed -i 's/-- ADD-STYLE-NODE-HERE-FOR-VISUAL-TESTING/node "style" [] [text "img {display: block;}"],/g' ./examples/src/CubeViews.elm
 
       - name: Create snapshots of examples
         shell: bash
