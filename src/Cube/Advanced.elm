@@ -404,7 +404,7 @@ type ClockwiseQuarterPermutation location cubie
 getClockwiseQuarterTurnDefinition : Algorithm.Turnable -> ClockwiseQuarterTurnDefinition
 getClockwiseQuarterTurnDefinition turnable =
     case turnable of
-        -- Single face turns
+        -- Single Face Turns
         Algorithm.U ->
             buildClockwiseQuarterTurnDefinition
                 [ [ ( ( U, F, R ), dontTwist )
@@ -501,7 +501,7 @@ getClockwiseQuarterTurnDefinition turnable =
                 ]
                 [ noCentersMoved ]
 
-        -- Slice turns
+        -- Slice Turns
         Algorithm.M ->
             buildClockwiseQuarterTurnDefinition
                 [ noCornersMoved ]
@@ -550,6 +550,7 @@ getClockwiseQuarterTurnDefinition turnable =
                   ]
                 ]
 
+        -- Wide Turns
         Algorithm.Uw ->
             Composed
                 [ Algorithm.Turn Algorithm.U Algorithm.OneQuarter Algorithm.Clockwise
@@ -586,6 +587,7 @@ getClockwiseQuarterTurnDefinition turnable =
                 , Algorithm.Turn Algorithm.S Algorithm.OneQuarter Algorithm.CounterClockwise
                 ]
 
+        -- Cube Rotations
         Algorithm.X ->
             Composed
                 [ Algorithm.Turn Algorithm.L Algorithm.OneQuarter Algorithm.CounterClockwise
@@ -753,10 +755,10 @@ flipEdge (OrientedEdge corner orientation) =
 
 
 {-| This representation of how the cube looks is meant for advanced custom use
-if you for some reason want to display the cube differently than this package
-does, or you need to introspect specific state of the cube for some application.
+if you for example want to display the cube differently than this package
+does, or you need to introspect specific state of the cube for your application.
 
-It is expected that most use cases should be able to fulfill your goals without the
+It is expected that most use cases should be able to fulfill their goals without the
 use of this, and if you find a use case that you think should be covered by the package
 itself feel free to [submit a Github issue](https://github.com/emilgoldsmith/elm-speedcubing/issues/new).
 
@@ -1706,11 +1708,11 @@ makeAlgorithmMaintainOrientation algorithm =
                 in
                 List.Nonempty.filter
                     hasStartingOrientation
+                    -- This is a default for type safety to ensure non-empty value so it is definitely important
+                    -- this code has some good tests to ensure confidence in the logic
                     uFixedAlgorithm
                     yRotationPossibilities
            )
-        -- We use a default with the filter etc. above, so it is definitely important
-        -- this code has some good tests to ensure confidence in the logic
         |> List.Nonempty.head
 
 
@@ -2065,6 +2067,9 @@ getCubeHtml attributes { rotation, annotateFaces, pixelSize, theme, preserveDraw
 -- WebGL stuff
 
 
+{-| All this WebGL code was modified from the original at
+<https://github.com/maxf/elm-webgl-rubik/tree/28f20972aee898c262461b93dbb6e45b67859b29>
+-}
 type alias Vertex =
     { color : Vec3
     , position : Vec3
@@ -2093,75 +2098,6 @@ perspective =
     Mat4.mul
         (Mat4.makePerspective 25 1 0.01 150)
         (Mat4.makeLookAt eye viewportTranslation Vec3.j)
-
-
-{-| All this WebGL code was modified from the original at
-<https://github.com/maxf/elm-webgl-rubik/tree/28f20972aee898c262461b93dbb6e45b67859b29>
--}
-cubeMesh : CubeTheme -> Rendering -> WebGL.Mesh Vertex
-cubeMesh theme rendering =
-    List.map
-        (cubieMesh theme)
-        (allCubieData theme rendering)
-        |> List.concat
-        |> WebGL.triangles
-
-
-cubieMesh : CubeTheme -> CubieData -> List ( Vertex, Vertex, Vertex )
-cubieMesh theme { colors, center } =
-    let
-        totalCubieWidth =
-            1
-
-        borderWidth =
-            0.05
-    in
-    (List.map
-        -- Add the shared arguments
-        (\params ->
-            { innerColor = params.innerColor
-            , center = params.center
-            , orthogonalPlaneDirection1 = params.orthogonalPlaneDirection1
-            , orthogonalPlaneDirection2 = params.orthogonalPlaneDirection2
-            , totalWidthAndHeight = totalCubieWidth
-            , borderWidth = borderWidth
-            , borderColor = theme.plastic
-            }
-        )
-        >> List.map square
-        >> List.concat
-    )
-        [ { innerColor = colors.up
-          , center = Vec3.add center (Vec3.vec3 0 (-0.5 * totalCubieWidth) 0)
-          , orthogonalPlaneDirection1 = Vec3.i
-          , orthogonalPlaneDirection2 = Vec3.k
-          }
-        , { innerColor = colors.down
-          , center = Vec3.add center (Vec3.vec3 0 (0.5 * totalCubieWidth) 0)
-          , orthogonalPlaneDirection1 = Vec3.i
-          , orthogonalPlaneDirection2 = Vec3.k
-          }
-        , { innerColor = colors.front
-          , center = Vec3.add center (Vec3.vec3 0 0 (0.5 * totalCubieWidth))
-          , orthogonalPlaneDirection1 = Vec3.i
-          , orthogonalPlaneDirection2 = Vec3.j
-          }
-        , { innerColor = colors.back
-          , center = Vec3.add center (Vec3.vec3 0 0 (-0.5 * totalCubieWidth))
-          , orthogonalPlaneDirection1 = Vec3.i
-          , orthogonalPlaneDirection2 = Vec3.j
-          }
-        , { innerColor = colors.left
-          , center = Vec3.add center (Vec3.vec3 (-0.5 * totalCubieWidth) 0 0)
-          , orthogonalPlaneDirection1 = Vec3.j
-          , orthogonalPlaneDirection2 = Vec3.k
-          }
-        , { innerColor = colors.right
-          , center = Vec3.add center (Vec3.vec3 (0.5 * totalCubieWidth) 0 0)
-          , orthogonalPlaneDirection1 = Vec3.j
-          , orthogonalPlaneDirection2 = Vec3.k
-          }
-        ]
 
 
 vertexShader : WebGL.Shader Vertex Uniforms { vcolor : Vec3 }
@@ -2193,6 +2129,77 @@ fragmentShader =
 
 
 -- Mesh
+
+
+cubeMesh : CubeTheme -> Rendering -> WebGL.Mesh Vertex
+cubeMesh theme rendering =
+    List.map
+        (cubieMesh theme)
+        (allCubieData theme rendering)
+        |> List.concat
+        |> WebGL.triangles
+
+
+cubieMesh : CubeTheme -> CubieData -> List ( Vertex, Vertex, Vertex )
+cubieMesh theme { colors, center } =
+    let
+        totalCubieWidth =
+            1
+
+        borderWidth =
+            0.05
+    in
+    (List.map
+        -- Add the shared arguments
+        (\params ->
+            { innerColor = params.innerColor
+            , center =
+                params.center
+                    |> Vec3.scale totalCubieWidth
+                    |> Vec3.add center
+            , orthogonalPlaneDirection1 = params.orthogonalPlaneDirection1
+            , orthogonalPlaneDirection2 = params.orthogonalPlaneDirection2
+            , totalWidthAndHeight = totalCubieWidth
+            , borderWidth = borderWidth
+            , borderColor = theme.plastic
+            }
+        )
+        >> List.map square
+        >> List.concat
+    )
+        [ { innerColor = colors.up
+
+          -- Note that these coordinates are scaled and added to cubie center in the map above
+          , center = Vec3.vec3 0 -0.5 0
+          , orthogonalPlaneDirection1 = Vec3.i
+          , orthogonalPlaneDirection2 = Vec3.k
+          }
+        , { innerColor = colors.down
+          , center = Vec3.vec3 0 0.5 0
+          , orthogonalPlaneDirection1 = Vec3.i
+          , orthogonalPlaneDirection2 = Vec3.k
+          }
+        , { innerColor = colors.front
+          , center = Vec3.vec3 0 0 0.5
+          , orthogonalPlaneDirection1 = Vec3.i
+          , orthogonalPlaneDirection2 = Vec3.j
+          }
+        , { innerColor = colors.back
+          , center = Vec3.vec3 0 0 -0.5
+          , orthogonalPlaneDirection1 = Vec3.i
+          , orthogonalPlaneDirection2 = Vec3.j
+          }
+        , { innerColor = colors.left
+          , center = Vec3.vec3 -0.5 0 0
+          , orthogonalPlaneDirection1 = Vec3.j
+          , orthogonalPlaneDirection2 = Vec3.k
+          }
+        , { innerColor = colors.right
+          , center = Vec3.vec3 0.5 0 0
+          , orthogonalPlaneDirection1 = Vec3.j
+          , orthogonalPlaneDirection2 = Vec3.k
+          }
+        ]
 
 
 type alias CubieData =
@@ -2282,7 +2289,7 @@ faceAnnotations :
     -> List WebGL.Entity
 faceAnnotations theme rotation adjustments =
     let
-        -- The .51 instead of just .5s are so that the annotations display in front of the cube instead of blending into the face itself
+        -- The .51 instead of just .5 is so the annotations display in front of the cube instead of blending into the face itself
         distanceFromCenter =
             1.51
     in
@@ -2294,7 +2301,12 @@ faceAnnotations theme rotation adjustments =
                 (letterFn
                     { centerPosition = centerPosition
                     , rotate = rotate >> rotationToWebgl adjustment
+
+                    -- The height of the letter. The cubie height is 1.0 for reference
                     , height = 0.6
+
+                    -- Adjusting this means a lot for the smoothness of the annotation curves and also greatly impacts performance
+                    -- be careful making it too low as this can really make devices work surprisingly hard
                     , granularity = 0.07
                     , color = theme.annotations
                     }
@@ -2668,7 +2680,7 @@ type alias Coordinates =
 
 
 type SingleRotation
-    = -- It was unused so erroring linting
+    = -- It was unused so it made linter error but no other reason it can't be included later
       -- XRotateDegrees Float
       YRotateDegrees Float
     | ZRotateDegrees Float
@@ -3066,8 +3078,11 @@ halfEllipse params =
         , color = params.color
         }
         { x = -width / 2, triangles = [], maybePrevStartCoordinates = Nothing }
+        -- The reverse I believe is just needed to be compatible with the adding of beginning
+        -- and end lines. At the time of writing I don't quite remember though, I tested removing it
+        -- and it does slightly break the rendering
         |> List.reverse
-        |> addFillerTriangles
+        |> List.concat
         |> addBeginningEllipseLine
             { startX = -width / 2
             , startY = 0
@@ -3208,34 +3223,10 @@ getPositiveEllipseCoordinatesFromX : { rx : Float, ry : Float } -> Float -> Vec2
 getPositiveEllipseCoordinatesFromX { rx, ry } x =
     Vec2.fromRecord
         { x = x
+
+        -- This is just from the equation of an ellipse
         , y = ry * sqrt (rx * rx - x * x) / rx
         }
-
-
-addFillerTriangles : List (List ( Vertex, Vertex, Vertex )) -> List ( Vertex, Vertex, Vertex )
-addFillerTriangles triangleLineList =
-    List.foldl
-        (\nextLine { maybePrevLine, acc } ->
-            maybePrevLine
-                |> Maybe.map
-                    (\prevLine ->
-                        { acc = acc ++ addFillerTriangle prevLine nextLine
-                        , maybePrevLine = Just nextLine
-                        }
-                    )
-                |> Maybe.withDefault { acc = acc, maybePrevLine = Just nextLine }
-        )
-        { acc = []
-        , maybePrevLine = Nothing
-        }
-        triangleLineList
-        |> .acc
-        |> List.concat
-
-
-addFillerTriangle : List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex ) -> List (List ( Vertex, Vertex, Vertex ))
-addFillerTriangle first second =
-    [ first, second ]
 
 
 addBeginningEllipseLine : { startX : Float, startY : Float, width : Float, color : Rgb255Color } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )

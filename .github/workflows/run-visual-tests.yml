@@ -36,8 +36,6 @@ jobs:
         run: 'echo ''{ "version": 2, "snapshot": { "widths": [1280], "enableJavascript": true } }'' > percy-config.json'
 
       - name: Preserve Drawing Buffer for WebGL so snapshots work
-        # Note that the alpha, antialias and depth options are the Elm WebGL defaults that we are just passing in here again, so we actually
-        # only change the preserveDrawingBuffer
         run: |
           sed -i 's/\bCube.view\b/Cube.Advanced.debugViewAllowingVisualTesting/g' ./examples/src/*.elm &&
           sed -i '/^module .* exposing.*/a import Cube.Advanced' ./examples/src/*.elm
