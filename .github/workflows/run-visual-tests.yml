@@ -37,8 +37,9 @@ jobs:
 
       - name: Preserve Drawing Buffer for WebGL so snapshots work
         run: |
-          sed -i 's/\bCube.view\b/Cube.Advanced.debugViewAllowingVisualTesting/g' ./examples/src/*.elm &&
-          sed -i '/^module .* exposing.*/a import Cube.Advanced' ./examples/src/*.elm
+          sed -i 's/\bCube.view \b/Cube.Advanced.debugViewAllowingVisualTesting/g' ./examples/src/*.elm &&
+          sed -i '/^module .* exposing.*/a import Cube.Advanced' ./examples/src/*.elm &&
+          sed -i 's/Cube.Advanced.debugViewAllowingVisualTesting []/Cube.Advanced.debugViewAllowingVisualTesting [style "display" "block"]/g' ./examples/src/CubeViews.elm
 
       - name: Create snapshots of examples
         shell: bash
