@@ -36,12 +36,13 @@ cubeToView2 =
 
 main : Html msg
 main =
-    div [ style "display" "flex", style "flex-wrap" "wrap" ]
+    div [ style "display" "flex", style "flex-wrap" "wrap", style "text-align" "center" ]
         [ div []
-            [ Cube.view []
+            [ text "UFR"
+            , Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.ufrDisplayAngle
-                , annotateFaces = True
+                , annotateFaces = False
                 }
                 cubeToView1
             , Cube.view []
@@ -52,7 +53,8 @@ main =
                 cubeToView2
             ]
         , div []
-            [ Cube.view []
+            [ text "UBL"
+            , Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.ublDisplayAngle
                 , annotateFaces = False
@@ -66,7 +68,8 @@ main =
                 cubeToView2
             ]
         , div []
-            [ Cube.view []
+            [ text "DBL"
+            , Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.dblDisplayAngle
                 , annotateFaces = False
