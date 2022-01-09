@@ -2170,12 +2170,12 @@ cubieMesh theme { colors, center } =
         [ { innerColor = colors.up
 
           -- Note that these coordinates are scaled and added to cubie center in the map above
-          , center = Vec3.vec3 0 -0.5 0
+          , center = Vec3.vec3 0 0.5 0
           , orthogonalPlaneDirection1 = Vec3.i
           , orthogonalPlaneDirection2 = Vec3.k
           }
         , { innerColor = colors.down
-          , center = Vec3.vec3 0 0.5 0
+          , center = Vec3.vec3 0 -0.5 0
           , orthogonalPlaneDirection1 = Vec3.i
           , orthogonalPlaneDirection2 = Vec3.k
           }
@@ -2253,7 +2253,7 @@ cubieRenderingToRgbColors theme rendering =
 
 coordinatesToCenterVector : Coordinates -> Vec3
 coordinatesToCenterVector { fromFront, fromTop, fromLeft } =
-    Vec3.vec3 (toFloat fromLeft - 1) (toFloat fromTop - 1) (1 - toFloat fromFront)
+    Vec3.vec3 (toFloat fromLeft - 1) (1 - toFloat fromTop) (1 - toFloat fromFront)
 
 
 rotationToWebgl : Rotation -> Mat4 -> Mat4
