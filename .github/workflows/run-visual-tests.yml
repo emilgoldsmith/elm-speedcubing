@@ -29,6 +29,11 @@ jobs:
         with:
           elm-version: ${{ env.elm_version }}
 
+      ### This is needed due to: https://github.com/aws/aws-cdk/issues/18322 with solution https://github.com/aws/aws-cdk/pull/18324#issuecomment-1008262155
+      ### It can probably be deleted again pretty soon when the issue is fixed?
+      - name: Hack to fix broken dependency temporarily
+        run: echo '{"resolutions":{"colors":"1.4.0"}}' > package.json
+
       - name: Install Percy
         run: yarn add -D @percy/agent
 
