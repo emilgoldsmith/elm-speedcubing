@@ -59,7 +59,7 @@ jobs:
           mv snapshots.yml ../../
 
       - name: Start Static Server
-        run: yarn serve -l $PORT snapshots.yml &
+        run: yarn serve -l $PORT percy-snapshots &
 
       ### This is the only place we run the untrusted code
       ### We have made sure that the github token has minimum
