@@ -54,7 +54,7 @@ jobs:
               echo "  url: http://localhost:$PORT/$filename" >> snapshots.yml
               # This is the important part, otherwise we could just use the directory version
               # of the snapshot command, but we need to wait in order to make the new cli work
-              echo "  waitForTimeout: 3000" >> snapshots.yml
+              echo "  waitForTimeout: 10000" >> snapshots.yml
           done
           mv snapshots.yml ../../
 
