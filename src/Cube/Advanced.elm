@@ -50,6 +50,7 @@ module Cube.Advanced exposing
 import Algorithm exposing (Algorithm)
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Html.Lazy
 import List.Nonempty
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 as Vec2 exposing (Vec2)
@@ -1867,12 +1868,18 @@ viewHelper :
     -> Cube
     -> Html msg
 viewHelper { preserveDrawingBuffer } attributes { pixelSize, displayAngle, annotateFaces } cube =
+    div attributes <|
+        List.singleton <|
+            Html.Lazy.lazy5 lazyViewHelper preserveDrawingBuffer pixelSize displayAngle annotateFaces cube
+
+
+lazyViewHelper : Bool -> Int -> DisplayAngle -> Bool -> Cube -> Html msg
+lazyViewHelper preserveDrawingBuffer pixelSize displayAngle annotateFaces cube =
     let
         { mainRotation, annotationAdjustments } =
             getRotations displayAngle
     in
     getCubeHtml
-        attributes
         { rotation = mainRotation
         , pixelSize = pixelSize
         , annotateFaces =
@@ -2010,25 +2017,23 @@ type alias Size =
 
 
 getCubeHtml :
-    List (Attribute msg)
-    ->
-        { rotation : Rotation
-        , pixelSize : Size
-        , annotateFaces :
-            Maybe
-                { u : Rotation
-                , d : Rotation
-                , l : Rotation
-                , r : Rotation
-                , f : Rotation
-                , b : Rotation
-                }
-        , theme : CubeTheme
-        , preserveDrawingBuffer : Bool
-        }
+    { rotation : Rotation
+    , pixelSize : Size
+    , annotateFaces :
+        Maybe
+            { u : Rotation
+            , d : Rotation
+            , l : Rotation
+            , r : Rotation
+            , f : Rotation
+            , b : Rotation
+            }
+    , theme : CubeTheme
+    , preserveDrawingBuffer : Bool
+    }
     -> Cube
     -> Html msg
-getCubeHtml attributes { rotation, annotateFaces, pixelSize, theme, preserveDrawingBuffer } cube =
+getCubeHtml { rotation, annotateFaces, pixelSize, theme, preserveDrawingBuffer } cube =
     let
         toHtmlOptions =
             if preserveDrawingBuffer then
@@ -2040,14 +2045,12 @@ getCubeHtml attributes { rotation, annotateFaces, pixelSize, theme, preserveDraw
     WebGL.toHtmlWith toHtmlOptions
         -- All these properties including the double size of width and height
         -- are all just the suggestions in the toHtml documentation
-        ([ width (pixelSize * 2)
-         , height (pixelSize * 2)
-         , style "width" (String.fromInt pixelSize ++ "px")
-         , style "height" (String.fromInt pixelSize ++ "px")
-         , style "display" "block"
-         ]
-            ++ attributes
-        )
+        [ width (pixelSize * 2)
+        , height (pixelSize * 2)
+        , style "width" (String.fromInt pixelSize ++ "px")
+        , style "height" (String.fromInt pixelSize ++ "px")
+        , style "display" "block"
+        ]
         (WebGL.entity
             vertexShader
             fragmentShader

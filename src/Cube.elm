@@ -120,6 +120,12 @@ dblDisplayAngle =
 {-| Display a 3x3 cube from one of several angles, and with or without
 the faces annotated with their respective face letters (e.g U R B).
 
+Note that the this function uses the Html.Lazy functionality on the three record
+sub-elements and on the cube. This means that in order to take advantage of this
+performance improvement you must be storing the cube somewhere so that it is
+equal by reference. The displayAngle should work as is as you can only access it through
+the global constructors.
+
 ![Example Image Of Cube Views](https://raw.githubusercontent.com/emilgoldsmith/elm-speedcubing/7.0.1/documentation-assets/cube-views-example.png)
 
 -}
