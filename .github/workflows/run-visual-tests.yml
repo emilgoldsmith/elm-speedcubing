@@ -40,7 +40,8 @@ jobs:
         run: |
           sed -i 's/\bCube.view\b/Cube.Advanced.debugViewAllowingVisualTesting/g' ./examples/src/*.elm &&
           sed -i '/^module .* exposing.*/a import Cube.Advanced' ./examples/src/*.elm &&
-          sed -i 's/-- ADD-STYLE-NODE-HERE-FOR-VISUAL-TESTING/node "style" [] [text "img {display: block;}"],/g' ./examples/src/CubeViews.elm
+          sed -i 's/-- ADD-STYLE-NODE-HERE-FOR-VISUAL-TESTING/node "style" [] [text "img {display: block;}"],/g' ./examples/src/*.elm &&
+          sed -i 's/-- ADD-THEME-HERE-IF-CONVERTING-TO-ADVANCED-VIEW/, theme = Cube.Advanced.defaultTheme/g' ./examples/src/*.elm
 
       - name: Create snapshots of examples
         shell: bash
