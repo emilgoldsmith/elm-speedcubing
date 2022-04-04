@@ -54,12 +54,14 @@ main =
                 { pixelSize = cubeSize
                 , displayAngle = Cube.ufrDisplayAngle
                 , annotateFaces = False
+                -- ADD-THEME-HERE-IF-CONVERTING-TO-ADVANCED-VIEW
                 }
                 cubeToView1
             , Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.ufrDisplayAngle
                 , annotateFaces = True
+                -- ADD-THEME-HERE-IF-CONVERTING-TO-ADVANCED-VIEW
                 }
                 cubeToView2
             ]
@@ -69,12 +71,14 @@ main =
                 { pixelSize = cubeSize
                 , displayAngle = Cube.ublDisplayAngle
                 , annotateFaces = False
+                -- ADD-THEME-HERE-IF-CONVERTING-TO-ADVANCED-VIEW
                 }
                 cubeToView1
             , Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.ublDisplayAngle
                 , annotateFaces = True
+                -- ADD-THEME-HERE-IF-CONVERTING-TO-ADVANCED-VIEW
                 }
                 cubeToView2
             ]
@@ -84,12 +88,14 @@ main =
                 { pixelSize = cubeSize
                 , displayAngle = Cube.dblDisplayAngle
                 , annotateFaces = False
+                -- ADD-THEME-HERE-IF-CONVERTING-TO-ADVANCED-VIEW
                 }
                 cubeToView1
             , Cube.view []
                 { pixelSize = cubeSize
                 , displayAngle = Cube.dblDisplayAngle
                 , annotateFaces = True
+                -- ADD-THEME-HERE-IF-CONVERTING-TO-ADVANCED-VIEW
                 }
                 cubeToView2
             ]
