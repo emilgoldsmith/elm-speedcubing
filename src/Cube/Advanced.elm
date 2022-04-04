@@ -2,7 +2,7 @@ module Cube.Advanced exposing
     ( Cube
     , solved
     , applyAlgorithm
-    , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
+    , CubeTheme, Rgb255Color, defaultTheme, DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
     , Rendering, CubieRendering, Color(..), render
     , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
@@ -28,7 +28,7 @@ module Cube.Advanced exposing
 
 # Displayers
 
-@docs DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
+@docs CubeTheme, Rgb255Color, defaultTheme, DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
 
 
 # Rendering
@@ -1833,6 +1833,7 @@ view :
         { pixelSize : Int
         , displayAngle : DisplayAngle
         , annotateFaces : Bool
+        , theme : CubeTheme
         }
     -> Cube
     -> Html msg
@@ -1850,6 +1851,7 @@ debugViewAllowingVisualTesting :
         { pixelSize : Int
         , displayAngle : DisplayAngle
         , annotateFaces : Bool
+        , theme : CubeTheme
         }
     -> Cube
     -> Html msg
@@ -1864,17 +1866,18 @@ viewHelper :
         { pixelSize : Int
         , displayAngle : DisplayAngle
         , annotateFaces : Bool
+        , theme : CubeTheme
         }
     -> Cube
     -> Html msg
-viewHelper { preserveDrawingBuffer } attributes { pixelSize, displayAngle, annotateFaces } cube =
+viewHelper { preserveDrawingBuffer } attributes { pixelSize, displayAngle, annotateFaces, theme } cube =
     div attributes <|
         List.singleton <|
-            Html.Lazy.lazy5 lazyViewHelper preserveDrawingBuffer pixelSize displayAngle annotateFaces cube
+            Html.Lazy.lazy6 lazyViewHelper preserveDrawingBuffer pixelSize displayAngle annotateFaces theme cube
 
 
-lazyViewHelper : Bool -> Int -> DisplayAngle -> Bool -> Cube -> Html msg
-lazyViewHelper preserveDrawingBuffer pixelSize displayAngle annotateFaces cube =
+lazyViewHelper : Bool -> Int -> DisplayAngle -> Bool -> CubeTheme -> Cube -> Html msg
+lazyViewHelper preserveDrawingBuffer pixelSize displayAngle annotateFaces theme cube =
     let
         { mainRotation, annotationAdjustments } =
             getRotations displayAngle
@@ -1888,7 +1891,7 @@ lazyViewHelper preserveDrawingBuffer pixelSize displayAngle annotateFaces cube =
 
             else
                 Nothing
-        , theme = defaultTheme
+        , theme = theme
         , preserveDrawingBuffer = preserveDrawingBuffer
         }
         cube
@@ -1944,6 +1947,9 @@ getRotations displayAngle =
 -- PARAMETERS
 
 
+{-| The color scheme of the cube, and also color of the "plastic"
+and the face annotations (U, F, B etc. on the respective sides) text color
+-}
 type alias CubeTheme =
     { up : Rgb255Color
     , down : Rgb255Color
@@ -1956,8 +1962,25 @@ type alias CubeTheme =
     }
 
 
+{-| Just a name for a color tuple for better readability
+-}
 type alias Rgb255Color =
     ( Int, Int, Int )
+
+
+{-| For ease of use here is a pretty standard color scheme for a cube
+-}
+defaultTheme : CubeTheme
+defaultTheme =
+    { up = yellow
+    , down = white
+    , right = orange
+    , left = red
+    , front = green
+    , back = blue
+    , plastic = black
+    , annotations = black
+    }
 
 
 white : Rgb255Color
@@ -1993,19 +2016,6 @@ yellow =
 black : Rgb255Color
 black =
     ( 0, 0, 0 )
-
-
-defaultTheme : CubeTheme
-defaultTheme =
-    { up = yellow
-    , down = white
-    , right = orange
-    , left = red
-    , front = green
-    , back = blue
-    , plastic = black
-    , annotations = black
-    }
 
 
 
