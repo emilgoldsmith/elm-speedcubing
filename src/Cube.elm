@@ -138,8 +138,13 @@ view :
         }
     -> Cube
     -> Html msg
-view =
-    Cube.Advanced.view
+view attributes args =
+    Cube.Advanced.view attributes
+        { theme = Cube.Advanced.defaultTheme
+        , pixelSize = args.pixelSize
+        , displayAngle = args.displayAngle
+        , annotateFaces = args.annotateFaces
+        }
 
 
 {-| Check that two algorithms produce the exact same result when
