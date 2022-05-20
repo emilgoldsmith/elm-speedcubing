@@ -301,22 +301,20 @@ getAllEquivalentAUFs ( preAUF, pll, postAUF ) =
                     )
 
         FullySymmetric ->
-            let
-                allAUFPairs =
-                    AUF.all
-                        |> List.Nonempty.concatMap
-                            (\preAUF_ ->
-                                List.Nonempty.map (Tuple.pair preAUF_) AUF.all
-                            )
-            in
-            allAUFPairs
-                |> List.Nonempty.filter
-                    (\candidate ->
-                        AUF.add preAUF postAUF == AUF.add (Tuple.first candidate) (Tuple.second candidate)
+            AUF.all
+                |> List.Nonempty.map
+                    (\toAdd ->
+                        let
+                            inverseOfToAdd =
+                                toAdd
+                                    |> AUF.toAlgorithm
+                                    |> Algorithm.inverse
+                                    |> AUF.fromAlgorithm
+                                    -- This case should never occur but otherwise unit tests should catch it
+                                    |> Maybe.withDefault AUF.None
+                        in
+                        ( AUF.add preAUF toAdd, AUF.add postAUF inverseOfToAdd )
                     )
-                    -- Should never be necessary as this case itself should also
-                    -- be contained in the list of all AUF pairs
-                    ( preAUF, postAUF )
 
 
 type PLLSymmetry
