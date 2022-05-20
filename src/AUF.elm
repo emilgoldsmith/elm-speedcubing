@@ -314,10 +314,10 @@ addToAlgorithm ( preAUF, postAUF ) algorithm =
 
 
 {-| Parses an algorithm to see if it matches a single AUF.
-Note that it does not parse an algorithm with AUFs in it, it is
-meant to be the inverse of toAlgorithm, so any algorithm with length
-larger than 1 would return Nothing here, so it also only accepts
-AUFs that use U as the turnable
+Note that it does not extract the AUFs used in a longer algorithm, it is
+instead meant to be the inverse of toAlgorithm. As a consequence of that
+any algorithm with length larger than 1 will return Nothing.
+It also only accepts AUFs that use U as the turnable
 -}
 fromAlgorithm : Algorithm -> Maybe AUF
 fromAlgorithm algorithm =
@@ -347,7 +347,7 @@ fromAlgorithm algorithm =
             Nothing
 
 
-{-| Adds together two AUFs, giving the AUF that would be the result
+{-| Adds together two AUFs, returning the AUF that would be the result
 of applying the two AUFs consecutively
 -}
 add : AUF -> AUF -> AUF
