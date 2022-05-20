@@ -1,4 +1,4 @@
-module Tests.AUF exposing (addToAlgorithmTests, aufFuzzer, fromStringTests, toStringTests)
+module Tests.AUF exposing (addTests, addToAlgorithmTests, aufFuzzer, fromAlgorithmTests, fromStringTests, toStringTests)
 
 import AUF exposing (AUF)
 import Algorithm
@@ -123,6 +123,72 @@ addToAlgorithmTests =
                 AUF.addToAlgorithm aufs algorithm
                     |> Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation expectedEquivalency
                     |> Expect.true "should be equivalent to an algorithm that maintained orientation"
+        ]
+
+
+fromAlgorithmTests : Test
+fromAlgorithmTests =
+    describe "fromAlgorithm"
+        [ fuzz aufFuzzer "is consistent with toAlgorithm" <|
+            \auf ->
+                auf
+                    |> AUF.toAlgorithm
+                    |> AUF.fromAlgorithm
+                    |> Expect.equal (Just auf)
+        , test "returns Nothing for a case with length larger than 1" <|
+            \_ ->
+                AUF.fromAlgorithm
+                    (Algorithm.fromTurnList
+                        [ Algorithm.Turn Algorithm.U Algorithm.Halfway Algorithm.Clockwise
+                        , Algorithm.Turn Algorithm.U Algorithm.Halfway Algorithm.Clockwise
+                        ]
+                    )
+                    |> Expect.equal Nothing
+        , test "returns Nothing for a case with a single turn other than U" <|
+            \_ ->
+                AUF.fromAlgorithm
+                    (Algorithm.fromTurnList
+                        [ Algorithm.Turn Algorithm.D Algorithm.Halfway Algorithm.Clockwise
+                        ]
+                    )
+                    |> Expect.equal Nothing
+        , fuzz2
+            Tests.Algorithm.turnLengthFuzzer
+            Tests.Algorithm.turnDirectionFuzzer
+            "Always finds the correct AUF for any single turn with the U turnable"
+          <|
+            \length direction ->
+                let
+                    givenAUFAlgorithm =
+                        Algorithm.fromTurnList
+                            [ Algorithm.Turn Algorithm.U length direction
+                            ]
+                in
+                givenAUFAlgorithm
+                    |> AUF.fromAlgorithm
+                    |> Maybe.map AUF.toAlgorithm
+                    |> Maybe.map (Cube.algorithmResultsAreEquivalent givenAUFAlgorithm)
+                    |> Expect.equal (Just True)
+        ]
+
+
+addTests : Test
+addTests =
+    describe "add"
+        [ fuzz2
+            aufFuzzer
+            aufFuzzer
+            "result is equivalent to the two concatenated"
+          <|
+            \first second ->
+                AUF.add first second
+                    |> AUF.toAlgorithm
+                    |> Cube.algorithmResultsAreEquivalent
+                        (Algorithm.append
+                            (AUF.toAlgorithm first)
+                            (AUF.toAlgorithm second)
+                        )
+                    |> Expect.true "result wasn't equivalent to the aufs applied consecutively"
         ]
 
 
