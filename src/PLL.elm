@@ -1,6 +1,6 @@
 module PLL exposing
     ( PLL(..), all
-    , getLetters, solvedBy
+    , getLetters, solvedBy, getAllEquivalentAUFs
     , Algorithms, getAlgorithm, referenceAlgorithms
     )
 
@@ -17,7 +17,7 @@ for further information
 
 # Helpers
 
-@docs getLetters, solvedBy
+@docs getLetters, solvedBy, getAllEquivalentAUFs
 
 
 # Collections
@@ -26,7 +26,7 @@ for further information
 
 -}
 
-import AUF
+import AUF exposing (AUF)
 import Algorithm exposing (Algorithm)
 import Cube
 import List.Nonempty
@@ -277,6 +277,120 @@ solvedBy algorithm pll =
                     |> Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation
                         (getAlgorithm referenceAlgorithms pll)
             )
+
+
+{-| Calculates and returns all pairs of AUFs that are equivalent to the given pair of
+AUFs for the given PLL
+-}
+getAllEquivalentAUFs : ( AUF, PLL, AUF ) -> List.Nonempty.Nonempty ( AUF, AUF )
+getAllEquivalentAUFs ( preAUF, pll, postAUF ) =
+    case getSymmetry pll of
+        NotSymmetric ->
+            List.Nonempty.singleton ( preAUF, postAUF )
+
+        HalfSymmetric ->
+            List.Nonempty.Nonempty
+                ( preAUF, postAUF )
+                [ ( AUF.add preAUF AUF.Halfway, AUF.add postAUF AUF.Halfway ) ]
+
+        NPermSymmetric ->
+            AUF.all
+                |> List.Nonempty.map
+                    (\toAdd ->
+                        ( AUF.add preAUF toAdd, AUF.add postAUF toAdd )
+                    )
+
+        FullySymmetric ->
+            let
+                allAUFPairs =
+                    AUF.all
+                        |> List.Nonempty.concatMap
+                            (\preAUF_ ->
+                                List.Nonempty.map (Tuple.pair preAUF_) AUF.all
+                            )
+            in
+            allAUFPairs
+                |> List.Nonempty.filter
+                    (\candidate ->
+                        AUF.add preAUF postAUF == AUF.add (Tuple.first candidate) (Tuple.second candidate)
+                    )
+                    -- Should never be necessary as this case itself should also
+                    -- be contained in the list of all AUF pairs
+                    ( preAUF, postAUF )
+
+
+type PLLSymmetry
+    = NotSymmetric
+    | HalfSymmetric
+    | NPermSymmetric
+    | FullySymmetric
+
+
+getSymmetry : PLL -> PLLSymmetry
+getSymmetry pll =
+    case pll of
+        H ->
+            FullySymmetric
+
+        Ua ->
+            NotSymmetric
+
+        Ub ->
+            NotSymmetric
+
+        Z ->
+            HalfSymmetric
+
+        Aa ->
+            NotSymmetric
+
+        Ab ->
+            NotSymmetric
+
+        E ->
+            HalfSymmetric
+
+        F ->
+            NotSymmetric
+
+        Ga ->
+            NotSymmetric
+
+        Gb ->
+            NotSymmetric
+
+        Gc ->
+            NotSymmetric
+
+        Gd ->
+            NotSymmetric
+
+        Ja ->
+            NotSymmetric
+
+        Jb ->
+            NotSymmetric
+
+        Na ->
+            NPermSymmetric
+
+        Nb ->
+            NPermSymmetric
+
+        Ra ->
+            NotSymmetric
+
+        Rb ->
+            NotSymmetric
+
+        T ->
+            NotSymmetric
+
+        V ->
+            NotSymmetric
+
+        Y ->
+            NotSymmetric
 
 
 

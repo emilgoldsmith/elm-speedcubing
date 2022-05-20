@@ -1,4 +1,4 @@
-module Tests.PLL exposing (getAlgorithmTests, referenceAlgTests, solvedByTests)
+module Tests.PLL exposing (getAlgorithmTests, getAllEquivalentAUFsTests, referenceAlgTests, solvedByTests)
 
 import AUF
 import Algorithm
@@ -376,6 +376,75 @@ solvedByTests =
                 Algorithm.fromString "z D' R2 D R2 U R' D' R U' R U R' D R U'"
                     |> Result.map (\alg -> PLL.solvedBy alg PLL.V)
                     |> Expect.equal (Ok True)
+        ]
+
+
+getAllEquivalentAUFsTests : Test
+getAllEquivalentAUFsTests =
+    describe "getAllEquivalentAUFs"
+        [ fuzz3
+            Tests.AUF.aufFuzzer
+            pllFuzzer
+            Tests.AUF.aufFuzzer
+            "all returned auf pairs are equivalent to the given auf pair"
+          <|
+            \preAUF pll postAUF ->
+                ( preAUF, pll, postAUF )
+                    |> PLL.getAllEquivalentAUFs
+                    |> List.Nonempty.foldl
+                        (\equivalentPair currentResult ->
+                            if currentResult /= Expect.pass then
+                                currentResult
+
+                            else if
+                                Cube.algorithmResultsAreEquivalent
+                                    (AUF.addToAlgorithm
+                                        equivalentPair
+                                        (PLL.getAlgorithm PLL.referenceAlgorithms pll)
+                                    )
+                                    (AUF.addToAlgorithm
+                                        ( preAUF, postAUF )
+                                        (PLL.getAlgorithm PLL.referenceAlgorithms pll)
+                                    )
+                            then
+                                Expect.pass
+
+                            else
+                                Expect.fail
+                                    ("Not equivalent to ("
+                                        ++ AUF.toString (Tuple.first equivalentPair)
+                                        ++ ", "
+                                        ++ AUF.toString (Tuple.second equivalentPair)
+                                        ++ ")"
+                                    )
+                        )
+                        Expect.pass
+        , fuzz3
+            pllFuzzer
+            (Fuzz.tuple ( Tests.AUF.aufFuzzer, Tests.AUF.aufFuzzer ))
+            (Fuzz.tuple ( Tests.AUF.aufFuzzer, Tests.AUF.aufFuzzer ))
+            "auf pairs are included in the equivalent AUFs exactly if they are equivalent"
+          <|
+            \pll firstPair secondPair ->
+                let
+                    areEquivalent =
+                        Cube.algorithmResultsAreEquivalent
+                            (AUF.addToAlgorithm
+                                firstPair
+                                (PLL.getAlgorithm PLL.referenceAlgorithms pll)
+                            )
+                            (AUF.addToAlgorithm
+                                secondPair
+                                (PLL.getAlgorithm PLL.referenceAlgorithms pll)
+                            )
+
+                    isIncludedInEquivalents =
+                        ( Tuple.first firstPair, pll, Tuple.second firstPair )
+                            |> PLL.getAllEquivalentAUFs
+                            |> List.Nonempty.member secondPair
+                in
+                isIncludedInEquivalents
+                    |> Expect.equal areEquivalent
         ]
 
 

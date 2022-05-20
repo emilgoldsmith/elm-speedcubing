@@ -1,6 +1,6 @@
 module AUF exposing
     ( AUF(..), all
-    , toAlgorithm, toAlgorithmWithCustomTurnable, toString, FromStringError(..), debugFromStringError, fromString, addToAlgorithm
+    , toAlgorithm, toAlgorithmWithCustomTurnable, toString, FromStringError(..), debugFromStringError, fromString, addToAlgorithm, fromAlgorithm, add
     )
 
 {-| Types and helpers to deal with Adjust U Face (AUF), which
@@ -19,7 +19,7 @@ for more information
 
 # Helpers
 
-@docs toAlgorithm, toAlgorithmWithCustomTurnable, toString, FromStringError, debugFromStringError, fromString, addToAlgorithm
+@docs toAlgorithm, toAlgorithmWithCustomTurnable, toString, FromStringError, debugFromStringError, fromString, addToAlgorithm, fromAlgorithm, add
 
 -}
 
@@ -311,3 +311,77 @@ addToAlgorithm ( preAUF, postAUF ) algorithm =
     Algorithm.append (toAlgorithm preAUF) <|
         Algorithm.append algorithm <|
             toAlgorithmWithCustomTurnable postAUFTurnable postAUF
+
+
+{-| Parses an algorithm to see if it matches a single AUF.
+Note that it does not parse an algorithm with AUFs in it, it is
+meant to be the inverse of toAlgorithm, so any algorithm with length
+larger than 1 would return Nothing here, so it also only accepts
+AUFs that use U as the turnable
+-}
+fromAlgorithm : Algorithm -> Maybe AUF
+fromAlgorithm algorithm =
+    case Algorithm.toTurnList algorithm of
+        [] ->
+            Just None
+
+        [ Algorithm.Turn Algorithm.U Algorithm.OneQuarter Algorithm.Clockwise ] ->
+            Just Clockwise
+
+        [ Algorithm.Turn Algorithm.U Algorithm.Halfway Algorithm.Clockwise ] ->
+            Just Halfway
+
+        [ Algorithm.Turn Algorithm.U Algorithm.OneQuarter Algorithm.CounterClockwise ] ->
+            Just CounterClockwise
+
+        [ Algorithm.Turn Algorithm.U Algorithm.ThreeQuarters Algorithm.Clockwise ] ->
+            Just CounterClockwise
+
+        [ Algorithm.Turn Algorithm.U Algorithm.ThreeQuarters Algorithm.CounterClockwise ] ->
+            Just Clockwise
+
+        [ Algorithm.Turn Algorithm.U Algorithm.Halfway Algorithm.CounterClockwise ] ->
+            Just Halfway
+
+        _ ->
+            Nothing
+
+
+{-| Adds together two AUFs, giving the AUF that would be the result
+of applying the two AUFs consecutively
+-}
+add : AUF -> AUF -> AUF
+add first second =
+    case ( first, second ) of
+        ( None, x ) ->
+            x
+
+        ( x, None ) ->
+            x
+
+        ( Clockwise, Clockwise ) ->
+            Halfway
+
+        ( Clockwise, Halfway ) ->
+            CounterClockwise
+
+        ( Clockwise, CounterClockwise ) ->
+            None
+
+        ( Halfway, Clockwise ) ->
+            CounterClockwise
+
+        ( Halfway, Halfway ) ->
+            None
+
+        ( Halfway, CounterClockwise ) ->
+            Clockwise
+
+        ( CounterClockwise, Clockwise ) ->
+            None
+
+        ( CounterClockwise, Halfway ) ->
+            Clockwise
+
+        ( CounterClockwise, CounterClockwise ) ->
+            Halfway
