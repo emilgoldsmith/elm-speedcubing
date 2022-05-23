@@ -1,6 +1,6 @@
 module PLL exposing
     ( PLL(..), all
-    , getLetters, solvedBy, getAllEquivalentAUFs
+    , getLetters, solvedBy, getAllEquivalentAUFs, getAllAUFEquivalencyClasses
     , Algorithms, getAlgorithm, referenceAlgorithms
     )
 
@@ -17,7 +17,7 @@ for further information
 
 # Helpers
 
-@docs getLetters, solvedBy, getAllEquivalentAUFs
+@docs getLetters, solvedBy, getAllEquivalentAUFs, getAllAUFEquivalencyClasses
 
 
 # Collections
@@ -29,6 +29,7 @@ for further information
 import AUF exposing (AUF)
 import Algorithm exposing (Algorithm)
 import Cube
+import Cube.Advanced
 import List.Nonempty
 import Utils.Enumerator
 
@@ -265,22 +266,65 @@ pass this as seen in these examples:
 solvedBy : Algorithm -> PLL -> Bool
 solvedBy algorithm pll =
     let
-        allAufCombinations =
-            List.Nonempty.concatMap
-                (\preAUF -> List.Nonempty.map (Tuple.pair preAUF) AUF.all)
-                AUF.all
+        preAUFsThatNeedChecking =
+            -- We don't always need to check every preAUF as there are several
+            -- PLLs that can be executed from several different angles
+            -- so we just need to make sure we've covered "all bases"
+            case getSymmetry pll of
+                NotSymmetric ->
+                    AUF.all
+
+                HalfSymmetric ->
+                    List.Nonempty.Nonempty AUF.None [ AUF.Clockwise ]
+
+                NPermSymmetric ->
+                    List.Nonempty.singleton AUF.None
+
+                FullySymmetric ->
+                    List.Nonempty.singleton AUF.None
+
+        -- We reimplement some algorithm equivalency algorithms here to save on some recomputation
+        -- and optimize the runtime
+        cubeAlgorithmShouldSolve =
+            Cube.applyAlgorithm
+                (Algorithm.inverse <|
+                    Cube.makeAlgorithmMaintainOrientation <|
+                        getAlgorithm referenceAlgorithms pll
+                )
+                Cube.solved
+
+        algorithmWithMaintainedOrientation =
+            Cube.makeAlgorithmMaintainOrientation algorithm
     in
-    allAufCombinations
+    preAUFsThatNeedChecking
         |> List.Nonempty.any
-            (\aufs ->
-                AUF.addToAlgorithm aufs algorithm
-                    |> Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation
-                        (getAlgorithm referenceAlgorithms pll)
+            (\preAUF ->
+                cubeAlgorithmShouldSolve
+                    |> Cube.applyAlgorithm (AUF.toAlgorithm preAUF)
+                    |> Cube.applyAlgorithm algorithmWithMaintainedOrientation
+                    |> Cube.Advanced.canBeSolvedBySingleUTurn
             )
 
 
 {-| Calculates and returns all pairs of AUFs that are equivalent to the given pair of
 AUFs for the given PLL
+
+    import AUF
+    import Expect
+    import Expect.Extra exposing (equalNonEmptyListMembers)
+    import List.Nonempty
+
+    getAllEquivalentAUFs ( AUF.None, PLL.H, AUF.None )
+        |> equalNonEmptyListMembers
+            (List.Nonempty.Nonempty
+                ( AUF.None, AUF.None )
+                [ ( AUF.Clockwise, AUF.CounterClockwise )
+                , ( AUF.Halfway, AUF.Halfway )
+                , ( AUF.CounterClockwise, AUF.Clockwise )
+                ]
+            )
+    --> Expect.pass
+
 -}
 getAllEquivalentAUFs : ( AUF, PLL, AUF ) -> List.Nonempty.Nonempty ( AUF, AUF )
 getAllEquivalentAUFs ( preAUF, pll, postAUF ) =
@@ -315,6 +359,35 @@ getAllEquivalentAUFs ( preAUF, pll, postAUF ) =
                         in
                         ( AUF.add preAUF toAdd, AUF.add postAUF inverseOfToAdd )
                     )
+
+
+{-| Returns a list of lists, where each sublist represents an equivalency class of
+AUF pairs for the given pll. The equivalency classes are also exhaustive, so every
+possible AUF pair is represented in this list of lists
+-}
+getAllAUFEquivalencyClasses : PLL -> List.Nonempty.Nonempty (List.Nonempty.Nonempty ( AUF, AUF ))
+getAllAUFEquivalencyClasses pll =
+    let
+        allAUFPairs =
+            AUF.all
+                |> List.Nonempty.concatMap
+                    (\preAUF ->
+                        AUF.all
+                            |> List.Nonempty.map (Tuple.pair preAUF)
+                    )
+    in
+    allAUFPairs
+        |> List.Nonempty.foldl
+            (\aufPair equivalencyClasses ->
+                if List.Nonempty.member aufPair (List.Nonempty.concat equivalencyClasses) then
+                    equivalencyClasses
+
+                else
+                    List.Nonempty.cons (getAllEquivalentAUFs ( Tuple.first aufPair, pll, Tuple.second aufPair )) equivalencyClasses
+            )
+            (List.Nonempty.singleton
+                (getAllEquivalentAUFs ( AUF.None, pll, AUF.None ))
+            )
 
 
 type PLLSymmetry

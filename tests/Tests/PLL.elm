@@ -1,10 +1,11 @@
-module Tests.PLL exposing (getAlgorithmTests, getAllEquivalentAUFsTests, referenceAlgTests, solvedByTests)
+module Tests.PLL exposing (getAlgorithmTests, getAllAUFEquivalencyClassesTests, getAllEquivalentAUFsTests, referenceAlgTests, solvedByTests)
 
 import AUF
 import Algorithm
 import Cube
 import Cube.Advanced exposing (Color(..))
 import Expect
+import Expect.Extra
 import Fuzz
 import List.Nonempty
 import PLL exposing (PLL)
@@ -450,6 +451,40 @@ getAllEquivalentAUFsTests =
                 in
                 isIncludedInEquivalents
                     |> Expect.equal areEquivalent
+        ]
+
+
+getAllAUFEquivalencyClassesTests : Test
+getAllAUFEquivalencyClassesTests =
+    describe "getAllAUFEquivalencyClasses"
+        [ fuzz pllFuzzer "always has exactly all 16 unique auf pairs represented" <|
+            \pll ->
+                pll
+                    |> PLL.getAllAUFEquivalencyClasses
+                    |> List.Nonempty.concat
+                    |> List.Nonempty.uniq
+                    |> List.Nonempty.length
+                    |> Expect.equal 16
+        , fuzz3
+            aufFuzzer
+            pllFuzzer
+            aufFuzzer
+            "any given auf pair is represented and in the correct equivalency class"
+          <|
+            \preAUF pll postAUF ->
+                let
+                    targetEquivalencyClass =
+                        PLL.getAllEquivalentAUFs ( preAUF, pll, postAUF )
+                in
+                pll
+                    |> PLL.getAllAUFEquivalencyClasses
+                    |> List.Nonempty.any
+                        (\equivalencyClass ->
+                            targetEquivalencyClass
+                                |> Expect.Extra.equalNonEmptyListMembers equivalencyClass
+                                |> (==) Expect.pass
+                        )
+                    |> Expect.true "There were no equivalency classes found that match the expected class"
         ]
 
 

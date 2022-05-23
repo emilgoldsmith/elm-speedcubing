@@ -6,6 +6,7 @@ module Cube.Advanced exposing
     , Rendering, CubieRendering, Color(..), render
     , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
+    , canBeSolvedBySingleUTurn
     )
 
 {-|
@@ -44,6 +45,11 @@ module Cube.Advanced exposing
 # Algorithm Helpers
 
 @docs algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
+
+
+# General Helpers
+
+@docs canBeSolvedBySingleUTurn
 
 -}
 
@@ -1798,6 +1804,73 @@ rotateSoFaceIsOnFWhileMaintainingU face =
         FrontOrBack B ->
             Algorithm.fromTurnList
                 [ Algorithm.Turn Algorithm.Y Algorithm.Halfway Algorithm.Clockwise ]
+
+
+{-| Checks whether a cube is only a single U turn away from being solved or not.
+This is used internally, which is why it sits here under Advanced as it's a pretty
+particular use case, but can be useful for some AUF logic, hopefully most if not
+all of your needs should be satisfied by the AUF module though
+
+    import Algorithm
+
+    Algorithm.fromString "U"
+        |> Result.map (\alg -> canBeSolvedBySingleUTurn (applyAlgorithm alg solved))
+    --> Ok True
+
+    Algorithm.fromString "F"
+        |> Result.map (\alg -> canBeSolvedBySingleUTurn (applyAlgorithm alg solved))
+    --> Ok False
+
+-}
+canBeSolvedBySingleUTurn : Cube -> Bool
+canBeSolvedBySingleUTurn cube =
+    cube
+        |> applyAlgorithm (findOnlyCandidateUTurnThatWouldFixCube cube)
+        |> (==) solved
+
+
+findOnlyCandidateUTurnThatWouldFixCube : Cube -> Algorithm
+findOnlyCandidateUTurnThatWouldFixCube (Cube _ edgePositions _) =
+    -- This relies on the fact that we say the reference face of an edge
+    -- is the one that is currently in the U/D layer. Tests should also catch if this
+    -- turns out to change
+    case getEdgeColorOnOtherFace edgePositions.uf of
+        -- If the FU sticker is up or down the edge is not oriented
+        -- and this can't be fixed with a single U turn so we return
+        -- anything that won't fix it such as the empty algorithm
+        UpColor ->
+            Algorithm.empty
+
+        DownColor ->
+            Algorithm.empty
+
+        -- There would be a serious issue if the FU sticker was plastic colored
+        -- so we can just as well pick any algorithm, but there should be no
+        -- way to solve it with legal moves
+        PlasticColor ->
+            Algorithm.empty
+
+        -- All these stickers have exactly one U turn that would fix them
+        -- so we don't need to consider any other candidates as any other
+        -- single move would not fix this sticker which must be fixed in
+        -- order to fix the cube
+        FrontColor ->
+            Algorithm.empty
+
+        RightColor ->
+            Algorithm.fromTurnList
+                [ Algorithm.Turn Algorithm.U Algorithm.OneQuarter Algorithm.CounterClockwise
+                ]
+
+        BackColor ->
+            Algorithm.fromTurnList
+                [ Algorithm.Turn Algorithm.U Algorithm.Halfway Algorithm.Clockwise
+                ]
+
+        LeftColor ->
+            Algorithm.fromTurnList
+                [ Algorithm.Turn Algorithm.U Algorithm.OneQuarter Algorithm.Clockwise
+                ]
 
 
 

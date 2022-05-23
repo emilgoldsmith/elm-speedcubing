@@ -32,19 +32,10 @@ equalListMembers expected actual =
 
 
 equalNonEmptyListMembers : List.Nonempty.Nonempty a -> List.Nonempty.Nonempty a -> Expect.Expectation
-equalNonEmptyListMembers (List.Nonempty.Nonempty expectedHead expectedTail) (List.Nonempty.Nonempty actualHead actualTail) =
-    if expectedHead /= actualHead then
-        Expect.fail <|
-            "Heads of non empty lists were not equal\n"
-                ++ "\n"
-                ++ "Expected: "
-                ++ Debug.toString expectedHead
-                ++ "\n\n"
-                ++ "But received: "
-                ++ Debug.toString actualHead
-
-    else
-        equalListMembers expectedTail actualTail
+equalNonEmptyListMembers expected actual =
+    equalListMembers
+        (List.Nonempty.toList expected)
+        (List.Nonempty.toList actual)
 
 
 equalCubeRenderings : Cube.Advanced.Rendering -> Cube.Advanced.Rendering -> Expect.Expectation
