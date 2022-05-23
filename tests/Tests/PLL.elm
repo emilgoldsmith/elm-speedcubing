@@ -303,7 +303,12 @@ solvedByTests =
             \_ ->
                 PLL.solvedBy Algorithm.empty PLL.Aa
                     |> Expect.false "Aa PLL was deemed solved by an empty algorithm"
-        , fuzz3 (Fuzz.tuple ( aufFuzzer, aufFuzzer )) rotationFuzzer pllFuzzer "pll is solved by its reference algorithm no matter what auf combination or rotation applied to it" <|
+        , fuzz3
+            (Fuzz.tuple ( aufFuzzer, aufFuzzer ))
+            rotationFuzzer
+            pllFuzzer
+            "pll is solved by its reference algorithm no matter what auf combination or rotation applied to it"
+          <|
             \( preAUF, postAUF ) rotation pll ->
                 let
                     referenceAlgorithm =
