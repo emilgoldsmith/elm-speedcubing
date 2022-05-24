@@ -1,5 +1,6 @@
-module Tests.Cube exposing (algorithmResultsAreEquivalentIndependentOfFinalRotationTests, algorithmResultsAreEquivalentTests, applyAlgorithmTests, makeAlgorithmMaintainOrientationTests, testHelperTests)
+module Tests.Cube exposing (addAUFsToAlgorithmTests, algorithmResultsAreEquivalentIndependentOfFinalRotationTests, algorithmResultsAreEquivalentTests, applyAlgorithmTests, detectAUFsTests, makeAlgorithmMaintainOrientationTests, testHelperTests)
 
+import AUF
 import Algorithm exposing (Algorithm)
 import Cube
 import Cube.Advanced exposing (Color(..))
@@ -8,9 +9,11 @@ import Expect.Extra
 import Fuzz
 import List.Nonempty
 import List.Nonempty.Extra
+import PLL
 import Parser exposing ((|.), (|=))
 import Test exposing (..)
 import TestHelpers.Cube exposing (cubeFuzzer, solvedCubeRendering)
+import Tests.AUF exposing (aufFuzzer)
 import Tests.Algorithm exposing (algorithmFuzzer, rotationFuzzer, turnDirectionFuzzer, turnFuzzer, turnableFuzzer)
 
 
@@ -457,11 +460,80 @@ addAUFsToAlgorithmTests =
                     expectedEquivalency =
                         algorithm
                             |> Cube.makeAlgorithmMaintainOrientation
-                            |> AUF.addToAlgorithm aufs
+                            |> Cube.addAUFsToAlgorithm aufs
                 in
-                AUF.addToAlgorithm aufs algorithm
+                Cube.addAUFsToAlgorithm aufs algorithm
                     |> Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation expectedEquivalency
                     |> Expect.true "should be equivalent to an algorithm that maintained orientation"
+        ]
+
+
+detectAUFsTests : Test
+detectAUFsTests =
+    describe "detectAUFs"
+        [ fuzzWith
+            { runs = 5 }
+            (Fuzz.tuple3
+                ( algorithmFuzzer
+                , algorithmFuzzer
+                , Fuzz.tuple ( aufFuzzer, aufFuzzer )
+                )
+            )
+            "correctly detects aufs on the same algorithm with an identity sequence appended to it"
+          <|
+            \( algorithm, algorithmForIdentity, aufs ) ->
+                let
+                    identitySequence =
+                        Algorithm.append algorithmForIdentity (Algorithm.inverse algorithmForIdentity)
+
+                    algorithmToMatch =
+                        Algorithm.append algorithm identitySequence
+                            |> Cube.addAUFsToAlgorithm aufs
+
+                    maybeDetectedAUFs =
+                        Cube.detectAUFs { toMatchTo = algorithmToMatch, toDetectFor = algorithm }
+
+                    resultingAlgorithm =
+                        maybeDetectedAUFs
+                            |> Maybe.map
+                                (\detectedAUFs ->
+                                    algorithm
+                                        |> Cube.addAUFsToAlgorithm detectedAUFs
+                                )
+                in
+                resultingAlgorithm
+                    |> Maybe.map (Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation algorithmToMatch)
+                    |> Maybe.map (Expect.true "The algorithm built using detect should be equivalent to the one we're matching")
+                    |> Maybe.withDefault (Expect.fail "No possible AUFs detected when some should have been found")
+        , fuzzWith
+            { runs = 5 }
+            algorithmFuzzer
+            "no matches are found for algorithms that are not equivalent no matter the AUF between them"
+          <|
+            \algorithm ->
+                let
+                    definitelyNotMatchingAlgorithm =
+                        Algorithm.append
+                            algorithm
+                            (Algorithm.fromTurnList
+                                -- An slice turn cannot be fixed by any AUF ever
+                                [ Algorithm.Turn Algorithm.E Algorithm.Halfway Algorithm.Clockwise
+                                ]
+                            )
+                in
+                Cube.detectAUFs { toMatchTo = definitelyNotMatchingAlgorithm, toDetectFor = algorithm }
+                    |> Expect.equal Nothing
+        , test "correctly detects AUF for an algorithm ending in a non-standard orientation" <|
+            \_ ->
+                Algorithm.fromString "(x) R' U R' D2 R U' R' D2 R2"
+                    |> Result.map
+                        (\algorithm ->
+                            Cube.detectAUFs
+                                { toMatchTo = Cube.addAUFsToAlgorithm ( AUF.Halfway, AUF.Clockwise ) <| PLL.getAlgorithm PLL.referenceAlgorithms PLL.Aa
+                                , toDetectFor = algorithm
+                                }
+                        )
+                    |> Expect.equal (Ok (Just ( AUF.Halfway, AUF.Clockwise )))
         ]
 
 

@@ -40,6 +40,9 @@ in the context of having a cube, so they belong here and not in the Algorithm mo
 
 # AUF Helpers
 
+Similarly to above these functions use a cube to determine their results effectively,
+and therefore live here as opposed to in the AUF module
+
 @docs addAUFsToAlgorithm, detectAUFs
 
 -}
@@ -188,11 +191,41 @@ makeAlgorithmMaintainOrientation =
     Cube.Advanced.makeAlgorithmMaintainOrientation
 
 
+{-| Add a pre and postAUF to an algorithm outputting the resulting algorithm. This
+also supports algorithms that change orientation. So for example this would do the AUF
+on R instead of on U for the postAUF
+
+    import Algorithm
+    import AUF
+
+    addAUFsToAlgorithm
+        ( AUF.Halfway, AUF.Clockwise )
+        (Algorithm.fromTurnList [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise ])
+
+    --> Algorithm.fromTurnList
+    -->     [ Algorithm.Turn Algorithm.U Algorithm.Halfway Algorithm.Clockwise
+    -->     , Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise
+    -->     , Algorithm.Turn Algorithm.R Algorithm.OneQuarter Algorithm.Clockwise
+    -->     ]
+
+-}
 addAUFsToAlgorithm : ( AUF, AUF ) -> Algorithm -> Algorithm
 addAUFsToAlgorithm =
     Cube.Advanced.addAUFsToAlgorithm
 
 
+{-| Given an algorithm assumed to not have any AUFs applied to it
+and an algorithm that is assumed to solve the same case as the first
+algorithm but possibly have a specific AUF applied to it too,
+this function figures out which AUF must be applied to the first
+algorithm in order to fix the AUF-specific case the second algorithm
+solves. If the function returns Nothing this means there was no AUF
+combination that made the algorithms match.
+
+Note that in case there are several AUF combinations that could solve this case
+the function just returns the first one it finds
+
+-}
 detectAUFs : { toDetectFor : Algorithm, toMatchTo : Algorithm } -> Maybe ( AUF, AUF )
 detectAUFs =
     Cube.Advanced.detectAUFs

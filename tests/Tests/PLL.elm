@@ -317,7 +317,7 @@ solvedByTests =
 
                     withAUFsAndRotation =
                         Algorithm.append
-                            (AUF.addToAlgorithm ( preAUF, postAUF ) referenceAlgorithm)
+                            (Cube.addAUFsToAlgorithm ( preAUF, postAUF ) referenceAlgorithm)
                             rotation
                 in
                 PLL.solvedBy
@@ -404,11 +404,11 @@ getAllEquivalentAUFsTests =
 
                             else
                                 Cube.algorithmResultsAreEquivalent
-                                    (AUF.addToAlgorithm
+                                    (Cube.addAUFsToAlgorithm
                                         equivalentPair
                                         (PLL.getAlgorithm PLL.referenceAlgorithms pll)
                                     )
-                                    (AUF.addToAlgorithm
+                                    (Cube.addAUFsToAlgorithm
                                         ( preAUF, postAUF )
                                         (PLL.getAlgorithm PLL.referenceAlgorithms pll)
                                     )
@@ -431,11 +431,11 @@ getAllEquivalentAUFsTests =
                 let
                     areEquivalent =
                         Cube.algorithmResultsAreEquivalent
-                            (AUF.addToAlgorithm
+                            (Cube.addAUFsToAlgorithm
                                 firstPair
                                 (PLL.getAlgorithm PLL.referenceAlgorithms pll)
                             )
-                            (AUF.addToAlgorithm
+                            (Cube.addAUFsToAlgorithm
                                 secondPair
                                 (PLL.getAlgorithm PLL.referenceAlgorithms pll)
                             )
