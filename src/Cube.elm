@@ -223,7 +223,22 @@ solves. If the function returns Nothing this means there was no AUF
 combination that made the algorithms match.
 
 Note that in case there are several AUF combinations that could solve this case
-the function just returns the first one it finds
+the function just returns the first one it finds.
+
+    import Algorithm
+    import AUF
+
+    detectAUFs
+        { toDetectFor = Algorithm.fromString "R" |> Result.withDefault Algorithm.empty
+        , toMatchTo = Algorithm.fromString "U'RU" |> Result.withDefault Algorithm.empty
+        }
+    --> Just (AUF.CounterClockwise, AUF.Clockwise)
+
+    detectAUFs
+        { toDetectFor = Algorithm.fromString "R" |> Result.withDefault Algorithm.empty
+        , toMatchTo = Algorithm.fromString "F" |> Result.withDefault Algorithm.empty
+        }
+    --> Nothing
 
 -}
 detectAUFs : { toDetectFor : Algorithm, toMatchTo : Algorithm } -> Maybe ( AUF, AUF )
