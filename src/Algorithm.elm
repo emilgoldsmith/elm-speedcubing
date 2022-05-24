@@ -41,7 +41,6 @@ module Algorithm exposing
 
 -}
 
-import List.Extra
 import List.Nonempty
 import List.Nonempty.Extra
 import Parser.Advanced as Parser exposing ((|.), (|=), Parser)

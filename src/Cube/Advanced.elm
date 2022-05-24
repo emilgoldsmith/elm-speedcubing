@@ -1883,23 +1883,7 @@ findOnlyCandidateUTurnThatWouldFixCube (Cube _ edgePositions _) =
                 ]
 
 
-{-| Add a pre and postAUF to an algorithm outputting the resulting algorithm. This
-also supports algorithms that change orientation. So for example this would do the AUF
-on R instead of on U for the postAUF
-
-    import Algorithm
-    import AUF
-
-    addAUFsToAlgorithm
-        ( AUF.Halfway, AUF.Clockwise )
-        (Algorithm.fromTurnList [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise ])
-
-    --> Algorithm.fromTurnList
-    -->     [ Algorithm.Turn Algorithm.U Algorithm.Halfway Algorithm.Clockwise
-    -->     , Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise
-    -->     , Algorithm.Turn Algorithm.R Algorithm.OneQuarter Algorithm.Clockwise
-    -->     ]
-
+{-| See [Cube.addAUFsToAlgorithm](Cube#addAUFsToAlgorithm)
 -}
 addAUFsToAlgorithm : ( AUF, AUF ) -> Algorithm -> Algorithm
 addAUFsToAlgorithm ( preAUF, postAUF ) algorithm =
@@ -1926,7 +1910,7 @@ addAUFsToAlgorithm ( preAUF, postAUF ) algorithm =
             AUF.toAlgorithmWithCustomTurnable postAUFTurnable postAUF
 
 
-{-| To be added
+{-| See [Cube.detectAUFs](Cube#detectAUFs)
 -}
 detectAUFs : { toDetectFor : Algorithm, toMatchTo : Algorithm } -> Maybe ( AUF, AUF )
 detectAUFs { toDetectFor, toMatchTo } =
