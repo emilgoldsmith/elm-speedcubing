@@ -402,7 +402,7 @@ getAllEquivalentAUFsTests =
                             if currentResult /= Expect.pass then
                                 currentResult
 
-                            else if
+                            else
                                 Cube.algorithmResultsAreEquivalent
                                     (AUF.addToAlgorithm
                                         equivalentPair
@@ -412,17 +412,13 @@ getAllEquivalentAUFsTests =
                                         ( preAUF, postAUF )
                                         (PLL.getAlgorithm PLL.referenceAlgorithms pll)
                                     )
-                            then
-                                Expect.pass
-
-                            else
-                                Expect.fail
-                                    ("Not equivalent to ("
-                                        ++ AUF.toString (Tuple.first equivalentPair)
-                                        ++ ", "
-                                        ++ AUF.toString (Tuple.second equivalentPair)
-                                        ++ ")"
-                                    )
+                                    |> Expect.true
+                                        ("Not equivalent to ("
+                                            ++ AUF.toString (Tuple.first equivalentPair)
+                                            ++ ", "
+                                            ++ AUF.toString (Tuple.second equivalentPair)
+                                            ++ ")"
+                                        )
                         )
                         Expect.pass
         , fuzz3

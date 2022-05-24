@@ -7,7 +7,7 @@ import Expect
 import Expect.Extra
 import Fuzz
 import List.Nonempty
-import Monads.ListM as ListM
+import List.Nonempty.Extra
 import Parser exposing ((|.), (|=))
 import Test exposing (..)
 import TestHelpers.Cube exposing (cubeFuzzer, solvedCubeRendering)
@@ -435,6 +435,36 @@ algorithmResultsAreEquivalentIndependentOfFinalRotationTests =
         ]
 
 
+addAUFsToAlgorithmTests : Test
+addAUFsToAlgorithmTests =
+    describe "addAUFsToAlgorithm"
+        [ fuzz2 Tests.Algorithm.algorithmFuzzer (Fuzz.tuple ( aufFuzzer, aufFuzzer )) "adds the aufs on each side of the algorithm simply when algorithm maintains orientation" <|
+            \possiblyOrientingAlgorithm (( preAUF, postAUF ) as aufs) ->
+                let
+                    nonOrientingAlgorithm =
+                        Cube.makeAlgorithmMaintainOrientation possiblyOrientingAlgorithm
+                in
+                Cube.addAUFsToAlgorithm aufs nonOrientingAlgorithm
+                    |> Expect.equal
+                        ((Algorithm.toTurnList << AUF.toAlgorithm) preAUF
+                            ++ Algorithm.toTurnList nonOrientingAlgorithm
+                            ++ (Algorithm.toTurnList << AUF.toAlgorithm) postAUF
+                            |> Algorithm.fromTurnList
+                        )
+        , fuzz2 Tests.Algorithm.algorithmFuzzer (Fuzz.tuple ( aufFuzzer, aufFuzzer )) "always adds AUFs to the original U face independent of final rotation" <|
+            \algorithm aufs ->
+                let
+                    expectedEquivalency =
+                        algorithm
+                            |> Cube.makeAlgorithmMaintainOrientation
+                            |> AUF.addToAlgorithm aufs
+                in
+                AUF.addToAlgorithm aufs algorithm
+                    |> Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation expectedEquivalency
+                    |> Expect.true "should be equivalent to an algorithm that maintained orientation"
+        ]
+
+
 testHelperTests : Test
 testHelperTests =
     describe "test helper tests"
@@ -544,10 +574,9 @@ commutativePairs =
 
 uniqueCartesianProductWithSelf : List.Nonempty.Nonempty Algorithm.Turn -> List.Nonempty.Nonempty ( Algorithm.Turn, Algorithm.Turn )
 uniqueCartesianProductWithSelf group =
-    ListM.return Tuple.pair
-        |> ListM.applicative (ListM.fromNonemptyList group)
-        |> ListM.applicative (ListM.fromNonemptyList group)
-        |> ListM.toNonemptyList
+    List.Nonempty.Extra.lift2 Tuple.pair
+        group
+        group
         |> List.Nonempty.map
             (\( a, b ) ->
                 if compareTurns a b == GT then
@@ -579,11 +608,10 @@ nonParallelCommutativePairs =
                 Algorithm.allTurnables
 
         allDoubleSliceOrRotationTurns =
-            ListM.return Algorithm.Turn
-                |> ListM.applicative (ListM.fromNonemptyList sliceAndRotationTurnables)
-                |> ListM.applicative (ListM.fromNonemptyList (List.Nonempty.singleton Algorithm.Halfway))
-                |> ListM.applicative (ListM.fromNonemptyList Algorithm.allTurnDirections)
-                |> ListM.toNonemptyList
+            List.Nonempty.Extra.lift3 Algorithm.Turn
+                sliceAndRotationTurnables
+                (List.Nonempty.singleton Algorithm.Halfway)
+                Algorithm.allTurnDirections
     in
     uniqueCartesianProductWithSelf allDoubleSliceOrRotationTurns
         -- Remove the parallel ones

@@ -1729,12 +1729,14 @@ makeAlgorithmMaintainOrientation algorithm =
 
 findFaceWithCenterColor : Color -> Cube -> Face
 findFaceWithCenterColor color cube =
-    List.Nonempty.map (\face -> ( centerColorOnFace face cube, face )) faces
-        -- We trust the tests here by using the default this nonempty filter requires
-        -- as this case should never happen but in case it does good tests hopefully catch it
-        |> List.Nonempty.filter (Tuple.first >> (==) color) ( UpColor, UpOrDown U )
-        |> List.Nonempty.head
-        |> Tuple.second
+    faces
+        |> List.Nonempty.toList
+        |> List.map (\face -> ( centerColorOnFace face cube, face ))
+        |> List.Extra.find (Tuple.first >> (==) color)
+        |> Maybe.map Tuple.second
+        -- We trust the tests here by using the default as this case should
+        -- never happen but in case it does good unit tests hopefully catch it
+        |> Maybe.withDefault (UpOrDown U)
 
 
 centerColorOnFace : Face -> Cube -> Color
@@ -1886,9 +1888,10 @@ also supports algorithms that change orientation. So for example this would do t
 on R instead of on U for the postAUF
 
     import Algorithm
+    import AUF
 
     addAUFsToAlgorithm
-        ( Halfway, Clockwise )
+        ( AUF.Halfway, AUF.Clockwise )
         (Algorithm.fromTurnList [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise ])
 
     --> Algorithm.fromTurnList
@@ -1903,19 +1906,18 @@ addAUFsToAlgorithm ( preAUF, postAUF ) algorithm =
     let
         -- Getting the center cubies of the state of a cube where the algorithm
         -- was applied to a solved cube so we can determine the final orientation
-        { u, f, b, l, r, d } =
-            render (applyAlgorithm algorithm solved)
+        (Cube _ _ { u, f, b, l, r, d }) =
+            applyAlgorithm algorithm solved
 
         postAUFTurnable =
-            [ ( u.u, Algorithm.U )
-            , ( d.d, Algorithm.D )
-            , ( f.f, Algorithm.F )
-            , ( b.b, Algorithm.B )
-            , ( l.l, Algorithm.L )
-            , ( r.r, Algorithm.R )
+            [ ( u, Algorithm.U )
+            , ( d, Algorithm.D )
+            , ( f, Algorithm.F )
+            , ( b, Algorithm.B )
+            , ( l, Algorithm.L )
+            , ( r, Algorithm.R )
             ]
-                |> List.filter (Tuple.first >> (==) UpColor)
-                |> List.head
+                |> List.Extra.find (Tuple.first >> (==) UCenter)
                 |> Maybe.map Tuple.second
                 |> Maybe.withDefault Algorithm.U
     in

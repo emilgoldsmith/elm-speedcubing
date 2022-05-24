@@ -4,6 +4,7 @@ module Cube exposing
     , applyAlgorithm
     , DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
+    , addAUFsToAlgorithm, detectAUFs
     )
 
 {-|
@@ -36,8 +37,14 @@ in the context of having a cube, so they belong here and not in the Algorithm mo
 
 @docs algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
 
+
+# AUF Helpers
+
+@docs addAUFsToAlgorithm, detectAUFs
+
 -}
 
+import AUF exposing (AUF)
 import Algorithm exposing (Algorithm)
 import Cube.Advanced
 import Html exposing (Html)
@@ -179,3 +186,13 @@ the Cube module one would nearly have to reimplement concepts from the Cube modu
 makeAlgorithmMaintainOrientation : Algorithm -> Algorithm
 makeAlgorithmMaintainOrientation =
     Cube.Advanced.makeAlgorithmMaintainOrientation
+
+
+addAUFsToAlgorithm : ( AUF, AUF ) -> Algorithm -> Algorithm
+addAUFsToAlgorithm =
+    Cube.Advanced.addAUFsToAlgorithm
+
+
+detectAUFs : { toDetectFor : Algorithm, toMatchTo : Algorithm } -> Maybe ( AUF, AUF )
+detectAUFs =
+    Cube.Advanced.detectAUFs
