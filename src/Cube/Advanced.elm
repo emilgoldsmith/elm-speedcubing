@@ -1903,6 +1903,7 @@ addAUFsToAlgorithm ( preAUF, postAUF ) algorithm =
             ]
                 |> List.Extra.find (Tuple.first >> (==) UCenter)
                 |> Maybe.map Tuple.second
+                -- This should never occur but unit tests should catch if it does
                 |> Maybe.withDefault Algorithm.U
     in
     Algorithm.append (AUF.toAlgorithm preAUF) <|
