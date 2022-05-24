@@ -31,6 +31,7 @@ import Algorithm exposing (Algorithm)
 import Cube
 import Cube.Advanced
 import List.Nonempty
+import List.Nonempty.Extra
 import Utils.Enumerator
 
 
@@ -369,12 +370,9 @@ getAllAUFEquivalencyClasses : PLL -> List.Nonempty.Nonempty (List.Nonempty.Nonem
 getAllAUFEquivalencyClasses pll =
     let
         allAUFPairs =
-            AUF.all
-                |> List.Nonempty.concatMap
-                    (\preAUF ->
-                        AUF.all
-                            |> List.Nonempty.map (Tuple.pair preAUF)
-                    )
+            List.Nonempty.Extra.lift2 Tuple.pair
+                AUF.all
+                AUF.all
     in
     allAUFPairs
         |> List.Nonempty.foldl

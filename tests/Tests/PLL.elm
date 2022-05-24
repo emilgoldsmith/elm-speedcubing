@@ -8,6 +8,7 @@ import Expect
 import Expect.Extra
 import Fuzz
 import List.Nonempty
+import List.Nonempty.Extra
 import PLL exposing (PLL)
 import Test exposing (..)
 import TestHelpers.Cube exposing (plainCubie, solvedCubeRendering)
@@ -490,18 +491,15 @@ expectEqualDisregardingAUF expectedRendering alg =
         aufAlgorithms =
             List.Nonempty.map AUF.toAlgorithm AUF.all
 
-        algWithAllAufs =
-            aufAlgorithms
-                |> List.Nonempty.map (Algorithm.reverseAppend alg)
-                |> List.Nonempty.concatMap
-                    (\withPreAuf ->
-                        List.Nonempty.map
-                            (Algorithm.append withPreAuf)
-                            aufAlgorithms
-                    )
-
         candidates =
-            algWithAllAufs
+            List.Nonempty.Extra.lift2
+                (\preAUF postAUF ->
+                    Algorithm.append preAUF <|
+                        Algorithm.append alg <|
+                            postAUF
+                )
+                aufAlgorithms
+                aufAlgorithms
                 |> List.Nonempty.map ((\x -> Cube.applyAlgorithm x Cube.solved) >> Cube.Advanced.render)
     in
     List.filter ((==) expectedRendering) (List.Nonempty.toList candidates)
