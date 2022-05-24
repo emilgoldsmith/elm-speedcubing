@@ -1,6 +1,6 @@
 module AUF exposing
     ( AUF(..), all
-    , toAlgorithm, toAlgorithmWithCustomTurnable, toString, FromStringError(..), debugFromStringError, fromString, addToAlgorithm, fromAlgorithm, add
+    , toAlgorithm, toAlgorithmWithCustomTurnable, toString, FromStringError(..), debugFromStringError, fromString, fromAlgorithm, add
     )
 
 {-| Types and helpers to deal with Adjust U Face (AUF), which
@@ -19,7 +19,7 @@ for more information
 
 # Helpers
 
-@docs toAlgorithm, toAlgorithmWithCustomTurnable, toString, FromStringError, debugFromStringError, fromString, addToAlgorithm, fromAlgorithm, add
+@docs toAlgorithm, toAlgorithmWithCustomTurnable, toString, FromStringError, debugFromStringError, fromString, fromAlgorithm, add
 
 -}
 

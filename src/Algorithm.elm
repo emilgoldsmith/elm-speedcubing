@@ -41,8 +41,9 @@ module Algorithm exposing
 
 -}
 
+import List.Extra
 import List.Nonempty
-import Monads.ListM as ListM
+import List.Nonempty.Extra
 import Parser.Advanced as Parser exposing ((|.), (|=), Parser)
 import Utils.Enumerator
 
@@ -1509,14 +1510,10 @@ a user, or if you need to select a turn at random
 -}
 allTurns : List.Nonempty.Nonempty Turn
 allTurns =
-    ListM.return Turn
-        |> ListM.applicative
-            (ListM.fromNonemptyList allTurnables)
-        |> ListM.applicative
-            (ListM.fromNonemptyList allTurnLengths)
-        |> ListM.applicative
-            (ListM.fromNonemptyList allTurnDirections)
-        |> ListM.toNonemptyList
+    List.Nonempty.Extra.lift3 Turn
+        allTurnables
+        allTurnLengths
+        allTurnDirections
 
 
 {-| All possible turnables
