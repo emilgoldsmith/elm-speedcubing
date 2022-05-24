@@ -24,8 +24,6 @@ for more information
 -}
 
 import Algorithm exposing (Algorithm)
-import Cube
-import Cube.Advanced
 import List.Nonempty
 import Utils.Enumerator
 
@@ -268,49 +266,6 @@ algorithmToAuf algorithm =
 
         _ ->
             Nothing
-
-
-{-| Add a pre and postAUF to an algorithm outputting the resulting algorithm. This
-also supports algorithms that change orientation. So for example this would do the AUF
-on R instead of on U for the postAUF
-
-    import Algorithm
-
-    addToAlgorithm
-        ( Halfway, Clockwise )
-        (Algorithm.fromTurnList [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise ])
-
-    --> Algorithm.fromTurnList
-    -->     [ Algorithm.Turn Algorithm.U Algorithm.Halfway Algorithm.Clockwise
-    -->     , Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise
-    -->     , Algorithm.Turn Algorithm.R Algorithm.OneQuarter Algorithm.Clockwise
-    -->     ]
-
--}
-addToAlgorithm : ( AUF, AUF ) -> Algorithm -> Algorithm
-addToAlgorithm ( preAUF, postAUF ) algorithm =
-    let
-        -- Getting the center cubies of the state of a cube where the algorithm
-        -- was applied to a solved cube so we can determine the final orientation
-        { u, f, b, l, r, d } =
-            Cube.Advanced.render (Cube.applyAlgorithm algorithm Cube.solved)
-
-        postAUFTurnable =
-            [ ( u.u, Algorithm.U )
-            , ( d.d, Algorithm.D )
-            , ( f.f, Algorithm.F )
-            , ( b.b, Algorithm.B )
-            , ( l.l, Algorithm.L )
-            , ( r.r, Algorithm.R )
-            ]
-                |> List.filter (Tuple.first >> (==) Cube.Advanced.UpColor)
-                |> List.head
-                |> Maybe.map Tuple.second
-                |> Maybe.withDefault Algorithm.U
-    in
-    Algorithm.append (toAlgorithm preAUF) <|
-        Algorithm.append algorithm <|
-            toAlgorithmWithCustomTurnable postAUFTurnable postAUF
 
 
 {-| Parses an algorithm to see if it matches a single AUF.

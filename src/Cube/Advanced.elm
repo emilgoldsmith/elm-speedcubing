@@ -6,6 +6,7 @@ module Cube.Advanced exposing
     , Rendering, CubieRendering, Color(..), render
     , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
+    , addAUFsToAlgorithm, detectAUFs
     , canBeSolvedBySingleUTurn
     )
 
@@ -47,16 +48,23 @@ module Cube.Advanced exposing
 @docs algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
 
 
+# AUF Helpers
+
+@docs addAUFsToAlgorithm, detectAUFs
+
+
 # General Helpers
 
 @docs canBeSolvedBySingleUTurn
 
 -}
 
+import AUF exposing (AUF)
 import Algorithm exposing (Algorithm)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Lazy
+import List.Extra
 import List.Nonempty
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 as Vec2 exposing (Vec2)
@@ -1871,6 +1879,92 @@ findOnlyCandidateUTurnThatWouldFixCube (Cube _ edgePositions _) =
             Algorithm.fromTurnList
                 [ Algorithm.Turn Algorithm.U Algorithm.OneQuarter Algorithm.Clockwise
                 ]
+
+
+{-| Add a pre and postAUF to an algorithm outputting the resulting algorithm. This
+also supports algorithms that change orientation. So for example this would do the AUF
+on R instead of on U for the postAUF
+
+    import Algorithm
+
+    addAUFsToAlgorithm
+        ( Halfway, Clockwise )
+        (Algorithm.fromTurnList [ Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise ])
+
+    --> Algorithm.fromTurnList
+    -->     [ Algorithm.Turn Algorithm.U Algorithm.Halfway Algorithm.Clockwise
+    -->     , Algorithm.Turn Algorithm.Z Algorithm.OneQuarter Algorithm.Clockwise
+    -->     , Algorithm.Turn Algorithm.R Algorithm.OneQuarter Algorithm.Clockwise
+    -->     ]
+
+-}
+addAUFsToAlgorithm : ( AUF, AUF ) -> Algorithm -> Algorithm
+addAUFsToAlgorithm ( preAUF, postAUF ) algorithm =
+    let
+        -- Getting the center cubies of the state of a cube where the algorithm
+        -- was applied to a solved cube so we can determine the final orientation
+        { u, f, b, l, r, d } =
+            render (applyAlgorithm algorithm solved)
+
+        postAUFTurnable =
+            [ ( u.u, Algorithm.U )
+            , ( d.d, Algorithm.D )
+            , ( f.f, Algorithm.F )
+            , ( b.b, Algorithm.B )
+            , ( l.l, Algorithm.L )
+            , ( r.r, Algorithm.R )
+            ]
+                |> List.filter (Tuple.first >> (==) UpColor)
+                |> List.head
+                |> Maybe.map Tuple.second
+                |> Maybe.withDefault Algorithm.U
+    in
+    Algorithm.append (AUF.toAlgorithm preAUF) <|
+        Algorithm.append algorithm <|
+            AUF.toAlgorithmWithCustomTurnable postAUFTurnable postAUF
+
+
+{-| To be added
+-}
+detectAUFs : { toDetectFor : Algorithm, toMatchTo : Algorithm } -> Maybe ( AUF, AUF )
+detectAUFs { toDetectFor, toMatchTo } =
+    let
+        -- We reimplement some algorithm equivalency algorithms here to save on some recomputation
+        -- and optimize the runtime
+        cubeAlgorithmShouldSolve =
+            applyAlgorithm
+                (Algorithm.inverse <|
+                    makeAlgorithmMaintainOrientation toMatchTo
+                )
+                solved
+
+        toDetectForWithMaintainedOrientation =
+            makeAlgorithmMaintainOrientation toDetectFor
+    in
+    AUF.all
+        |> List.Nonempty.toList
+        |> List.Extra.findMap
+            (\preAUF ->
+                let
+                    cubeOnlyMissingLastAUF =
+                        cubeAlgorithmShouldSolve
+                            |> applyAlgorithm (AUF.toAlgorithm preAUF)
+                            |> applyAlgorithm toDetectForWithMaintainedOrientation
+
+                    onlyUCandidate =
+                        findOnlyCandidateUTurnThatWouldFixCube cubeOnlyMissingLastAUF
+
+                    postAUF =
+                        AUF.fromAlgorithm onlyUCandidate
+                            -- We trust unit tests should catch this case as it should never occur
+                            |> Maybe.withDefault AUF.None
+                in
+                if applyAlgorithm onlyUCandidate cubeOnlyMissingLastAUF == solved then
+                    Just ( preAUF, postAUF )
+
+                else
+                    Nothing
+            )
 
 
 
