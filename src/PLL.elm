@@ -2,6 +2,7 @@ module PLL exposing
     ( PLL(..), all
     , getLetters, solvedBy, getAllEquivalentAUFs, getAllAUFEquivalencyClasses
     , Algorithms, getAlgorithm, referenceAlgorithms
+    , PLLRecognitionCharacteristic(..), PLLRecognitionPattern(..), getUniqueTwoSidedRecognitionPattern
     )
 
 {-| Types and helper functions to work with the Permutate Last
@@ -968,3 +969,132 @@ referenceAlgorithms =
             , Algorithm.Turn Algorithm.R Algorithm.OneQuarter Algorithm.Clockwise
             ]
     }
+
+
+type PLLRecognitionPattern
+    = SameColor ( PLLRecognitionPattern, PLLRecognitionPattern )
+    | OppositeColors ( PLLRecognitionPattern, PLLRecognitionPattern )
+    | AdjacentColors ( PLLRecognitionPattern, PLLRecognitionPattern )
+    | DifferentColors ( PLLRecognitionPattern, PLLRecognitionPattern )
+    | NoOtherStickersMatchThanThese PLLRecognitionPattern
+    | Patterns ( PLLRecognitionPattern, PLLRecognitionPattern )
+    | Characteristic PLLRecognitionCharacteristic
+    | Characteristics ( PLLRecognitionCharacteristic, PLLRecognitionCharacteristic )
+    | CharacteristicNotPresent PLLRecognitionCharacteristic
+
+
+type PLLRecognitionCharacteristic
+    = LeftHeadlights
+    | RightHeadlights
+    | LeftThreeBar
+    | RightThreeBar
+    | LeftInsideTwoBar
+    | RightInsideTwoBar
+    | LeftOutsideTwoBar
+    | RightOutsideTwoBar
+    | Bookends
+    | RightFourChecker
+    | LeftFourChecker
+    | RightFiveChecker
+    | LeftFiveChecker
+    | SixChecker
+    | FirstFromLeft
+    | SecondStickerFromLeft
+    | ThirdStickerFromLeft
+    | FourthStickerFromLeft
+    | FifthStickerFromLeft
+    | SixthStickerFromLeft
+
+
+getUniqueTwoSidedRecognitionPattern : Algorithms -> ( AUF, PLL, AUF ) -> PLLRecognitionPattern
+getUniqueTwoSidedRecognitionPattern algorithms ( preAUF, pll, postAUF ) =
+    getUniqueTwoSidedRecognitionPatternForReferenceAlgorithms ( preAUF, pll, postAUF )
+
+
+getUniqueTwoSidedRecognitionPatternForReferenceAlgorithms : ( AUF, PLL, AUF ) -> PLLRecognitionPattern
+getUniqueTwoSidedRecognitionPatternForReferenceAlgorithms ( preAUF, pll, _ ) =
+    case pll of
+        T ->
+            let
+                u =
+                    Patterns
+                        ( Characteristic RightInsideTwoBar
+                        , OppositeColors ( Characteristic LeftHeadlights, Characteristic SecondStickerFromLeft )
+                        )
+
+                uClockwise =
+                    NoOtherStickersMatchThanThese <|
+                        SameColor ( Characteristic RightOutsideTwoBar, Characteristic FirstFromLeft )
+            in
+            case preAUF of
+                AUF.None ->
+                    mirrorPattern u
+
+                AUF.Clockwise ->
+                    u
+
+                AUF.Halfway ->
+                    mirrorPattern uClockwise
+
+                AUF.CounterClockwise ->
+                    uClockwise
+
+        Ga ->
+            case preAUF of
+                AUF.Clockwise ->
+                    Patterns
+                        ( Characteristics ( LeftHeadlights, RightOutsideTwoBar )
+                        , DifferentColors ( Characteristic SecondStickerFromLeft, Characteristic FourthStickerFromLeft )
+                        )
+
+                AUF.Halfway ->
+                    Characteristic RightFourChecker
+
+                AUF.CounterClockwise ->
+                    Patterns
+                        ( OppositeColors
+                            ( Characteristic Bookends
+                            , SameColor ( Characteristic ThirdStickerFromLeft, Characteristic FifthStickerFromLeft )
+                            )
+                        , DifferentColors ( Characteristic SecondStickerFromLeft, Characteristic FourthStickerFromLeft )
+                        )
+
+                AUF.None ->
+                    AdjacentColors ( Characteristic Bookends, Characteristic LeftInsideTwoBar )
+
+        E ->
+            let
+                noAUF =
+                    Patterns
+                        ( CharacteristicNotPresent Bookends
+                        , Patterns
+                            ( SameColor ( Characteristic ThirdStickerFromLeft, Characteristic FifthStickerFromLeft )
+                            , DifferentColors ( Characteristic SecondStickerFromLeft, Characteristic FourthStickerFromLeft )
+                            )
+                        )
+            in
+            case preAUF of
+                AUF.None ->
+                    noAUF
+
+                AUF.Clockwise ->
+                    mirrorPattern noAUF
+
+                AUF.Halfway ->
+                    noAUF
+
+                AUF.CounterClockwise ->
+                    mirrorPattern noAUF
+
+        _ ->
+            Characteristic RightHeadlights
+
+
+mirrorPattern : PLLRecognitionPattern -> PLLRecognitionPattern
+mirrorPattern pattern =
+    pattern
+
+
+mirrorCharacteristic : PLLRecognitionCharacteristic -> PLLRecognitionCharacteristic
+mirrorCharacteristic x =
+    x
