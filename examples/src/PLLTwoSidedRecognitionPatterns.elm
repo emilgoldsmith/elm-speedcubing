@@ -14,10 +14,14 @@ main =
     div []
         (PLL.all
             |> List.Nonempty.toList
-            |> List.filter (\pll -> pll == PLL.T || pll == PLL.Ga)
             |> List.map
                 (\pll ->
-                    div [ style "display" "flex", style "flex-direction" "row", style "margin" "40px" ]
+                    div
+                        [ style "display" "flex"
+                        , style "flex-direction" "row"
+                        , style "margin" "40px"
+                        , style "font-size" "10px"
+                        ]
                         ([ div [ style "align-self" "center" ] [ text (PLL.getLetters pll ++ ": ") ]
                          ]
                             ++ (AUF.all
@@ -25,14 +29,15 @@ main =
                                     |> List.map
                                         (\preAUF ->
                                             div
-                                                [ style "max-width" "300px"
-                                                , style "margin-right" "20px"
+                                                [ style "margin-right" "20px"
+                                                , style "display" "flex"
+                                                , style "flex-direction" "column"
                                                 ]
                                                 [ text <|
                                                     explainPLLRecognitionPattern <|
                                                         PLL.getUniqueTwoSidedRecognitionSpecification algorithms ( Debug.log "preAUF" preAUF, Debug.log "pll" pll, AUF.None )
-                                                , Cube.view []
-                                                    { pixelSize = 300
+                                                , Cube.view [ style "align-self" "center" ]
+                                                    { pixelSize = 50
                                                     , displayAngle = Cube.ufrDisplayAngle
                                                     , annotateFaces = False
                                                     }
@@ -61,8 +66,11 @@ log x =
 
 
 explainPLLRecognitionPattern : PLL.RecognitionSpecification -> String
-explainPLLRecognitionPattern { patterns, absentPatterns, oppositelyColored, adjacentlyColored, identicallyColored, differentlyColored, noOtherStickersMatchThanThese } =
+explainPLLRecognitionPattern spec =
     let
+        { patterns, absentPatterns, oppositelyColored, adjacentlyColored, identicallyColored, differentlyColored, noOtherStickersMatchThanThese } =
+            sortForDisplay spec
+
         parts =
             [ patterns
                 |> Maybe.map
@@ -111,7 +119,7 @@ explainPLLRecognitionPattern { patterns, absentPatterns, oppositelyColored, adja
                                 else
                                     "is"
                                )
-                            ++ " opposite colors of "
+                            ++ " the opposite color of "
                             ++ nonemptyToSentenceList { article = Definite, finalConjunction = And } second
                     )
             , adjacentlyColored
@@ -128,7 +136,7 @@ explainPLLRecognitionPattern { patterns, absentPatterns, oppositelyColored, adja
                                 else
                                     "is"
                                )
-                            ++ " adjacent colors of "
+                            ++ " the adjacent color of "
                             ++ nonemptyToSentenceList { article = Definite, finalConjunction = And } second
                     )
             , identicallyColored
@@ -169,8 +177,143 @@ explainPLLRecognitionPattern { patterns, absentPatterns, oppositelyColored, adja
         |> List.filterMap identity
         |> List.map capitalize
         |> String.join ". "
+        |> String.trim
     )
         ++ "."
+
+
+sortForDisplay : PLL.RecognitionSpecification -> PLL.RecognitionSpecification
+sortForDisplay spec =
+    { patterns =
+        Maybe.map
+            (List.Nonempty.sortWith sortPatternsByFurthestLeftComparison)
+            spec.patterns
+    , absentPatterns =
+        Maybe.map
+            (List.Nonempty.sortWith sortPatternsByFurthestLeftComparison)
+            spec.absentPatterns
+    , oppositelyColored =
+        spec.oppositelyColored
+            |> Maybe.map ensurePatternsAreInFirstSpot
+            |> Maybe.map
+                (Tuple.mapBoth
+                    (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                    (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                )
+    , adjacentlyColored =
+        spec.adjacentlyColored
+            |> Maybe.map ensurePatternsAreInFirstSpot
+            |> Maybe.map
+                (Tuple.mapBoth
+                    (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                    (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                )
+    , identicallyColored =
+        Maybe.map
+            (sortMinLength2ListWith sortByFurthestLeftComparison)
+            spec.identicallyColored
+    , differentlyColored =
+        Maybe.map
+            (sortMinLength2ListWith sortByFurthestLeftComparison)
+            spec.differentlyColored
+    , noOtherStickersMatchThanThese =
+        Maybe.map
+            (List.Nonempty.sortWith sortByFurthestLeftComparison)
+            spec.noOtherStickersMatchThanThese
+    }
+
+
+sortByFurthestLeftComparison : PLL.RecognitionElement -> PLL.RecognitionElement -> Order
+sortByFurthestLeftComparison a b =
+    let
+        toFloat element =
+            case element of
+                PLL.Sticker sticker ->
+                    case sticker of
+                        PLL.FirstStickerFromLeft ->
+                            1
+
+                        PLL.SecondStickerFromLeft ->
+                            2
+
+                        PLL.ThirdStickerFromLeft ->
+                            3
+
+                        PLL.ThirdStickerFromRight ->
+                            4
+
+                        PLL.SecondStickerFromRight ->
+                            5
+
+                        PLL.FirstStickerFromRight ->
+                            6
+
+                PLL.Pattern pattern ->
+                    case pattern of
+                        PLL.Bookends ->
+                            1.5
+
+                        PLL.LeftHeadlights ->
+                            1
+
+                        PLL.RightHeadlights ->
+                            4
+
+                        PLL.RightOutsideTwoBar ->
+                            5
+
+                        PLL.LeftOutsideTwoBar ->
+                            1
+
+                        PLL.RightInsideTwoBar ->
+                            4
+
+                        PLL.LeftInsideTwoBar ->
+                            2
+
+                        PLL.LeftThreeBar ->
+                            1
+
+                        PLL.RightThreeBar ->
+                            4
+
+                        PLL.LeftFiveChecker ->
+                            1
+
+                        PLL.RightFiveChecker ->
+                            2
+
+                        PLL.SixChecker ->
+                            1
+    in
+    compare (toFloat a) (toFloat b)
+
+
+sortPatternsByFurthestLeftComparison : PLL.RecognitionPattern -> PLL.RecognitionPattern -> Order
+sortPatternsByFurthestLeftComparison a b =
+    sortByFurthestLeftComparison (PLL.Pattern a) (PLL.Pattern b)
+
+
+ensurePatternsAreInFirstSpot : ( List.Nonempty.Nonempty PLL.RecognitionElement, List.Nonempty.Nonempty PLL.RecognitionElement ) -> ( List.Nonempty.Nonempty PLL.RecognitionElement, List.Nonempty.Nonempty PLL.RecognitionElement )
+ensurePatternsAreInFirstSpot ( a, b ) =
+    if
+        b
+            |> List.Nonempty.toList
+            |> List.filter
+                (\element ->
+                    case element of
+                        PLL.Pattern _ ->
+                            True
+
+                        PLL.Sticker _ ->
+                            False
+                )
+            |> List.isEmpty
+    then
+        ( a, b )
+
+    else
+        ( b, a )
 
 
 capitalize : String -> String
@@ -233,6 +376,24 @@ lengthOfMinLength2List ( _, _, list ) =
     2 + List.length list
 
 
+sortMinLength2ListWith : (a -> a -> Order) -> ( a, a, List a ) -> ( a, a, List a )
+sortMinLength2ListWith comp ( first, second, tail ) =
+    let
+        allSorted =
+            List.sortWith comp (first :: second :: tail)
+    in
+    case allSorted of
+        x1 :: x2 :: xs ->
+            ( x1, x2, xs )
+
+        -- This will obviously never happen as we just created the list above with 2
+        -- elements in it at the least. Just for the types and simpler code than
+        -- trying to handle the cases manually and moving things between the first
+        -- spots and the tail etc.
+        _ ->
+            ( first, second, tail )
+
+
 algorithms : PLL.Algorithms
 algorithms =
     PLL.referenceAlgorithms
@@ -247,9 +408,6 @@ elementToString { article } element =
                     case pattern of
                         PLL.Bookends ->
                             { indefiniteArticle = Nothing, object = "bookends" }
-
-                        PLL.RightFourChecker ->
-                            { indefiniteArticle = Just "a", object = "four checker pattern on the right" }
 
                         PLL.LeftHeadlights ->
                             { indefiniteArticle = Nothing, object = "headlights on the left" }
@@ -315,9 +473,6 @@ isPlural element =
 
         PLL.Pattern pattern ->
             case pattern of
-                PLL.RightFourChecker ->
-                    False
-
                 PLL.Bookends ->
                     True
 

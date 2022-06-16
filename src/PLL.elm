@@ -1009,8 +1009,6 @@ type RecognitionPattern
     | LeftOutsideTwoBar
     | RightOutsideTwoBar
     | Bookends
-    | LeftFourChecker
-    | RightFourChecker
     | LeftFiveChecker
     | RightFiveChecker
     | SixChecker
@@ -1240,12 +1238,6 @@ mirrorPattern pattern =
 
         RightOutsideTwoBar ->
             LeftOutsideTwoBar
-
-        LeftFourChecker ->
-            RightFourChecker
-
-        RightFourChecker ->
-            LeftFourChecker
 
         LeftFiveChecker ->
             RightFiveChecker
