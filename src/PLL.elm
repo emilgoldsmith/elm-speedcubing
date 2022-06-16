@@ -2,7 +2,7 @@ module PLL exposing
     ( PLL(..), all
     , getLetters, solvedBy, getAllEquivalentAUFs, getAllAUFEquivalencyClasses
     , Algorithms, getAlgorithm, referenceAlgorithms
-    , PLLRecognitionCharacteristic(..), PLLRecognitionPattern(..), getUniqueTwoSidedRecognitionPattern
+    , RecognitionElement(..), RecognitionPattern(..), RecognitionSpecification, Sticker(..), getUniqueTwoSidedRecognitionSpecification
     )
 
 {-| Types and helper functions to work with the Permutate Last
@@ -971,19 +971,35 @@ referenceAlgorithms =
     }
 
 
-type PLLRecognitionPattern
-    = SameColor ( PLLRecognitionPattern, PLLRecognitionPattern )
-    | OppositeColors ( PLLRecognitionPattern, PLLRecognitionPattern )
-    | AdjacentColors ( PLLRecognitionPattern, PLLRecognitionPattern )
-    | DifferentColors ( PLLRecognitionPattern, PLLRecognitionPattern )
-    | NoOtherStickersMatchThanThese PLLRecognitionPattern
-    | Patterns ( PLLRecognitionPattern, PLLRecognitionPattern )
-    | Characteristic PLLRecognitionCharacteristic
-    | Characteristics ( PLLRecognitionCharacteristic, PLLRecognitionCharacteristic )
-    | CharacteristicNotPresent PLLRecognitionCharacteristic
+type alias RecognitionSpecification =
+    { patterns : Maybe (List.Nonempty.Nonempty RecognitionPattern)
+    , absentPatterns : Maybe (List.Nonempty.Nonempty RecognitionPattern)
+    , oppositelyColored : Maybe ( List.Nonempty.Nonempty RecognitionElement, List.Nonempty.Nonempty RecognitionElement )
+    , adjacentlyColored : Maybe ( List.Nonempty.Nonempty RecognitionElement, List.Nonempty.Nonempty RecognitionElement )
+    , identicallyColored : Maybe ( RecognitionElement, RecognitionElement, List RecognitionElement )
+    , differentlyColored : Maybe ( RecognitionElement, RecognitionElement, List RecognitionElement )
+    , noOtherStickersMatchThanThese : Maybe (List.Nonempty.Nonempty RecognitionElement)
+    }
 
 
-type PLLRecognitionCharacteristic
+emptySpec : RecognitionSpecification
+emptySpec =
+    { patterns = Nothing
+    , absentPatterns = Nothing
+    , oppositelyColored = Nothing
+    , adjacentlyColored = Nothing
+    , identicallyColored = Nothing
+    , differentlyColored = Nothing
+    , noOtherStickersMatchThanThese = Nothing
+    }
+
+
+type RecognitionElement
+    = Pattern RecognitionPattern
+    | Sticker Sticker
+
+
+type RecognitionPattern
     = LeftHeadlights
     | RightHeadlights
     | LeftThreeBar
@@ -998,7 +1014,10 @@ type PLLRecognitionCharacteristic
     | LeftFiveChecker
     | RightFiveChecker
     | SixChecker
-    | FirstStickerFromLeft
+
+
+type Sticker
+    = FirstStickerFromLeft
     | SecondStickerFromLeft
     | ThirdStickerFromLeft
     | FirstStickerFromRight
@@ -1006,124 +1025,192 @@ type PLLRecognitionCharacteristic
     | ThirdStickerFromRight
 
 
-getUniqueTwoSidedRecognitionPattern : Algorithms -> ( AUF, PLL, AUF ) -> PLLRecognitionPattern
-getUniqueTwoSidedRecognitionPattern algorithms ( preAUF, pll, postAUF ) =
-    getUniqueTwoSidedRecognitionPatternForReferenceAlgorithms ( preAUF, pll, postAUF )
+getUniqueTwoSidedRecognitionSpecification : Algorithms -> ( AUF, PLL, AUF ) -> RecognitionSpecification
+getUniqueTwoSidedRecognitionSpecification algorithms ( preAUF, pll, postAUF ) =
+    getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll, postAUF )
 
 
-getUniqueTwoSidedRecognitionPatternForReferenceAlgorithms : ( AUF, PLL, AUF ) -> PLLRecognitionPattern
-getUniqueTwoSidedRecognitionPatternForReferenceAlgorithms ( preAUF, pll, _ ) =
+getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms : ( AUF, PLL, AUF ) -> RecognitionSpecification
+getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll, _ ) =
+    let
+        nonempty =
+            List.Nonempty.Nonempty
+
+        singleton =
+            List.Nonempty.singleton
+    in
     case pll of
         T ->
             let
                 u2 =
-                    Patterns
-                        ( Characteristic RightInsideTwoBar
-                        , OppositeColors ( Characteristic LeftHeadlights, Characteristic SecondStickerFromLeft )
-                        )
+                    { emptySpec
+                        | patterns = Just <| nonempty RightInsideTwoBar [ LeftHeadlights ]
+                        , oppositelyColored =
+                            Just
+                                ( singleton <| Pattern LeftHeadlights
+                                , singleton <| Sticker SecondStickerFromLeft
+                                )
+                    }
 
                 none =
-                    NoOtherStickersMatchThanThese <|
-                        SameColor ( Characteristic RightOutsideTwoBar, Characteristic FirstStickerFromLeft )
+                    { emptySpec
+                        | patterns = Just <| nonempty RightOutsideTwoBar [ Bookends ]
+                    }
             in
             case preAUF of
                 AUF.None ->
                     none
 
                 AUF.Clockwise ->
-                    mirrorPattern none
+                    mirrorSpec none
 
                 AUF.Halfway ->
                     u2
 
                 AUF.CounterClockwise ->
-                    mirrorPattern u2
+                    mirrorSpec u2
 
         Ga ->
             case preAUF of
                 AUF.Clockwise ->
-                    AdjacentColors ( Characteristic Bookends, Characteristic LeftInsideTwoBar )
+                    { emptySpec
+                        | patterns = Just <| nonempty Bookends [ LeftInsideTwoBar ]
+                    }
 
                 AUF.Halfway ->
-                    Patterns
-                        ( Characteristics ( LeftHeadlights, RightOutsideTwoBar )
-                        , DifferentColors ( Characteristic SecondStickerFromLeft, Characteristic ThirdStickerFromRight )
-                        )
+                    { emptySpec
+                        | patterns = Just <| nonempty LeftHeadlights [ RightOutsideTwoBar ]
+                        , differentlyColored =
+                            Just
+                                ( Sticker SecondStickerFromLeft
+                                , Sticker ThirdStickerFromRight
+                                , []
+                                )
+                    }
 
                 AUF.CounterClockwise ->
-                    Characteristic RightFourChecker
+                    { emptySpec
+                        | patterns = Just <| singleton RightHeadlights
+                        , identicallyColored =
+                            Just
+                                ( Sticker ThirdStickerFromLeft
+                                , Sticker SecondStickerFromRight
+                                , []
+                                )
+                    }
 
                 AUF.None ->
-                    Patterns
-                        ( OppositeColors
-                            ( Characteristic Bookends
-                            , SameColor ( Characteristic ThirdStickerFromLeft, Characteristic SecondStickerFromRight )
-                            )
-                        , DifferentColors ( Characteristic SecondStickerFromLeft, Characteristic ThirdStickerFromRight )
-                        )
+                    { emptySpec
+                        | patterns = Just <| singleton Bookends
+                        , oppositelyColored =
+                            Just
+                                ( singleton <| Pattern Bookends
+                                , nonempty
+                                    (Sticker ThirdStickerFromLeft)
+                                    [ Sticker SecondStickerFromRight ]
+                                )
+                    }
 
         E ->
             let
-                noAUF =
-                    Patterns
-                        ( CharacteristicNotPresent Bookends
-                        , Patterns
-                            ( SameColor ( Characteristic ThirdStickerFromLeft, Characteristic SecondStickerFromRight )
-                            , DifferentColors ( Characteristic SecondStickerFromLeft, Characteristic ThirdStickerFromRight )
-                            )
-                        )
+                u =
+                    { emptySpec
+                        | absentPatterns = Just <| singleton Bookends
+                        , identicallyColored =
+                            Just
+                                ( Sticker ThirdStickerFromLeft
+                                , Sticker SecondStickerFromRight
+                                , []
+                                )
+                        , differentlyColored =
+                            Just
+                                ( Sticker SecondStickerFromLeft
+                                , Sticker ThirdStickerFromRight
+                                , []
+                                )
+                    }
             in
             case preAUF of
                 AUF.None ->
-                    noAUF
+                    mirrorSpec u
 
                 AUF.Clockwise ->
-                    mirrorPattern noAUF
+                    u
 
                 AUF.Halfway ->
-                    noAUF
+                    mirrorSpec u
 
                 AUF.CounterClockwise ->
-                    mirrorPattern noAUF
+                    u
 
         _ ->
-            Characteristic RightHeadlights
+            emptySpec
 
 
-mirrorPattern : PLLRecognitionPattern -> PLLRecognitionPattern
+mirrorSpec : RecognitionSpecification -> RecognitionSpecification
+mirrorSpec spec =
+    { patterns = Maybe.map (List.Nonempty.map mirrorPattern) spec.patterns
+    , absentPatterns = Maybe.map (List.Nonempty.map mirrorPattern) spec.absentPatterns
+    , oppositelyColored =
+        Maybe.map
+            (Tuple.mapBoth
+                (List.Nonempty.map mirrorElement)
+                (List.Nonempty.map mirrorElement)
+            )
+            spec.oppositelyColored
+    , adjacentlyColored =
+        Maybe.map
+            (Tuple.mapBoth
+                (List.Nonempty.map mirrorElement)
+                (List.Nonempty.map mirrorElement)
+            )
+            spec.adjacentlyColored
+    , identicallyColored = Maybe.map (mapMinLength2 mirrorElement) spec.identicallyColored
+    , differentlyColored = Maybe.map (mapMinLength2 mirrorElement) spec.differentlyColored
+    , noOtherStickersMatchThanThese =
+        Maybe.map
+            (List.Nonempty.map mirrorElement)
+            spec.noOtherStickersMatchThanThese
+    }
+
+
+mapMinLength2 : (a -> b) -> ( a, a, List a ) -> ( b, b, List b )
+mapMinLength2 f ( first, second, rest ) =
+    ( f first, f second, List.map f rest )
+
+
+mirrorElement : RecognitionElement -> RecognitionElement
+mirrorElement x =
+    case x of
+        Pattern pattern ->
+            Pattern <| mirrorPattern pattern
+
+        Sticker sticker ->
+            Sticker
+                (case sticker of
+                    FirstStickerFromLeft ->
+                        FirstStickerFromRight
+
+                    FirstStickerFromRight ->
+                        FirstStickerFromLeft
+
+                    SecondStickerFromLeft ->
+                        SecondStickerFromRight
+
+                    SecondStickerFromRight ->
+                        SecondStickerFromLeft
+
+                    ThirdStickerFromLeft ->
+                        ThirdStickerFromRight
+
+                    ThirdStickerFromRight ->
+                        ThirdStickerFromLeft
+                )
+
+
+mirrorPattern : RecognitionPattern -> RecognitionPattern
 mirrorPattern pattern =
     case pattern of
-        SameColor x ->
-            SameColor (Tuple.mapBoth mirrorPattern mirrorPattern x)
-
-        OppositeColors x ->
-            OppositeColors (Tuple.mapBoth mirrorPattern mirrorPattern x)
-
-        AdjacentColors x ->
-            AdjacentColors (Tuple.mapBoth mirrorPattern mirrorPattern x)
-
-        DifferentColors x ->
-            DifferentColors (Tuple.mapBoth mirrorPattern mirrorPattern x)
-
-        NoOtherStickersMatchThanThese x ->
-            NoOtherStickersMatchThanThese <| mirrorPattern x
-
-        Patterns x ->
-            Patterns (Tuple.mapBoth mirrorPattern mirrorPattern x)
-
-        Characteristic x ->
-            Characteristic <| mirrorCharacteristic x
-
-        Characteristics x ->
-            Characteristics (Tuple.mapBoth mirrorCharacteristic mirrorCharacteristic x)
-
-        CharacteristicNotPresent x ->
-            CharacteristicNotPresent <| mirrorCharacteristic x
-
-
-mirrorCharacteristic : PLLRecognitionCharacteristic -> PLLRecognitionCharacteristic
-mirrorCharacteristic x =
-    case x of
         Bookends ->
             Bookends
 
@@ -1165,21 +1252,3 @@ mirrorCharacteristic x =
 
         RightFiveChecker ->
             LeftFiveChecker
-
-        FirstStickerFromLeft ->
-            FirstStickerFromRight
-
-        FirstStickerFromRight ->
-            FirstStickerFromLeft
-
-        SecondStickerFromLeft ->
-            SecondStickerFromRight
-
-        SecondStickerFromRight ->
-            SecondStickerFromLeft
-
-        ThirdStickerFromLeft ->
-            ThirdStickerFromRight
-
-        ThirdStickerFromRight ->
-            ThirdStickerFromLeft

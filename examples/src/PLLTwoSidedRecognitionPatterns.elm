@@ -30,7 +30,7 @@ main =
                                                 ]
                                                 [ text <|
                                                     explainPLLRecognitionPattern <|
-                                                        PLL.getUniqueTwoSidedRecognitionPattern algorithms ( Debug.log "preAUF" preAUF, Debug.log "pll" pll, AUF.None )
+                                                        PLL.getUniqueTwoSidedRecognitionSpecification algorithms ( Debug.log "preAUF" preAUF, Debug.log "pll" pll, AUF.None )
                                                 , Cube.view []
                                                     { pixelSize = 300
                                                     , displayAngle = Cube.ufrDisplayAngle
@@ -60,79 +60,117 @@ log x =
     x
 
 
-explainPLLRecognitionPattern : PLL.PLLRecognitionPattern -> String
-explainPLLRecognitionPattern pattern =
+explainPLLRecognitionPattern : PLL.RecognitionSpecification -> String
+explainPLLRecognitionPattern { patterns, absentPatterns, oppositelyColored, adjacentlyColored, identicallyColored, differentlyColored, noOtherStickersMatchThanThese } =
     let
-        { characteristics, oppositeColoreds, sameColoreds, differentColoreds, noOtherStickersMatchThanThese } =
-            Debug.log "pattern" <| parsePattern pattern
+        parts =
+            [ patterns
+                |> Maybe.map
+                    (\patterns_ ->
+                        "The easily identifiable pattern"
+                            ++ (if List.Nonempty.length patterns_ > 1 then
+                                    "s are"
 
-        interestingCharacteristics =
-            List.filter isInterestingCharacteristic characteristics
+                                else
+                                    " is"
+                               )
+                            ++ " "
+                            ++ nonemptyToSentenceList
+                                { article = Definite, finalConjunction = And }
+                                (List.Nonempty.map PLL.Pattern patterns_)
+                    )
+            , absentPatterns
+                |> Maybe.map
+                    (\patterns_ ->
+                        "There "
+                            ++ (if
+                                    (List.Nonempty.length patterns_ > 1)
+                                        || isPlural (PLL.Pattern <| List.Nonempty.head patterns_)
+                                then
+                                    "are"
+
+                                else
+                                    "is"
+                               )
+                            ++ " no "
+                            ++ nonemptyToSentenceList
+                                { article = NoArticle, finalConjunction = Or }
+                                (List.Nonempty.map PLL.Pattern patterns_)
+                    )
+            , oppositelyColored
+                |> Maybe.map
+                    (\( first, second ) ->
+                        nonemptyToSentenceList { article = Definite, finalConjunction = And } first
+                            ++ " "
+                            ++ (if
+                                    (List.Nonempty.length first > 1)
+                                        || isPlural (List.Nonempty.head first)
+                                then
+                                    "are"
+
+                                else
+                                    "is"
+                               )
+                            ++ " opposite colors of "
+                            ++ nonemptyToSentenceList { article = Definite, finalConjunction = And } second
+                    )
+            , adjacentlyColored
+                |> Maybe.map
+                    (\( first, second ) ->
+                        nonemptyToSentenceList { article = Definite, finalConjunction = And } first
+                            ++ " "
+                            ++ (if
+                                    (List.Nonempty.length first > 1)
+                                        || isPlural (List.Nonempty.head first)
+                                then
+                                    "are"
+
+                                else
+                                    "is"
+                               )
+                            ++ " adjacent colors of "
+                            ++ nonemptyToSentenceList { article = Definite, finalConjunction = And } second
+                    )
+            , identicallyColored
+                |> Maybe.map
+                    (\elements ->
+                        minLength2ToSentenceList { article = Definite, finalConjunction = And } elements
+                            ++ " are "
+                            ++ (if lengthOfMinLength2List elements > 2 then
+                                    "all "
+
+                                else
+                                    ""
+                               )
+                            ++ "the same color"
+                    )
+            , differentlyColored
+                |> Maybe.map
+                    (\elements ->
+                        minLength2ToSentenceList { article = Definite, finalConjunction = And } elements
+                            ++ " are "
+                            ++ (if lengthOfMinLength2List elements > 2 then
+                                    "all "
+
+                                else
+                                    ""
+                               )
+                            ++ "different colors from each other"
+                    )
+            , noOtherStickersMatchThanThese
+                |> Maybe.map
+                    (\elements ->
+                        "There are no other stickers that match the color of any other sticker than "
+                            ++ nonemptyToSentenceList { article = Definite, finalConjunction = And } elements
+                    )
+            ]
     in
-    "There "
-        ++ (if
-                List.head interestingCharacteristics
-                    |> Maybe.map isPlural
-                    |> Maybe.withDefault False
-            then
-                "are"
-
-            else
-                "is"
-           )
-        ++ " "
-        ++ toSentenceList
-            { indefinite = True }
-            interestingCharacteristics
-        ++ (case oppositeColoreds of
-                Nothing ->
-                    ""
-
-                Just ( first, second ) ->
-                    ". "
-                        ++ capitalize (toSentenceList { indefinite = False } first)
-                        ++ " "
-                        ++ (if isWholeSentencePlural first then
-                                "are"
-
-                            else
-                                "is"
-                           )
-                        ++ " opposite colors of "
-                        ++ toSentenceList { indefinite = False } second
-           )
-        ++ (case sameColoreds of
-                Nothing ->
-                    ""
-
-                Just ( first, second ) ->
-                    ". "
-                        ++ capitalize (characteristicToString { indefinite = False } first)
-                        ++ " "
-                        ++ (if isPlural first then
-                                "are"
-
-                            else
-                                "is"
-                           )
-                        ++ " the same color as "
-                        ++ characteristicToString { indefinite = False } second
-           )
-        ++ (if List.length differentColoreds < 2 then
-                ""
-
-            else
-                ". "
-                    ++ capitalize (toSentenceList { indefinite = False } differentColoreds)
-                    ++ " are all individually different colors from each other"
-           )
-        ++ (if List.isEmpty noOtherStickersMatchThanThese then
-                ""
-
-            else
-                ". There are no other stickers with matching colors other than "
-                    ++ toSentenceList { indefinite = False } noOtherStickersMatchThanThese
-           )
+    (parts
+        |> List.filterMap identity
+        |> List.map capitalize
+        |> String.join ". "
+    )
+        ++ "."
 
 
 capitalize : String -> String
@@ -140,159 +178,59 @@ capitalize s =
     String.toUpper (String.left 1 s) ++ String.dropLeft 1 s
 
 
-toSentenceList : { indefinite : Bool } -> List PLL.PLLRecognitionCharacteristic -> String
-toSentenceList { indefinite } list =
+type Article
+    = NoArticle
+    | Definite
+    | Indefinite
+
+
+type Conjunction
+    = And
+    | Or
+
+
+toSentenceList : { article : Article, finalConjunction : Conjunction } -> List PLL.RecognitionElement -> String
+toSentenceList { article, finalConjunction } list =
     case list of
         [] ->
             ""
 
         [ x ] ->
-            characteristicToString { indefinite = indefinite } x
+            elementToString { article = article } x
 
         [ x, y ] ->
-            characteristicToString { indefinite = indefinite } x ++ " and " ++ characteristicToString { indefinite = indefinite } y
+            let
+                conjunctionString =
+                    case finalConjunction of
+                        And ->
+                            "and"
+
+                        Or ->
+                            "or"
+            in
+            elementToString { article = article } x
+                ++ " "
+                ++ conjunctionString
+                ++ " "
+                ++ elementToString { article = article } y
 
         x :: xs ->
-            characteristicToString { indefinite = indefinite } x ++ ", " ++ toSentenceList { indefinite = indefinite } xs
+            elementToString { article = article } x ++ ", " ++ toSentenceList { article = article, finalConjunction = finalConjunction } xs
 
 
-isWholeSentencePlural : List PLL.PLLRecognitionCharacteristic -> Bool
-isWholeSentencePlural characteristics =
-    case characteristics of
-        [] ->
-            False
-
-        [ x ] ->
-            isPlural x
-
-        _ ->
-            True
+nonemptyToSentenceList : { article : Article, finalConjunction : Conjunction } -> List.Nonempty.Nonempty PLL.RecognitionElement -> String
+nonemptyToSentenceList args =
+    List.Nonempty.toList >> toSentenceList args
 
 
-type alias ParsedPattern =
-    { characteristics : List PLL.PLLRecognitionCharacteristic
-    , oppositeColoreds : Maybe ( List PLL.PLLRecognitionCharacteristic, List PLL.PLLRecognitionCharacteristic )
-    , sameColoreds : Maybe ( PLL.PLLRecognitionCharacteristic, PLL.PLLRecognitionCharacteristic )
-    , differentColoreds : List PLL.PLLRecognitionCharacteristic
-    , noOtherStickersMatchThanThese : List PLL.PLLRecognitionCharacteristic
-    }
+minLength2ToSentenceList : { article : Article, finalConjunction : Conjunction } -> ( PLL.RecognitionElement, PLL.RecognitionElement, List PLL.RecognitionElement ) -> String
+minLength2ToSentenceList args ( first, second, rest ) =
+    toSentenceList args (first :: second :: rest)
 
 
-emptyParsedPattern : ParsedPattern
-emptyParsedPattern =
-    { characteristics = []
-    , oppositeColoreds = Nothing
-    , sameColoreds = Nothing
-    , differentColoreds = []
-    , noOtherStickersMatchThanThese = []
-    }
-
-
-combineParsedPatterns : ParsedPattern -> ParsedPattern -> ParsedPattern
-combineParsedPatterns a b =
-    { characteristics = a.characteristics ++ b.characteristics
-    , oppositeColoreds =
-        a.oppositeColoreds
-            |> Maybe.map Just
-            |> Maybe.withDefault b.oppositeColoreds
-    , sameColoreds =
-        a.sameColoreds
-            |> Maybe.map Just
-            |> Maybe.withDefault b.sameColoreds
-    , differentColoreds =
-        if
-            List.length a.differentColoreds
-                >= List.length b.differentColoreds
-        then
-            a.differentColoreds
-
-        else
-            b.differentColoreds
-    , noOtherStickersMatchThanThese =
-        if
-            List.length a.noOtherStickersMatchThanThese
-                >= List.length b.noOtherStickersMatchThanThese
-        then
-            a.noOtherStickersMatchThanThese
-
-        else
-            b.noOtherStickersMatchThanThese
-    }
-
-
-parsePattern : PLL.PLLRecognitionPattern -> ParsedPattern
-parsePattern pattern =
-    case pattern of
-        PLL.Patterns ( a, b ) ->
-            combineParsedPatterns (parsePattern a) (parsePattern b)
-
-        PLL.Characteristic characteristic ->
-            { emptyParsedPattern
-                | characteristics = [ characteristic ]
-            }
-
-        PLL.OppositeColors ( a, b ) ->
-            let
-                firstParsedPattern =
-                    parsePattern a
-
-                secondParsedPattern =
-                    parsePattern b
-
-                combinedParsedPattern =
-                    combineParsedPatterns firstParsedPattern secondParsedPattern
-            in
-            { combinedParsedPattern
-                | oppositeColoreds =
-                    Just
-                        ( firstParsedPattern.characteristics
-                        , secondParsedPattern.characteristics
-                        )
-            }
-
-        PLL.SameColor ( a, b ) ->
-            let
-                firstParsedPattern =
-                    parsePattern a
-
-                secondParsedPattern =
-                    parsePattern b
-
-                combinedParsedPattern =
-                    combineParsedPatterns firstParsedPattern secondParsedPattern
-            in
-            { combinedParsedPattern
-                | sameColoreds =
-                    Maybe.map2 Tuple.pair (List.head firstParsedPattern.characteristics) (List.head secondParsedPattern.characteristics)
-            }
-
-        PLL.DifferentColors ( a, b ) ->
-            let
-                firstParsedPattern =
-                    parsePattern a
-
-                secondParsedPattern =
-                    parsePattern b
-
-                combinedParsedPattern =
-                    combineParsedPatterns firstParsedPattern secondParsedPattern
-            in
-            { combinedParsedPattern
-                | differentColoreds =
-                    firstParsedPattern.characteristics ++ secondParsedPattern.characteristics
-            }
-
-        PLL.NoOtherStickersMatchThanThese x ->
-            let
-                parsedPattern =
-                    parsePattern x
-            in
-            { parsedPattern
-                | noOtherStickersMatchThanThese = parsedPattern.characteristics
-            }
-
-        _ ->
-            emptyParsedPattern
+lengthOfMinLength2List : ( a, a, List a ) -> Int
+lengthOfMinLength2List ( _, _, list ) =
+    2 + List.length list
 
 
 algorithms : PLL.Algorithms
@@ -300,160 +238,106 @@ algorithms =
     PLL.referenceAlgorithms
 
 
-isInterestingCharacteristic : PLL.PLLRecognitionCharacteristic -> Bool
-isInterestingCharacteristic characteristic =
-    case characteristic of
-        PLL.LeftHeadlights ->
-            True
-
-        PLL.RightHeadlights ->
-            True
-
-        PLL.RightOutsideTwoBar ->
-            True
-
-        PLL.LeftOutsideTwoBar ->
-            True
-
-        PLL.RightInsideTwoBar ->
-            True
-
-        PLL.LeftInsideTwoBar ->
-            True
-
-        PLL.RightFourChecker ->
-            True
-
-        PLL.Bookends ->
-            True
-
-        PLL.FirstStickerFromLeft ->
-            False
-
-        PLL.SecondStickerFromLeft ->
-            False
-
-        PLL.ThirdStickerFromLeft ->
-            False
-
-        PLL.FirstStickerFromRight ->
-            False
-
-        PLL.SecondStickerFromRight ->
-            False
-
-        PLL.ThirdStickerFromRight ->
-            False
-
-        _ ->
-            False
-
-
-characteristicToString : { indefinite : Bool } -> PLL.PLLRecognitionCharacteristic -> String
-characteristicToString { indefinite } characteristic =
+elementToString : { article : Article } -> PLL.RecognitionElement -> String
+elementToString { article } element =
     let
         { indefiniteArticle, object } =
-            case characteristic of
-                PLL.Bookends ->
-                    { indefiniteArticle = Nothing, object = "bookends" }
+            case element of
+                PLL.Pattern pattern ->
+                    case pattern of
+                        PLL.Bookends ->
+                            { indefiniteArticle = Nothing, object = "bookends" }
 
+                        PLL.RightFourChecker ->
+                            { indefiniteArticle = Just "a", object = "four checker pattern on the right" }
+
+                        PLL.LeftHeadlights ->
+                            { indefiniteArticle = Nothing, object = "headlights on the left" }
+
+                        PLL.RightHeadlights ->
+                            { indefiniteArticle = Nothing, object = "headlights on the right" }
+
+                        PLL.RightOutsideTwoBar ->
+                            { indefiniteArticle = Just "an", object = "outside two-bar on the right" }
+
+                        PLL.LeftOutsideTwoBar ->
+                            { indefiniteArticle = Just "an", object = "outside two-bar on the left" }
+
+                        PLL.RightInsideTwoBar ->
+                            { indefiniteArticle = Just "an", object = "inside two-bar on the right" }
+
+                        PLL.LeftInsideTwoBar ->
+                            { indefiniteArticle = Just "an", object = "inside two-bar on the left" }
+
+                        _ ->
+                            { indefiniteArticle = Nothing, object = "TODO" }
+
+                PLL.Sticker sticker ->
+                    case sticker of
+                        PLL.FirstStickerFromLeft ->
+                            { indefiniteArticle = Nothing, object = "first sticker from the left" }
+
+                        PLL.FirstStickerFromRight ->
+                            { indefiniteArticle = Nothing, object = "first sticker from the right" }
+
+                        PLL.SecondStickerFromLeft ->
+                            { indefiniteArticle = Nothing, object = "second sticker from the left" }
+
+                        PLL.SecondStickerFromRight ->
+                            { indefiniteArticle = Nothing, object = "second sticker from the right" }
+
+                        PLL.ThirdStickerFromLeft ->
+                            { indefiniteArticle = Nothing, object = "third sticker from the left" }
+
+                        PLL.ThirdStickerFromRight ->
+                            { indefiniteArticle = Nothing, object = "third sticker from the right" }
+    in
+    case article of
+        NoArticle ->
+            object
+
+        Indefinite ->
+            (indefiniteArticle
+                |> Maybe.map (\x -> x ++ " ")
+                |> Maybe.withDefault ""
+            )
+                ++ object
+
+        Definite ->
+            "the " ++ object
+
+
+isPlural : PLL.RecognitionElement -> Bool
+isPlural element =
+    case element of
+        PLL.Sticker _ ->
+            False
+
+        PLL.Pattern pattern ->
+            case pattern of
                 PLL.RightFourChecker ->
-                    { indefiniteArticle = Just "a", object = "four checker pattern on the right" }
+                    False
+
+                PLL.Bookends ->
+                    True
 
                 PLL.LeftHeadlights ->
-                    { indefiniteArticle = Nothing, object = "headlights on the left" }
+                    True
 
                 PLL.RightHeadlights ->
-                    { indefiniteArticle = Nothing, object = "headlights on the right" }
+                    True
 
                 PLL.RightOutsideTwoBar ->
-                    { indefiniteArticle = Just "an", object = "outside two-bar on the right" }
+                    False
 
                 PLL.LeftOutsideTwoBar ->
-                    { indefiniteArticle = Just "an", object = "outside two-bar on the left" }
-
-                PLL.FirstStickerFromLeft ->
-                    { indefiniteArticle = Nothing, object = "first sticker from the left" }
-
-                PLL.FirstStickerFromRight ->
-                    { indefiniteArticle = Nothing, object = "first sticker from the right" }
-
-                PLL.SecondStickerFromLeft ->
-                    { indefiniteArticle = Nothing, object = "second sticker from the left" }
-
-                PLL.SecondStickerFromRight ->
-                    { indefiniteArticle = Nothing, object = "second sticker from the right" }
-
-                PLL.ThirdStickerFromLeft ->
-                    { indefiniteArticle = Nothing, object = "third sticker from the left" }
-
-                PLL.ThirdStickerFromRight ->
-                    { indefiniteArticle = Nothing, object = "third sticker from the right" }
+                    False
 
                 PLL.RightInsideTwoBar ->
-                    { indefiniteArticle = Just "an", object = "inside two-bar on the right" }
+                    False
 
                 PLL.LeftInsideTwoBar ->
-                    { indefiniteArticle = Just "an", object = "inside two-bar on the left" }
+                    False
 
                 _ ->
-                    { indefiniteArticle = Nothing, object = "TODO" }
-    in
-    if indefinite then
-        (indefiniteArticle
-            |> Maybe.map (\x -> x ++ " ")
-            |> Maybe.withDefault ""
-        )
-            ++ object
-
-    else
-        "the " ++ object
-
-
-isPlural : PLL.PLLRecognitionCharacteristic -> Bool
-isPlural characteristic =
-    case characteristic of
-        PLL.RightFourChecker ->
-            False
-
-        PLL.Bookends ->
-            True
-
-        PLL.LeftHeadlights ->
-            True
-
-        PLL.RightHeadlights ->
-            True
-
-        PLL.RightOutsideTwoBar ->
-            False
-
-        PLL.LeftOutsideTwoBar ->
-            False
-
-        PLL.FirstStickerFromLeft ->
-            False
-
-        PLL.FirstStickerFromRight ->
-            False
-
-        PLL.SecondStickerFromLeft ->
-            False
-
-        PLL.SecondStickerFromRight ->
-            False
-
-        PLL.ThirdStickerFromLeft ->
-            False
-
-        PLL.ThirdStickerFromRight ->
-            False
-
-        PLL.RightInsideTwoBar ->
-            False
-
-        PLL.LeftInsideTwoBar ->
-            False
-
-        _ ->
-            False
+                    False
