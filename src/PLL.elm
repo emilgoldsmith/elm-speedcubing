@@ -993,17 +993,17 @@ type PLLRecognitionCharacteristic
     | LeftOutsideTwoBar
     | RightOutsideTwoBar
     | Bookends
-    | RightFourChecker
     | LeftFourChecker
-    | RightFiveChecker
+    | RightFourChecker
     | LeftFiveChecker
+    | RightFiveChecker
     | SixChecker
-    | FirstFromLeft
+    | FirstStickerFromLeft
     | SecondStickerFromLeft
     | ThirdStickerFromLeft
-    | FourthStickerFromLeft
-    | FifthStickerFromLeft
-    | SixthStickerFromLeft
+    | FirstStickerFromRight
+    | SecondStickerFromRight
+    | ThirdStickerFromRight
 
 
 getUniqueTwoSidedRecognitionPattern : Algorithms -> ( AUF, PLL, AUF ) -> PLLRecognitionPattern
@@ -1016,51 +1016,51 @@ getUniqueTwoSidedRecognitionPatternForReferenceAlgorithms ( preAUF, pll, _ ) =
     case pll of
         T ->
             let
-                u =
+                u2 =
                     Patterns
                         ( Characteristic RightInsideTwoBar
                         , OppositeColors ( Characteristic LeftHeadlights, Characteristic SecondStickerFromLeft )
                         )
 
-                uClockwise =
+                none =
                     NoOtherStickersMatchThanThese <|
-                        SameColor ( Characteristic RightOutsideTwoBar, Characteristic FirstFromLeft )
+                        SameColor ( Characteristic RightOutsideTwoBar, Characteristic FirstStickerFromLeft )
             in
             case preAUF of
                 AUF.None ->
-                    mirrorPattern u
+                    none
 
                 AUF.Clockwise ->
-                    u
+                    mirrorPattern none
 
                 AUF.Halfway ->
-                    mirrorPattern uClockwise
+                    u2
 
                 AUF.CounterClockwise ->
-                    uClockwise
+                    mirrorPattern u2
 
         Ga ->
             case preAUF of
                 AUF.Clockwise ->
-                    Patterns
-                        ( Characteristics ( LeftHeadlights, RightOutsideTwoBar )
-                        , DifferentColors ( Characteristic SecondStickerFromLeft, Characteristic FourthStickerFromLeft )
-                        )
+                    AdjacentColors ( Characteristic Bookends, Characteristic LeftInsideTwoBar )
 
                 AUF.Halfway ->
-                    Characteristic RightFourChecker
+                    Patterns
+                        ( Characteristics ( LeftHeadlights, RightOutsideTwoBar )
+                        , DifferentColors ( Characteristic SecondStickerFromLeft, Characteristic ThirdStickerFromRight )
+                        )
 
                 AUF.CounterClockwise ->
+                    Characteristic RightFourChecker
+
+                AUF.None ->
                     Patterns
                         ( OppositeColors
                             ( Characteristic Bookends
-                            , SameColor ( Characteristic ThirdStickerFromLeft, Characteristic FifthStickerFromLeft )
+                            , SameColor ( Characteristic ThirdStickerFromLeft, Characteristic SecondStickerFromRight )
                             )
-                        , DifferentColors ( Characteristic SecondStickerFromLeft, Characteristic FourthStickerFromLeft )
+                        , DifferentColors ( Characteristic SecondStickerFromLeft, Characteristic ThirdStickerFromRight )
                         )
-
-                AUF.None ->
-                    AdjacentColors ( Characteristic Bookends, Characteristic LeftInsideTwoBar )
 
         E ->
             let
@@ -1068,8 +1068,8 @@ getUniqueTwoSidedRecognitionPatternForReferenceAlgorithms ( preAUF, pll, _ ) =
                     Patterns
                         ( CharacteristicNotPresent Bookends
                         , Patterns
-                            ( SameColor ( Characteristic ThirdStickerFromLeft, Characteristic FifthStickerFromLeft )
-                            , DifferentColors ( Characteristic SecondStickerFromLeft, Characteristic FourthStickerFromLeft )
+                            ( SameColor ( Characteristic ThirdStickerFromLeft, Characteristic SecondStickerFromRight )
+                            , DifferentColors ( Characteristic SecondStickerFromLeft, Characteristic ThirdStickerFromRight )
                             )
                         )
             in
@@ -1092,9 +1092,94 @@ getUniqueTwoSidedRecognitionPatternForReferenceAlgorithms ( preAUF, pll, _ ) =
 
 mirrorPattern : PLLRecognitionPattern -> PLLRecognitionPattern
 mirrorPattern pattern =
-    pattern
+    case pattern of
+        SameColor x ->
+            SameColor (Tuple.mapBoth mirrorPattern mirrorPattern x)
+
+        OppositeColors x ->
+            OppositeColors (Tuple.mapBoth mirrorPattern mirrorPattern x)
+
+        AdjacentColors x ->
+            AdjacentColors (Tuple.mapBoth mirrorPattern mirrorPattern x)
+
+        DifferentColors x ->
+            DifferentColors (Tuple.mapBoth mirrorPattern mirrorPattern x)
+
+        NoOtherStickersMatchThanThese x ->
+            NoOtherStickersMatchThanThese <| mirrorPattern x
+
+        Patterns x ->
+            Patterns (Tuple.mapBoth mirrorPattern mirrorPattern x)
+
+        Characteristic x ->
+            Characteristic <| mirrorCharacteristic x
+
+        Characteristics x ->
+            Characteristics (Tuple.mapBoth mirrorCharacteristic mirrorCharacteristic x)
+
+        CharacteristicNotPresent x ->
+            CharacteristicNotPresent <| mirrorCharacteristic x
 
 
 mirrorCharacteristic : PLLRecognitionCharacteristic -> PLLRecognitionCharacteristic
 mirrorCharacteristic x =
-    x
+    case x of
+        Bookends ->
+            Bookends
+
+        SixChecker ->
+            SixChecker
+
+        LeftHeadlights ->
+            RightHeadlights
+
+        RightHeadlights ->
+            LeftHeadlights
+
+        LeftThreeBar ->
+            RightThreeBar
+
+        RightThreeBar ->
+            LeftThreeBar
+
+        LeftInsideTwoBar ->
+            RightInsideTwoBar
+
+        RightInsideTwoBar ->
+            LeftInsideTwoBar
+
+        LeftOutsideTwoBar ->
+            RightOutsideTwoBar
+
+        RightOutsideTwoBar ->
+            LeftOutsideTwoBar
+
+        LeftFourChecker ->
+            RightFourChecker
+
+        RightFourChecker ->
+            LeftFourChecker
+
+        LeftFiveChecker ->
+            RightFiveChecker
+
+        RightFiveChecker ->
+            LeftFiveChecker
+
+        FirstStickerFromLeft ->
+            FirstStickerFromRight
+
+        FirstStickerFromRight ->
+            FirstStickerFromLeft
+
+        SecondStickerFromLeft ->
+            SecondStickerFromRight
+
+        SecondStickerFromRight ->
+            SecondStickerFromLeft
+
+        ThirdStickerFromLeft ->
+            ThirdStickerFromRight
+
+        ThirdStickerFromRight ->
+            ThirdStickerFromLeft
