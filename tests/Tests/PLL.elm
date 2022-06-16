@@ -1,15 +1,16 @@
-module Tests.PLL exposing (getAlgorithmTests, getAllAUFEquivalencyClassesTests, getAllEquivalentAUFsTests, referenceAlgTests, solvedByTests)
+module Tests.PLL exposing (getAlgorithmTests, getAllAUFEquivalencyClassesTests, getAllEquivalentAUFsTests, getUniqueTwoSidedRecognitionSpecificationTests, referenceAlgTests, solvedByTests)
 
-import AUF
+import AUF exposing (AUF)
 import Algorithm
 import Cube
 import Cube.Advanced exposing (Color(..))
 import Expect
 import Expect.Extra
 import Fuzz
+import List.Extra
 import List.Nonempty
 import List.Nonempty.Extra
-import PLL exposing (PLL)
+import PLL exposing (PLL, Sticker(..))
 import Test exposing (..)
 import TestHelpers.Cube exposing (plainCubie, solvedCubeRendering)
 import Tests.AUF exposing (aufFuzzer)
@@ -483,6 +484,493 @@ getAllAUFEquivalencyClassesTests =
                         )
                     |> Expect.true "There were no equivalency classes found that match the expected class"
         ]
+
+
+testedPlls : Fuzz.Fuzzer PLL
+testedPlls =
+    Fuzz.oneOf (List.map Fuzz.constant [ PLL.E, PLL.T, PLL.Ga ])
+
+
+getUniqueTwoSidedRecognitionSpecificationTests : Test
+getUniqueTwoSidedRecognitionSpecificationTests =
+    only <|
+        describe "getUniqueTwoSidedRecognitionSpecificationTests"
+            [ fuzz (Fuzz.tuple3 ( aufFuzzer, testedPlls, aufFuzzer )) "no patterns (except absent ones) mentioned that are not included in the patterns" <|
+                \arg ->
+                    let
+                        spec =
+                            PLL.getUniqueTwoSidedRecognitionSpecification
+                                PLL.referenceAlgorithms
+                                arg
+
+                        patterns =
+                            spec.patterns
+                                |> Maybe.map List.Nonempty.toList
+                                |> Maybe.withDefault []
+
+                        otherPatterns =
+                            extractAllPatterns { spec | patterns = Nothing, absentPatterns = Nothing }
+                    in
+                    List.all (\x -> List.member x patterns) otherPatterns
+                        |> Expect.true ("There was a pattern mentioned not included in patterns. The spec was: " ++ Debug.toString spec)
+            , fuzz (Fuzz.tuple3 ( aufFuzzer, testedPlls, aufFuzzer )) "no patterns mentioned that are included in absent patterns" <|
+                \arg ->
+                    let
+                        spec =
+                            PLL.getUniqueTwoSidedRecognitionSpecification
+                                PLL.referenceAlgorithms
+                                arg
+
+                        absentPatterns =
+                            spec.absentPatterns
+                                |> Maybe.map List.Nonempty.toList
+                                |> Maybe.withDefault []
+
+                        otherPatterns =
+                            extractAllPatterns { spec | absentPatterns = Nothing }
+                    in
+                    List.all (\x -> not <| List.member x absentPatterns) otherPatterns
+                        |> Expect.true ("There was a pattern mentioned that was also included in absent patterns. The spec was: " ++ Debug.toString spec)
+
+            -- This one also ensures that it's internally coherent as otherwise
+            -- it wouldn't describe the case correctly if for example a sticker
+            -- is supposed to be two different colors
+            , fuzz (Fuzz.tuple3 ( aufFuzzer, testedPlls, aufFuzzer )) "it correctly describes the case" <|
+                \arg ->
+                    let
+                        spec =
+                            PLL.getUniqueTwoSidedRecognitionSpecification
+                                PLL.referenceAlgorithms
+                                arg
+
+                        stickers =
+                            getRecognitionStickers
+                                PLL.referenceAlgorithms
+                                arg
+                    in
+                    verifySpecForStickers stickers spec
+                        |> Expect.true
+                            ("the spec didn't correctly describe the stickers. The spec was:\n"
+                                ++ Debug.toString spec
+                                ++ "\nThe stickers were:\n"
+                                ++ Debug.toString stickers
+                            )
+            , todo "check that no other cases except for symmetric ones match this description. That it's uniquely determinable by this description"
+            , todo "include display angles"
+            , todo "include postAUF"
+            , todo "include non-reference algorithms"
+            ]
+
+
+type alias RecognitionStickerColors =
+    { firstFromLeft : Cube.Advanced.Color
+    , secondFromLeft : Cube.Advanced.Color
+    , thirdFromLeft : Cube.Advanced.Color
+    , firstFromRight : Cube.Advanced.Color
+    , secondFromRight : Cube.Advanced.Color
+    , thirdFromRight : Cube.Advanced.Color
+    }
+
+
+getRecognitionStickers : PLL.Algorithms -> ( AUF, PLL, AUF ) -> RecognitionStickerColors
+getRecognitionStickers algorithms ( preAUF, pll, postAUF ) =
+    Cube.solved
+        |> Cube.applyAlgorithm
+            (Algorithm.inverse <|
+                Algorithm.append (AUF.toAlgorithm preAUF) <|
+                    Algorithm.append (PLL.getAlgorithm algorithms pll) <|
+                        AUF.toAlgorithm postAUF
+            )
+        |> Cube.Advanced.render
+        |> (\rendering ->
+                { firstFromLeft = rendering.ufl.f
+                , secondFromLeft = rendering.uf.f
+                , thirdFromLeft = rendering.ufr.f
+                , thirdFromRight = rendering.ufr.r
+                , secondFromRight = rendering.ur.r
+                , firstFromRight = rendering.ubr.r
+                }
+           )
+
+
+getElementStickers : PLL.RecognitionElement -> List.Nonempty.Nonempty PLL.Sticker
+getElementStickers element =
+    case element of
+        PLL.Sticker sticker ->
+            List.Nonempty.singleton sticker
+
+        PLL.Pattern pattern ->
+            getPatternStickers pattern
+
+
+getPatternStickers : PLL.RecognitionPattern -> List.Nonempty.Nonempty PLL.Sticker
+getPatternStickers pattern =
+    case pattern of
+        PLL.LeftFiveChecker ->
+            List.Nonempty.Nonempty
+                FirstStickerFromLeft
+                [ SecondStickerFromLeft
+                , ThirdStickerFromLeft
+                , ThirdStickerFromRight
+                , SecondStickerFromRight
+                ]
+
+        PLL.RightFiveChecker ->
+            List.Nonempty.Nonempty
+                SecondStickerFromLeft
+                [ ThirdStickerFromLeft
+                , ThirdStickerFromRight
+                , SecondStickerFromRight
+                , FirstStickerFromRight
+                ]
+
+        PLL.Bookends ->
+            List.Nonempty.Nonempty
+                FirstStickerFromLeft
+                [ FirstStickerFromRight ]
+
+        PLL.LeftHeadlights ->
+            List.Nonempty.Nonempty
+                FirstStickerFromLeft
+                [ ThirdStickerFromLeft ]
+
+        PLL.RightHeadlights ->
+            List.Nonempty.Nonempty
+                FirstStickerFromRight
+                [ ThirdStickerFromRight ]
+
+        PLL.LeftThreeBar ->
+            List.Nonempty.Nonempty
+                FirstStickerFromLeft
+                [ SecondStickerFromLeft
+                , ThirdStickerFromLeft
+                ]
+
+        PLL.RightThreeBar ->
+            List.Nonempty.Nonempty
+                FirstStickerFromRight
+                [ SecondStickerFromRight
+                , ThirdStickerFromRight
+                ]
+
+        PLL.LeftInsideTwoBar ->
+            List.Nonempty.Nonempty
+                SecondStickerFromLeft
+                [ ThirdStickerFromLeft ]
+
+        PLL.RightInsideTwoBar ->
+            List.Nonempty.Nonempty
+                SecondStickerFromRight
+                [ ThirdStickerFromRight ]
+
+        PLL.LeftOutsideTwoBar ->
+            List.Nonempty.Nonempty
+                FirstStickerFromLeft
+                [ SecondStickerFromLeft ]
+
+        PLL.RightOutsideTwoBar ->
+            List.Nonempty.Nonempty
+                FirstStickerFromRight
+                [ SecondStickerFromRight ]
+
+        PLL.SixChecker ->
+            List.Nonempty.Nonempty
+                FirstStickerFromLeft
+                [ SecondStickerFromLeft
+                , ThirdStickerFromLeft
+                , ThirdStickerFromRight
+                , SecondStickerFromRight
+                , FirstStickerFromRight
+                ]
+
+
+getStickerColor : RecognitionStickerColors -> PLL.Sticker -> Cube.Advanced.Color
+getStickerColor colors sticker =
+    case sticker of
+        PLL.FirstStickerFromLeft ->
+            colors.firstFromLeft
+
+        PLL.SecondStickerFromLeft ->
+            colors.secondFromLeft
+
+        PLL.ThirdStickerFromLeft ->
+            colors.thirdFromLeft
+
+        PLL.ThirdStickerFromRight ->
+            colors.thirdFromRight
+
+        PLL.SecondStickerFromRight ->
+            colors.secondFromRight
+
+        PLL.FirstStickerFromRight ->
+            colors.firstFromRight
+
+
+verifySpecForStickers : RecognitionStickerColors -> PLL.RecognitionSpecification -> Bool
+verifySpecForStickers stickers spec =
+    List.all
+        identity
+        [ case spec.patterns of
+            Nothing ->
+                True
+
+            Just patterns ->
+                patterns
+                    |> List.Nonempty.map
+                        (getPatternStickers
+                            >> List.Nonempty.map (getStickerColor stickers)
+                            >> List.Nonempty.uniq
+                        )
+                    -- Every pattern should have all the colors be the same
+                    |> List.Nonempty.all (List.Nonempty.length >> (==) 1)
+        , case spec.absentPatterns of
+            Nothing ->
+                True
+
+            Just absentPatterns ->
+                absentPatterns
+                    |> List.Nonempty.map
+                        (getPatternStickers
+                            >> List.Nonempty.map (getStickerColor stickers)
+                            >> List.Nonempty.uniq
+                        )
+                    -- Every pattern should have at least two different colors as it should
+                    -- be an absent pattern
+                    |> List.Nonempty.all (\list -> List.Nonempty.length list > 1)
+        , case spec.oppositelyColored of
+            Nothing ->
+                True
+
+            Just oppositelyColored ->
+                oppositelyColored
+                    |> mapSameForBoth
+                        (List.Nonempty.concatMap getElementStickers
+                            >> List.Nonempty.map (getStickerColor stickers)
+                            >> List.Nonempty.uniq
+                        )
+                    |> (\x ->
+                            case x of
+                                -- They have to each group be the same color all stickers
+                                -- and for that color to be opposite to the one of the
+                                -- other group
+                                ( List.Nonempty.Nonempty firstColor [], List.Nonempty.Nonempty secondColor [] ) ->
+                                    areOppositeColors firstColor secondColor
+
+                                _ ->
+                                    False
+                       )
+        , case spec.adjacentlyColored of
+            Nothing ->
+                True
+
+            Just adjacentlyColored ->
+                adjacentlyColored
+                    |> mapSameForBoth
+                        (List.Nonempty.concatMap getElementStickers
+                            >> List.Nonempty.map (getStickerColor stickers)
+                            >> List.Nonempty.uniq
+                        )
+                    |> (\x ->
+                            case x of
+                                -- They have to each group be the same color all stickers
+                                -- and for that color to be adjacent to the one of the
+                                -- other group
+                                ( List.Nonempty.Nonempty firstColor [], List.Nonempty.Nonempty secondColor [] ) ->
+                                    areAdjacentColors firstColor secondColor
+
+                                _ ->
+                                    False
+                       )
+        , case spec.identicallyColored of
+            Nothing ->
+                True
+
+            Just ( first, second, tail ) ->
+                List.Nonempty.Nonempty first (second :: tail)
+                    |> List.Nonempty.concatMap getElementStickers
+                    |> List.Nonempty.map (getStickerColor stickers)
+                    |> List.Nonempty.uniq
+                    |> (List.Nonempty.length >> (==) 1)
+        , case spec.differentlyColored of
+            Nothing ->
+                True
+
+            Just ( first, second, tail ) ->
+                let
+                    list =
+                        List.Nonempty.Nonempty first (second :: tail)
+
+                    expectedDistinctColors =
+                        List.Nonempty.length list
+
+                    allGroupsAreSameColored =
+                        list
+                            |> List.Nonempty.map
+                                (getElementStickers
+                                    >> List.Nonempty.map (getStickerColor stickers)
+                                    >> List.Nonempty.uniq
+                                    >> List.Nonempty.length
+                                )
+                            |> List.Nonempty.all ((==) 1)
+
+                    numDistinctColors =
+                        list
+                            |> List.Nonempty.concatMap getElementStickers
+                            |> List.Nonempty.map (getStickerColor stickers)
+                            |> List.Nonempty.uniq
+                            |> List.Nonempty.length
+                in
+                allGroupsAreSameColored && numDistinctColors == expectedDistinctColors
+        , case spec.noOtherStickersMatchThanThese of
+            Nothing ->
+                True
+
+            Just elements ->
+                let
+                    allGroupsAreSameColored =
+                        elements
+                            |> List.Nonempty.map
+                                (getElementStickers
+                                    >> List.Nonempty.map (getStickerColor stickers)
+                                    >> List.Nonempty.uniq
+                                    >> List.Nonempty.length
+                                )
+                            |> List.Nonempty.all ((==) 1)
+
+                    excludedStickers =
+                        elements
+                            |> List.Nonempty.concatMap getElementStickers
+
+                    excludedColors =
+                        excludedStickers
+                            |> List.Nonempty.map (getStickerColor stickers)
+                            |> List.Nonempty.uniq
+
+                    includedStickers =
+                        allStickers
+                            |> List.Nonempty.toList
+                            |> List.filter
+                                (\x ->
+                                    not <| List.Nonempty.member x excludedStickers
+                                )
+
+                    includedColors =
+                        includedStickers
+                            |> List.map (getStickerColor stickers)
+                            |> List.Extra.unique
+
+                    noExcludedColorsAreMatched =
+                        includedColors
+                            |> List.all
+                                (\x ->
+                                    not <| List.Nonempty.member x excludedColors
+                                )
+
+                    allStickersHaveADistinctColor =
+                        List.length includedStickers == List.length includedColors
+                in
+                allGroupsAreSameColored && noExcludedColorsAreMatched && allStickersHaveADistinctColor
+        ]
+
+
+mapSameForBoth : (a -> b) -> ( a, a ) -> ( b, b )
+mapSameForBoth f ( first, second ) =
+    ( f first, f second )
+
+
+allStickers : List.Nonempty.Nonempty PLL.Sticker
+allStickers =
+    List.Nonempty.Nonempty
+        PLL.FirstStickerFromLeft
+        [ SecondStickerFromLeft
+        , ThirdStickerFromLeft
+        , ThirdStickerFromRight
+        , SecondStickerFromRight
+        , FirstStickerFromRight
+        ]
+
+
+areOppositeColors : Cube.Advanced.Color -> Cube.Advanced.Color -> Bool
+areOppositeColors a b =
+    case ( a, b ) of
+        ( Cube.Advanced.UpColor, Cube.Advanced.DownColor ) ->
+            True
+
+        ( Cube.Advanced.DownColor, Cube.Advanced.UpColor ) ->
+            True
+
+        ( Cube.Advanced.LeftColor, Cube.Advanced.RightColor ) ->
+            True
+
+        ( Cube.Advanced.RightColor, Cube.Advanced.LeftColor ) ->
+            True
+
+        ( Cube.Advanced.FrontColor, Cube.Advanced.BackColor ) ->
+            True
+
+        ( Cube.Advanced.BackColor, Cube.Advanced.FrontColor ) ->
+            True
+
+        _ ->
+            False
+
+
+areAdjacentColors : Cube.Advanced.Color -> Cube.Advanced.Color -> Bool
+areAdjacentColors a b =
+    not <| areOppositeColors a b
+
+
+extractAllPatterns : PLL.RecognitionSpecification -> List PLL.RecognitionPattern
+extractAllPatterns spec =
+    List.Extra.unique <|
+        extractPatternsFromMaybePatterns spec.patterns
+            ++ extractPatternsFromMaybePatterns spec.absentPatterns
+            ++ extractPatternsFromTuple spec.oppositelyColored
+            ++ extractPatternsFromTuple spec.adjacentlyColored
+            ++ extractPatternsFromMinLength2List spec.identicallyColored
+            ++ extractPatternsFromMinLength2List spec.differentlyColored
+            ++ extractPatternsFromMaybeElements spec.noOtherStickersMatchThanThese
+
+
+extractPatternsFromMaybePatterns : Maybe (List.Nonempty.Nonempty PLL.RecognitionPattern) -> List PLL.RecognitionPattern
+extractPatternsFromMaybePatterns maybeList =
+    maybeList
+        |> Maybe.map List.Nonempty.toList
+        |> Maybe.withDefault []
+
+
+extractPatternsFromTuple : Maybe ( List.Nonempty.Nonempty PLL.RecognitionElement, List.Nonempty.Nonempty PLL.RecognitionElement ) -> List PLL.RecognitionPattern
+extractPatternsFromTuple maybeTuple =
+    maybeTuple
+        |> Maybe.map (\( a, b ) -> List.Nonempty.toList a ++ List.Nonempty.toList b)
+        |> Maybe.withDefault []
+        |> List.filterMap getPattern
+
+
+extractPatternsFromMinLength2List : Maybe ( PLL.RecognitionElement, PLL.RecognitionElement, List PLL.RecognitionElement ) -> List PLL.RecognitionPattern
+extractPatternsFromMinLength2List maybeList =
+    maybeList
+        |> Maybe.map (\( first, second, tail ) -> first :: second :: tail)
+        |> Maybe.withDefault []
+        |> List.filterMap getPattern
+
+
+extractPatternsFromMaybeElements : Maybe (List.Nonempty.Nonempty PLL.RecognitionElement) -> List PLL.RecognitionPattern
+extractPatternsFromMaybeElements maybeList =
+    maybeList
+        |> Maybe.map List.Nonempty.toList
+        |> Maybe.withDefault []
+        |> List.filterMap getPattern
+
+
+getPattern : PLL.RecognitionElement -> Maybe PLL.RecognitionPattern
+getPattern element =
+    case element of
+        PLL.Pattern pattern ->
+            Just pattern
+
+        _ ->
+            Nothing
 
 
 expectEqualDisregardingAUF : Cube.Advanced.Rendering -> Algorithm.Algorithm -> Expect.Expectation
