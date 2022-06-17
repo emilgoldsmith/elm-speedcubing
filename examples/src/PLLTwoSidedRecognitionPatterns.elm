@@ -35,7 +35,7 @@ main =
                                                 ]
                                                 [ text <|
                                                     explainPLLRecognitionPattern <|
-                                                        PLL.getUniqueTwoSidedRecognitionSpecification algorithms ( Debug.log "preAUF" preAUF, Debug.log "pll" pll, AUF.None )
+                                                        PLL.getUniqueTwoSidedRecognitionSpecification algorithms ( Debug.log "preAUF" preAUF, Debug.log "pll" pll )
                                                 , Cube.view [ style "align-self" "center" ]
                                                     { pixelSize = 50
                                                     , displayAngle = Cube.ufrDisplayAngle
@@ -276,15 +276,6 @@ sortByFurthestLeftComparison a b =
 
                         PLL.RightThreeBar ->
                             4
-
-                        PLL.LeftFiveChecker ->
-                            1
-
-                        PLL.RightFiveChecker ->
-                            2
-
-                        PLL.SixChecker ->
-                            1
     in
     compare (toFloat a) (toFloat b)
 

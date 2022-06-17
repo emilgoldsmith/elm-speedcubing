@@ -10,7 +10,7 @@ import Fuzz
 import List.Extra
 import List.Nonempty
 import List.Nonempty.Extra
-import PLL exposing (PLL, Sticker(..))
+import PLL exposing (PLL, RecognitionPattern(..), Sticker(..))
 import Test exposing (..)
 import TestHelpers.Cube exposing (plainCubie, solvedCubeRendering)
 import Tests.AUF exposing (aufFuzzer)
@@ -495,7 +495,7 @@ getUniqueTwoSidedRecognitionSpecificationTests : Test
 getUniqueTwoSidedRecognitionSpecificationTests =
     only <|
         describe "getUniqueTwoSidedRecognitionSpecificationTests"
-            [ fuzz (Fuzz.tuple3 ( aufFuzzer, testedPlls, aufFuzzer )) "no patterns (except absent ones) mentioned that are not included in the patterns" <|
+            [ fuzz (Fuzz.tuple ( aufFuzzer, testedPlls )) "no patterns (except absent ones) mentioned that are not included in the patterns" <|
                 \arg ->
                     let
                         spec =
@@ -513,7 +513,7 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                     in
                     List.all (\x -> List.member x patterns) otherPatterns
                         |> Expect.true ("There was a pattern mentioned not included in patterns. The spec was: " ++ Debug.toString spec)
-            , fuzz (Fuzz.tuple3 ( aufFuzzer, testedPlls, aufFuzzer )) "no patterns mentioned that are included in absent patterns" <|
+            , fuzz (Fuzz.tuple ( aufFuzzer, testedPlls )) "no patterns mentioned that are included in absent patterns" <|
                 \arg ->
                     let
                         spec =
@@ -535,7 +535,7 @@ getUniqueTwoSidedRecognitionSpecificationTests =
             -- This one also ensures that it's internally coherent as otherwise
             -- it wouldn't describe the case correctly if for example a sticker
             -- is supposed to be two different colors
-            , fuzz (Fuzz.tuple3 ( aufFuzzer, testedPlls, aufFuzzer )) "it correctly describes the case" <|
+            , fuzz (Fuzz.tuple ( aufFuzzer, testedPlls )) "the spec matches the case" <|
                 \arg ->
                     let
                         spec =
@@ -555,7 +555,36 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                 ++ "\nThe stickers were:\n"
                                 ++ Debug.toString stickers
                             )
-            , todo "check that no other cases except for symmetric ones match this description. That it's uniquely determinable by this description"
+            , fuzz (Fuzz.tuple ( aufFuzzer, testedPlls )) "check that no other cases except for symmetric ones match this spec; that it's therefore uniquely determinable by this description" <|
+                \( preAUF, pll ) ->
+                    let
+                        spec =
+                            PLL.getUniqueTwoSidedRecognitionSpecification
+                                PLL.referenceAlgorithms
+                                ( preAUF, pll )
+
+                        equivalentPreAUFs =
+                            PLL.getAllEquivalentAUFs ( preAUF, pll, AUF.None )
+                                |> List.Nonempty.toList
+                                |> List.map (\( x, _ ) -> x)
+
+                        allOtherCases =
+                            List.Nonempty.Extra.lift2
+                                Tuple.pair
+                                AUF.all
+                                PLL.all
+                                |> List.Nonempty.filter (\( preAUF_, pll_ ) -> not <| pll == pll_ && List.member preAUF_ equivalentPreAUFs)
+                                    ( preAUF, pll )
+                    in
+                    allOtherCases
+                        |> List.Nonempty.toList
+                        |> List.filter
+                            (\otherCase ->
+                                verifySpecForStickers
+                                    (getRecognitionStickers PLL.referenceAlgorithms otherCase)
+                                    spec
+                            )
+                        |> Expect.equalLists []
             , todo "include display angles"
             , todo "include postAUF"
             , todo "include non-reference algorithms"
@@ -572,14 +601,13 @@ type alias RecognitionStickerColors =
     }
 
 
-getRecognitionStickers : PLL.Algorithms -> ( AUF, PLL, AUF ) -> RecognitionStickerColors
-getRecognitionStickers algorithms ( preAUF, pll, postAUF ) =
+getRecognitionStickers : PLL.Algorithms -> ( AUF, PLL ) -> RecognitionStickerColors
+getRecognitionStickers algorithms ( preAUF, pll ) =
     Cube.solved
         |> Cube.applyAlgorithm
             (Algorithm.inverse <|
                 Algorithm.append (AUF.toAlgorithm preAUF) <|
-                    Algorithm.append (PLL.getAlgorithm algorithms pll) <|
-                        AUF.toAlgorithm postAUF
+                    PLL.getAlgorithm algorithms pll
             )
         |> Cube.Advanced.render
         |> (\rendering ->
@@ -606,24 +634,6 @@ getElementStickers element =
 getPatternStickers : PLL.RecognitionPattern -> List.Nonempty.Nonempty PLL.Sticker
 getPatternStickers pattern =
     case pattern of
-        PLL.LeftFiveChecker ->
-            List.Nonempty.Nonempty
-                FirstStickerFromLeft
-                [ SecondStickerFromLeft
-                , ThirdStickerFromLeft
-                , ThirdStickerFromRight
-                , SecondStickerFromRight
-                ]
-
-        PLL.RightFiveChecker ->
-            List.Nonempty.Nonempty
-                SecondStickerFromLeft
-                [ ThirdStickerFromLeft
-                , ThirdStickerFromRight
-                , SecondStickerFromRight
-                , FirstStickerFromRight
-                ]
-
         PLL.Bookends ->
             List.Nonempty.Nonempty
                 FirstStickerFromLeft
@@ -673,16 +683,6 @@ getPatternStickers pattern =
                 FirstStickerFromRight
                 [ SecondStickerFromRight ]
 
-        PLL.SixChecker ->
-            List.Nonempty.Nonempty
-                FirstStickerFromLeft
-                [ SecondStickerFromLeft
-                , ThirdStickerFromLeft
-                , ThirdStickerFromRight
-                , SecondStickerFromRight
-                , FirstStickerFromRight
-                ]
-
 
 getStickerColor : RecognitionStickerColors -> PLL.Sticker -> Cube.Advanced.Color
 getStickerColor colors sticker =
@@ -707,10 +707,23 @@ getStickerColor colors sticker =
 
 
 verifySpecForStickers : RecognitionStickerColors -> PLL.RecognitionSpecification -> Bool
-verifySpecForStickers stickers spec =
+verifySpecForStickers stickers nonFinalSpec =
+    let
+        finalSpec =
+            { nonFinalSpec
+                | absentPatterns =
+                    (nonFinalSpec.absentPatterns
+                        |> Maybe.map List.Nonempty.toList
+                        |> Maybe.withDefault []
+                    )
+                        ++ getImpliedAbsentPatterns nonFinalSpec
+                        |> List.Extra.unique
+                        |> List.Nonempty.fromList
+            }
+    in
     List.all
         identity
-        [ case spec.patterns of
+        [ case finalSpec.patterns of
             Nothing ->
                 True
 
@@ -723,7 +736,7 @@ verifySpecForStickers stickers spec =
                         )
                     -- Every pattern should have all the colors be the same
                     |> List.Nonempty.all (List.Nonempty.length >> (==) 1)
-        , case spec.absentPatterns of
+        , case finalSpec.absentPatterns of
             Nothing ->
                 True
 
@@ -737,7 +750,7 @@ verifySpecForStickers stickers spec =
                     -- Every pattern should have at least two different colors as it should
                     -- be an absent pattern
                     |> List.Nonempty.all (\list -> List.Nonempty.length list > 1)
-        , case spec.oppositelyColored of
+        , case finalSpec.oppositelyColored of
             Nothing ->
                 True
 
@@ -759,7 +772,7 @@ verifySpecForStickers stickers spec =
                                 _ ->
                                     False
                        )
-        , case spec.adjacentlyColored of
+        , case finalSpec.adjacentlyColored of
             Nothing ->
                 True
 
@@ -781,7 +794,7 @@ verifySpecForStickers stickers spec =
                                 _ ->
                                     False
                        )
-        , case spec.identicallyColored of
+        , case finalSpec.identicallyColored of
             Nothing ->
                 True
 
@@ -791,7 +804,7 @@ verifySpecForStickers stickers spec =
                     |> List.Nonempty.map (getStickerColor stickers)
                     |> List.Nonempty.uniq
                     |> (List.Nonempty.length >> (==) 1)
-        , case spec.differentlyColored of
+        , case finalSpec.differentlyColored of
             Nothing ->
                 True
 
@@ -821,7 +834,7 @@ verifySpecForStickers stickers spec =
                             |> List.Nonempty.length
                 in
                 allGroupsAreSameColored && numDistinctColors == expectedDistinctColors
-        , case spec.noOtherStickersMatchThanThese of
+        , case finalSpec.noOtherStickersMatchThanThese of
             Nothing ->
                 True
 
@@ -871,6 +884,46 @@ verifySpecForStickers stickers spec =
                 in
                 allGroupsAreSameColored && noExcludedColorsAreMatched && allStickersHaveADistinctColor
         ]
+
+
+getImpliedAbsentPatterns : PLL.RecognitionSpecification -> List PLL.RecognitionPattern
+getImpliedAbsentPatterns spec =
+    spec.patterns
+        |> Maybe.map List.Nonempty.toList
+        |> Maybe.withDefault []
+        |> List.filterMap
+            (\pattern ->
+                case pattern of
+                    -- We don't need to specify for example left inside / outside two bar
+                    -- as those being there at the same time to headlights are equivalent
+                    -- to the three bar
+                    PLL.LeftHeadlights ->
+                        Just LeftThreeBar
+
+                    PLL.RightHeadlights ->
+                        Just RightThreeBar
+
+                    PLL.LeftInsideTwoBar ->
+                        Just LeftThreeBar
+
+                    PLL.RightInsideTwoBar ->
+                        Just RightThreeBar
+
+                    PLL.LeftOutsideTwoBar ->
+                        Just LeftThreeBar
+
+                    PLL.RightOutsideTwoBar ->
+                        Just RightThreeBar
+
+                    PLL.LeftThreeBar ->
+                        Nothing
+
+                    PLL.RightThreeBar ->
+                        Nothing
+
+                    PLL.Bookends ->
+                        Nothing
+            )
 
 
 mapSameForBoth : (a -> b) -> ( a, a ) -> ( b, b )
