@@ -220,6 +220,7 @@ sortForDisplay spec =
         Maybe.map
             (List.Nonempty.sortWith sortByFurthestLeftComparison)
             spec.noOtherStickersMatchThanThese
+    , noOtherBlocksPresent = spec.noOtherBlocksPresent
     }
 
 

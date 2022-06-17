@@ -707,23 +707,10 @@ getStickerColor colors sticker =
 
 
 verifySpecForStickers : RecognitionStickerColors -> PLL.RecognitionSpecification -> Bool
-verifySpecForStickers stickers nonFinalSpec =
-    let
-        finalSpec =
-            { nonFinalSpec
-                | absentPatterns =
-                    (nonFinalSpec.absentPatterns
-                        |> Maybe.map List.Nonempty.toList
-                        |> Maybe.withDefault []
-                    )
-                        ++ getImpliedAbsentPatterns nonFinalSpec
-                        |> List.Extra.unique
-                        |> List.Nonempty.fromList
-            }
-    in
+verifySpecForStickers stickers spec =
     List.all
         identity
-        [ case finalSpec.patterns of
+        [ case spec.patterns of
             Nothing ->
                 True
 
@@ -736,7 +723,60 @@ verifySpecForStickers stickers nonFinalSpec =
                         )
                     -- Every pattern should have all the colors be the same
                     |> List.Nonempty.all (List.Nonempty.length >> (==) 1)
-        , case finalSpec.absentPatterns of
+        , if not spec.noOtherBlocksPresent then
+            True
+
+          else
+            let
+                stickersThatArePartOfBlocks =
+                    [ ( FirstStickerFromLeft, stickers.firstFromLeft )
+                    , ( SecondStickerFromLeft, stickers.secondFromLeft )
+                    , ( ThirdStickerFromLeft, stickers.thirdFromLeft )
+                    , ( ThirdStickerFromRight, stickers.thirdFromRight )
+                    , ( SecondStickerFromRight, stickers.secondFromRight )
+                    , ( FirstStickerFromRight, stickers.firstFromRight )
+                    ]
+                        -- Get all pairs of neighbours
+                        |> List.foldl
+                            (\cur { prev, acc } ->
+                                case prev of
+                                    Nothing ->
+                                        { prev = Just cur, acc = acc }
+
+                                    Just prev_ ->
+                                        { prev = Just cur, acc = ( prev_, cur ) :: acc }
+                            )
+                            { prev = Nothing, acc = [] }
+                        |> .acc
+                        |> List.concatMap
+                            (\( a, b ) ->
+                                if Tuple.second a == Tuple.second b then
+                                    [ Tuple.first a, Tuple.first b ]
+
+                                else
+                                    []
+                            )
+                        |> List.Extra.unique
+
+                stickersThatAreInPatternBlocks =
+                    case spec.patterns of
+                        Nothing ->
+                            []
+
+                        Just patterns ->
+                            patterns
+                                |> List.Nonempty.toList
+                                |> List.filter isBlockPattern
+                                |> List.map getPatternStickers
+                                |> List.concatMap List.Nonempty.toList
+            in
+            stickersThatArePartOfBlocks
+                |> List.filter
+                    (\x ->
+                        not <| List.member x stickersThatAreInPatternBlocks
+                    )
+                |> List.isEmpty
+        , case spec.absentPatterns of
             Nothing ->
                 True
 
@@ -750,7 +790,7 @@ verifySpecForStickers stickers nonFinalSpec =
                     -- Every pattern should have at least two different colors as it should
                     -- be an absent pattern
                     |> List.Nonempty.all (\list -> List.Nonempty.length list > 1)
-        , case finalSpec.oppositelyColored of
+        , case spec.oppositelyColored of
             Nothing ->
                 True
 
@@ -772,7 +812,7 @@ verifySpecForStickers stickers nonFinalSpec =
                                 _ ->
                                     False
                        )
-        , case finalSpec.adjacentlyColored of
+        , case spec.adjacentlyColored of
             Nothing ->
                 True
 
@@ -794,7 +834,7 @@ verifySpecForStickers stickers nonFinalSpec =
                                 _ ->
                                     False
                        )
-        , case finalSpec.identicallyColored of
+        , case spec.identicallyColored of
             Nothing ->
                 True
 
@@ -804,7 +844,7 @@ verifySpecForStickers stickers nonFinalSpec =
                     |> List.Nonempty.map (getStickerColor stickers)
                     |> List.Nonempty.uniq
                     |> (List.Nonempty.length >> (==) 1)
-        , case finalSpec.differentlyColored of
+        , case spec.differentlyColored of
             Nothing ->
                 True
 
@@ -834,7 +874,7 @@ verifySpecForStickers stickers nonFinalSpec =
                             |> List.Nonempty.length
                 in
                 allGroupsAreSameColored && numDistinctColors == expectedDistinctColors
-        , case finalSpec.noOtherStickersMatchThanThese of
+        , case spec.noOtherStickersMatchThanThese of
             Nothing ->
                 True
 
@@ -886,44 +926,35 @@ verifySpecForStickers stickers nonFinalSpec =
         ]
 
 
-getImpliedAbsentPatterns : PLL.RecognitionSpecification -> List PLL.RecognitionPattern
-getImpliedAbsentPatterns spec =
-    spec.patterns
-        |> Maybe.map List.Nonempty.toList
-        |> Maybe.withDefault []
-        |> List.filterMap
-            (\pattern ->
-                case pattern of
-                    -- We don't need to specify for example left inside / outside two bar
-                    -- as those being there at the same time to headlights are equivalent
-                    -- to the three bar
-                    PLL.LeftHeadlights ->
-                        Just LeftThreeBar
+isBlockPattern : PLL.RecognitionPattern -> Bool
+isBlockPattern pattern =
+    case pattern of
+        PLL.LeftHeadlights ->
+            False
 
-                    PLL.RightHeadlights ->
-                        Just RightThreeBar
+        PLL.RightHeadlights ->
+            False
 
-                    PLL.LeftInsideTwoBar ->
-                        Just LeftThreeBar
+        PLL.LeftInsideTwoBar ->
+            True
 
-                    PLL.RightInsideTwoBar ->
-                        Just RightThreeBar
+        PLL.RightInsideTwoBar ->
+            True
 
-                    PLL.LeftOutsideTwoBar ->
-                        Just LeftThreeBar
+        PLL.LeftOutsideTwoBar ->
+            True
 
-                    PLL.RightOutsideTwoBar ->
-                        Just RightThreeBar
+        PLL.RightOutsideTwoBar ->
+            True
 
-                    PLL.LeftThreeBar ->
-                        Nothing
+        PLL.Bookends ->
+            False
 
-                    PLL.RightThreeBar ->
-                        Nothing
+        PLL.LeftThreeBar ->
+            True
 
-                    PLL.Bookends ->
-                        Nothing
-            )
+        PLL.RightThreeBar ->
+            True
 
 
 mapSameForBoth : (a -> b) -> ( a, a ) -> ( b, b )
