@@ -979,6 +979,7 @@ type alias RecognitionSpecification =
     , identicallyColored : Maybe ( RecognitionElement, RecognitionElement, List RecognitionElement )
     , differentlyColored : Maybe ( RecognitionElement, RecognitionElement, List RecognitionElement )
     , noOtherStickersMatchThanThese : Maybe (List.Nonempty.Nonempty RecognitionElement)
+    , noOtherBlocksPresent : Bool
     }
 
 
@@ -991,6 +992,7 @@ emptySpec =
     , identicallyColored = Nothing
     , differentlyColored = Nothing
     , noOtherStickersMatchThanThese = Nothing
+    , noOtherBlocksPresent = False
     }
 
 
@@ -1040,6 +1042,7 @@ getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll ) 
                 u2 =
                     { emptySpec
                         | patterns = Just <| nonempty RightInsideTwoBar [ LeftHeadlights ]
+                        , noOtherBlocksPresent = True
                         , oppositelyColored =
                             Just
                                 ( singleton <| Pattern LeftHeadlights
@@ -1050,6 +1053,7 @@ getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll ) 
                 none =
                     { emptySpec
                         | patterns = Just <| nonempty RightOutsideTwoBar [ Bookends ]
+                        , noOtherBlocksPresent = True
                         , adjacentlyColored =
                             Just
                                 ( singleton <| Pattern RightOutsideTwoBar
@@ -1059,7 +1063,7 @@ getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll ) 
                             Just
                                 ( Sticker ThirdStickerFromRight
                                 , Sticker SecondStickerFromLeft
-                                , [ Sticker ThirdStickerFromLeft ]
+                                , []
                                 )
                     }
             in
@@ -1081,11 +1085,18 @@ getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll ) 
                 AUF.Clockwise ->
                     { emptySpec
                         | patterns = Just <| nonempty Bookends [ LeftInsideTwoBar ]
+                        , noOtherBlocksPresent = True
+                        , adjacentlyColored =
+                            Just
+                                ( singleton <| Pattern Bookends
+                                , singleton <| Pattern LeftInsideTwoBar
+                                )
                     }
 
                 AUF.Halfway ->
                     { emptySpec
                         | patterns = Just <| nonempty LeftHeadlights [ RightOutsideTwoBar ]
+                        , noOtherBlocksPresent = True
                         , differentlyColored =
                             Just
                                 ( Sticker SecondStickerFromLeft
@@ -1097,10 +1108,18 @@ getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll ) 
                 AUF.CounterClockwise ->
                     { emptySpec
                         | patterns = Just <| singleton RightHeadlights
+                        , absentPatterns = Just <| singleton LeftHeadlights
+                        , noOtherBlocksPresent = True
                         , identicallyColored =
                             Just
                                 ( Sticker ThirdStickerFromLeft
                                 , Sticker SecondStickerFromRight
+                                , []
+                                )
+                        , differentlyColored =
+                            Just
+                                ( Sticker SecondStickerFromLeft
+                                , Sticker ThirdStickerFromRight
                                 , []
                                 )
                     }
@@ -1108,6 +1127,7 @@ getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll ) 
                 AUF.None ->
                     { emptySpec
                         | patterns = Just <| singleton Bookends
+                        , noOtherBlocksPresent = True
                         , oppositelyColored =
                             Just
                                 ( singleton <| Pattern Bookends
@@ -1115,13 +1135,24 @@ getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll ) 
                                     (Sticker ThirdStickerFromLeft)
                                     [ Sticker SecondStickerFromRight ]
                                 )
+                        , differentlyColored =
+                            Just
+                                ( Sticker SecondStickerFromLeft
+                                , Sticker ThirdStickerFromRight
+                                , []
+                                )
                     }
 
         E ->
             let
                 u =
                     { emptySpec
-                        | absentPatterns = Just <| singleton Bookends
+                        | absentPatterns =
+                            Just <|
+                                nonempty
+                                    Bookends
+                                    [ LeftHeadlights, RightHeadlights ]
+                        , noOtherBlocksPresent = True
                         , identicallyColored =
                             Just
                                 ( Sticker ThirdStickerFromLeft
@@ -1177,6 +1208,7 @@ mirrorSpec spec =
         Maybe.map
             (List.Nonempty.map mirrorElement)
             spec.noOtherStickersMatchThanThese
+    , noOtherBlocksPresent = spec.noOtherBlocksPresent
     }
 
 
