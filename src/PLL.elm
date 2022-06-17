@@ -1009,9 +1009,6 @@ type RecognitionPattern
     | LeftOutsideTwoBar
     | RightOutsideTwoBar
     | Bookends
-    | LeftFiveChecker
-    | RightFiveChecker
-    | SixChecker
 
 
 type Sticker
@@ -1023,13 +1020,13 @@ type Sticker
     | ThirdStickerFromRight
 
 
-getUniqueTwoSidedRecognitionSpecification : Algorithms -> ( AUF, PLL, AUF ) -> RecognitionSpecification
-getUniqueTwoSidedRecognitionSpecification algorithms ( preAUF, pll, postAUF ) =
-    getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll, postAUF )
+getUniqueTwoSidedRecognitionSpecification : Algorithms -> ( AUF, PLL ) -> RecognitionSpecification
+getUniqueTwoSidedRecognitionSpecification algorithms ( preAUF, pll ) =
+    getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll )
 
 
-getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms : ( AUF, PLL, AUF ) -> RecognitionSpecification
-getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll, _ ) =
+getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms : ( AUF, PLL ) -> RecognitionSpecification
+getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll ) =
     let
         nonempty =
             List.Nonempty.Nonempty
@@ -1053,6 +1050,17 @@ getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll, _
                 none =
                     { emptySpec
                         | patterns = Just <| nonempty RightOutsideTwoBar [ Bookends ]
+                        , adjacentlyColored =
+                            Just
+                                ( singleton <| Pattern RightOutsideTwoBar
+                                , singleton <| Sticker ThirdStickerFromRight
+                                )
+                        , differentlyColored =
+                            Just
+                                ( Sticker ThirdStickerFromRight
+                                , Sticker SecondStickerFromLeft
+                                , [ Sticker ThirdStickerFromLeft ]
+                                )
                     }
             in
             case preAUF of
@@ -1212,9 +1220,6 @@ mirrorPattern pattern =
         Bookends ->
             Bookends
 
-        SixChecker ->
-            SixChecker
-
         LeftHeadlights ->
             RightHeadlights
 
@@ -1238,9 +1243,3 @@ mirrorPattern pattern =
 
         RightOutsideTwoBar ->
             LeftOutsideTwoBar
-
-        LeftFiveChecker ->
-            RightFiveChecker
-
-        RightFiveChecker ->
-            LeftFiveChecker
