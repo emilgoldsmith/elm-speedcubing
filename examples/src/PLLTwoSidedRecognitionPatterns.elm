@@ -35,7 +35,19 @@ main =
                                                 ]
                                                 [ text <|
                                                     explainPLLRecognitionPattern <|
-                                                        PLL.getUniqueTwoSidedRecognitionSpecification algorithms PLL.ufrRecognitionAngle ( Debug.log "preAUF" preAUF, Debug.log "pll" pll )
+                                                        (Result.withDefault
+                                                            { patterns = Nothing
+                                                            , absentPatterns = Nothing
+                                                            , oppositelyColored = Nothing
+                                                            , adjacentlyColored = Nothing
+                                                            , identicallyColored = Nothing
+                                                            , differentlyColored = Nothing
+                                                            , noOtherStickersMatchThanThese = Nothing
+                                                            , noOtherBlocksPresent = False
+                                                            }
+                                                         <|
+                                                            PLL.getUniqueTwoSidedRecognitionSpecification algorithms PLL.ufrRecognitionAngle ( Debug.log "preAUF" preAUF, Debug.log "pll" pll )
+                                                        )
                                                 , Cube.view [ style "align-self" "center" ]
                                                     { pixelSize = 50
                                                     , displayAngle = Cube.ufrDisplayAngle
