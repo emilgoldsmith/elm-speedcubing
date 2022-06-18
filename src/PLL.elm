@@ -2,7 +2,7 @@ module PLL exposing
     ( PLL(..), all
     , getLetters, solvedBy, getAllEquivalentAUFs, getAllAUFEquivalencyClasses
     , Algorithms, getAlgorithm, referenceAlgorithms
-    , RecognitionElement(..), RecognitionPattern(..), RecognitionSpecification, Sticker(..), getUniqueTwoSidedRecognitionSpecification
+    , RecognitionAngle, RecognitionElement(..), RecognitionPattern(..), RecognitionSpecification, Sticker(..), getUniqueTwoSidedRecognitionSpecification, uflRecognitionAngle, ufrRecognitionAngle
     )
 
 {-| Types and helper functions to work with the Permutate Last
@@ -1027,19 +1027,49 @@ type Sticker
     | ThirdStickerFromRight
 
 
-getUniqueTwoSidedRecognitionSpecification : Algorithms -> ( AUF, PLL ) -> RecognitionSpecification
-getUniqueTwoSidedRecognitionSpecification algorithms ( preAUF, pll ) =
-    getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll )
+type RecognitionAngle
+    = UFR
+    | UFL
 
 
-getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms : ( AUF, PLL ) -> RecognitionSpecification
-getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll ) =
+ufrRecognitionAngle : RecognitionAngle
+ufrRecognitionAngle =
+    UFR
+
+
+uflRecognitionAngle : RecognitionAngle
+uflRecognitionAngle =
+    UFL
+
+
+getUniqueTwoSidedRecognitionSpecification :
+    Algorithms
+    -> RecognitionAngle
+    -> ( AUF, PLL )
+    -> RecognitionSpecification
+getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( preAUF, pll ) =
+    getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms recognitionAngle ( preAUF, pll )
+
+
+getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms :
+    RecognitionAngle
+    -> ( AUF, PLL )
+    -> RecognitionSpecification
+getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms recognitionAngle ( uncorrectedPreAUF, pll ) =
     let
         nonempty =
             List.Nonempty.Nonempty
 
         singleton =
             List.Nonempty.singleton
+
+        correctedPreAUF =
+            case recognitionAngle of
+                UFR ->
+                    uncorrectedPreAUF
+
+                UFL ->
+                    AUF.add uncorrectedPreAUF AUF.Clockwise
     in
     case pll of
         T ->
@@ -1072,7 +1102,7 @@ getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll ) 
                                 )
                     }
             in
-            case preAUF of
+            case correctedPreAUF of
                 AUF.None ->
                     none
 
@@ -1086,7 +1116,7 @@ getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll ) 
                     mirrorSpec u2
 
         Ga ->
-            case preAUF of
+            case correctedPreAUF of
                 AUF.Clockwise ->
                     { emptySpec
                         | patterns = Just <| nonempty Bookends [ LeftInsideTwoBar ]
@@ -1172,7 +1202,7 @@ getUniqueTwoSidedRecognitionSpecificationForReferenceAlgorithms ( preAUF, pll ) 
                                 )
                     }
             in
-            case preAUF of
+            case correctedPreAUF of
                 AUF.None ->
                     mirrorSpec u
 

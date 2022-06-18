@@ -35,7 +35,7 @@ main =
                                                 ]
                                                 [ text <|
                                                     explainPLLRecognitionPattern <|
-                                                        PLL.getUniqueTwoSidedRecognitionSpecification algorithms ( Debug.log "preAUF" preAUF, Debug.log "pll" pll )
+                                                        PLL.getUniqueTwoSidedRecognitionSpecification algorithms PLL.ufrRecognitionAngle ( Debug.log "preAUF" preAUF, Debug.log "pll" pll )
                                                 , Cube.view [ style "align-self" "center" ]
                                                     { pixelSize = 50
                                                     , displayAngle = Cube.ufrDisplayAngle

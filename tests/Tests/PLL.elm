@@ -10,7 +10,7 @@ import Fuzz
 import List.Extra
 import List.Nonempty
 import List.Nonempty.Extra
-import PLL exposing (PLL, RecognitionPattern(..), Sticker(..))
+import PLL exposing (PLL)
 import Test exposing (..)
 import TestHelpers.Cube exposing (plainCubie, solvedCubeRendering)
 import Tests.AUF exposing (aufFuzzer)
@@ -491,17 +491,23 @@ testedPlls =
     Fuzz.oneOf (List.map Fuzz.constant [ PLL.E, PLL.T, PLL.Ga ])
 
 
+recognitionAngleFuzzer : Fuzz.Fuzzer PLL.RecognitionAngle
+recognitionAngleFuzzer =
+    Fuzz.oneOf [ Fuzz.constant PLL.ufrRecognitionAngle, Fuzz.constant PLL.uflRecognitionAngle ]
+
+
 getUniqueTwoSidedRecognitionSpecificationTests : Test
 getUniqueTwoSidedRecognitionSpecificationTests =
     only <|
         describe "getUniqueTwoSidedRecognitionSpecificationTests"
-            [ fuzz (Fuzz.tuple ( aufFuzzer, testedPlls )) "no patterns (except absent ones) mentioned that are not included in the patterns" <|
-                \arg ->
+            [ fuzz2 (Fuzz.tuple ( aufFuzzer, testedPlls )) recognitionAngleFuzzer "no patterns (except absent ones) mentioned that are not included in the patterns" <|
+                \case_ recognitionAngle ->
                     let
                         spec =
                             PLL.getUniqueTwoSidedRecognitionSpecification
                                 PLL.referenceAlgorithms
-                                arg
+                                recognitionAngle
+                                case_
 
                         patterns =
                             spec.patterns
@@ -513,13 +519,14 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                     in
                     List.all (\x -> List.member x patterns) otherPatterns
                         |> Expect.true ("There was a pattern mentioned not included in patterns. The spec was: " ++ Debug.toString spec)
-            , fuzz (Fuzz.tuple ( aufFuzzer, testedPlls )) "no patterns mentioned that are included in absent patterns" <|
-                \arg ->
+            , fuzz2 (Fuzz.tuple ( aufFuzzer, testedPlls )) recognitionAngleFuzzer "no patterns mentioned that are included in absent patterns" <|
+                \case_ recognitionAngle ->
                     let
                         spec =
                             PLL.getUniqueTwoSidedRecognitionSpecification
                                 PLL.referenceAlgorithms
-                                arg
+                                recognitionAngle
+                                case_
 
                         absentPatterns =
                             spec.absentPatterns
@@ -535,18 +542,20 @@ getUniqueTwoSidedRecognitionSpecificationTests =
             -- This one also ensures that it's internally coherent as otherwise
             -- it wouldn't describe the case correctly if for example a sticker
             -- is supposed to be two different colors
-            , fuzz (Fuzz.tuple ( aufFuzzer, testedPlls )) "the spec matches the case" <|
-                \arg ->
+            , fuzz2 (Fuzz.tuple ( aufFuzzer, testedPlls )) recognitionAngleFuzzer "the spec matches the case" <|
+                \case_ recognitionAngle ->
                     let
                         spec =
                             PLL.getUniqueTwoSidedRecognitionSpecification
                                 PLL.referenceAlgorithms
-                                arg
+                                recognitionAngle
+                                case_
 
                         stickers =
                             getRecognitionStickers
                                 PLL.referenceAlgorithms
-                                arg
+                                recognitionAngle
+                                case_
                     in
                     verifySpecForStickers stickers spec
                         |> Expect.true
@@ -555,12 +564,13 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                 ++ "\nThe stickers were:\n"
                                 ++ Debug.toString stickers
                             )
-            , fuzz (Fuzz.tuple ( aufFuzzer, testedPlls )) "check that no other cases except for symmetric ones match this spec; that it's therefore uniquely determinable by this description" <|
-                \( preAUF, pll ) ->
+            , fuzz2 (Fuzz.tuple ( aufFuzzer, testedPlls )) recognitionAngleFuzzer "check that no other cases except for symmetric ones match this spec; that it's therefore uniquely determinable by this description" <|
+                \( preAUF, pll ) recognitionAngle ->
                     let
                         spec =
                             PLL.getUniqueTwoSidedRecognitionSpecification
                                 PLL.referenceAlgorithms
+                                recognitionAngle
                                 ( preAUF, pll )
 
                         equivalentPreAUFs =
@@ -581,11 +591,14 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                         |> List.filter
                             (\otherCase ->
                                 verifySpecForStickers
-                                    (getRecognitionStickers PLL.referenceAlgorithms otherCase)
+                                    (getRecognitionStickers
+                                        PLL.referenceAlgorithms
+                                        recognitionAngle
+                                        otherCase
+                                    )
                                     spec
                             )
                         |> Expect.equalLists []
-            , todo "include display angles"
             , todo "include postAUF"
             , todo "include non-reference algorithms"
             ]
@@ -601,14 +614,25 @@ type alias RecognitionStickerColors =
     }
 
 
-getRecognitionStickers : PLL.Algorithms -> ( AUF, PLL ) -> RecognitionStickerColors
-getRecognitionStickers algorithms ( preAUF, pll ) =
+getRecognitionStickers : PLL.Algorithms -> PLL.RecognitionAngle -> ( AUF, PLL ) -> RecognitionStickerColors
+getRecognitionStickers algorithms recognitionAngle ( preAUF, pll ) =
+    let
+        rotationToGetCorrectRecognitionAngle =
+            if recognitionAngle == PLL.ufrRecognitionAngle then
+                Algorithm.empty
+
+            else
+                -- uflRecognitionAngle
+                Algorithm.fromTurnList
+                    [ Algorithm.Turn Algorithm.Y Algorithm.OneQuarter Algorithm.CounterClockwise ]
+    in
     Cube.solved
         |> Cube.applyAlgorithm
             (Algorithm.inverse <|
                 Algorithm.append (AUF.toAlgorithm preAUF) <|
                     PLL.getAlgorithm algorithms pll
             )
+        |> Cube.applyAlgorithm rotationToGetCorrectRecognitionAngle
         |> Cube.Advanced.render
         |> (\rendering ->
                 { firstFromLeft = rendering.ufl.f
@@ -693,95 +717,95 @@ getPatternStickers pattern =
     case pattern of
         PLL.Bookends ->
             List.Nonempty.Nonempty
-                FirstStickerFromLeft
-                [ FirstStickerFromRight ]
+                PLL.FirstStickerFromLeft
+                [ PLL.FirstStickerFromRight ]
 
         PLL.LeftHeadlights ->
             List.Nonempty.Nonempty
-                FirstStickerFromLeft
-                [ ThirdStickerFromLeft ]
+                PLL.FirstStickerFromLeft
+                [ PLL.ThirdStickerFromLeft ]
 
         PLL.RightHeadlights ->
             List.Nonempty.Nonempty
-                FirstStickerFromRight
-                [ ThirdStickerFromRight ]
+                PLL.FirstStickerFromRight
+                [ PLL.ThirdStickerFromRight ]
 
         PLL.LeftThreeBar ->
             List.Nonempty.Nonempty
-                FirstStickerFromLeft
-                [ SecondStickerFromLeft
-                , ThirdStickerFromLeft
+                PLL.FirstStickerFromLeft
+                [ PLL.SecondStickerFromLeft
+                , PLL.ThirdStickerFromLeft
                 ]
 
         PLL.RightThreeBar ->
             List.Nonempty.Nonempty
-                FirstStickerFromRight
-                [ SecondStickerFromRight
-                , ThirdStickerFromRight
+                PLL.FirstStickerFromRight
+                [ PLL.SecondStickerFromRight
+                , PLL.ThirdStickerFromRight
                 ]
 
         PLL.LeftInsideTwoBar ->
             List.Nonempty.Nonempty
-                SecondStickerFromLeft
-                [ ThirdStickerFromLeft ]
+                PLL.SecondStickerFromLeft
+                [ PLL.ThirdStickerFromLeft ]
 
         PLL.RightInsideTwoBar ->
             List.Nonempty.Nonempty
-                SecondStickerFromRight
-                [ ThirdStickerFromRight ]
+                PLL.SecondStickerFromRight
+                [ PLL.ThirdStickerFromRight ]
 
         PLL.LeftOutsideTwoBar ->
             List.Nonempty.Nonempty
-                FirstStickerFromLeft
-                [ SecondStickerFromLeft ]
+                PLL.FirstStickerFromLeft
+                [ PLL.SecondStickerFromLeft ]
 
         PLL.RightOutsideTwoBar ->
             List.Nonempty.Nonempty
-                FirstStickerFromRight
-                [ SecondStickerFromRight ]
+                PLL.FirstStickerFromRight
+                [ PLL.SecondStickerFromRight ]
 
         PLL.LeftFourChecker ->
             List.Nonempty.Nonempty
-                FirstStickerFromLeft
-                [ SecondStickerFromLeft
-                , ThirdStickerFromLeft
-                , ThirdStickerFromRight
+                PLL.FirstStickerFromLeft
+                [ PLL.SecondStickerFromLeft
+                , PLL.ThirdStickerFromLeft
+                , PLL.ThirdStickerFromRight
                 ]
 
         PLL.RightFourChecker ->
             List.Nonempty.Nonempty
-                FirstStickerFromRight
-                [ SecondStickerFromRight
-                , ThirdStickerFromRight
-                , ThirdStickerFromLeft
+                PLL.FirstStickerFromRight
+                [ PLL.SecondStickerFromRight
+                , PLL.ThirdStickerFromRight
+                , PLL.ThirdStickerFromLeft
                 ]
 
         PLL.LeftFiveChecker ->
             List.Nonempty.Nonempty
-                FirstStickerFromLeft
-                [ SecondStickerFromLeft
-                , ThirdStickerFromLeft
-                , ThirdStickerFromRight
-                , SecondStickerFromRight
+                PLL.FirstStickerFromLeft
+                [ PLL.SecondStickerFromLeft
+                , PLL.ThirdStickerFromLeft
+                , PLL.ThirdStickerFromRight
+                , PLL.SecondStickerFromRight
                 ]
 
         PLL.RightFiveChecker ->
             List.Nonempty.Nonempty
-                FirstStickerFromRight
-                [ SecondStickerFromRight
-                , ThirdStickerFromRight
-                , ThirdStickerFromLeft
-                , SecondStickerFromLeft
+                PLL.FirstStickerFromRight
+                [ PLL.SecondStickerFromRight
+                , PLL.ThirdStickerFromRight
+                , PLL.ThirdStickerFromLeft
+                , PLL.SecondStickerFromLeft
                 ]
 
         PLL.SixChecker ->
             List.Nonempty.Nonempty
-                FirstStickerFromLeft
-                [ SecondStickerFromLeft
-                , ThirdStickerFromLeft
-                , ThirdStickerFromRight
-                , SecondStickerFromRight
-                , FirstStickerFromRight
+                PLL.FirstStickerFromLeft
+                [ PLL.SecondStickerFromLeft
+                , PLL.ThirdStickerFromLeft
+                , PLL.ThirdStickerFromRight
+                , PLL.SecondStickerFromRight
+                , PLL.FirstStickerFromRight
                 ]
 
 
@@ -824,12 +848,12 @@ verifySpecForStickers stickers spec =
           else
             let
                 stickersThatArePartOfBlocks =
-                    [ ( FirstStickerFromLeft, stickers.firstFromLeft )
-                    , ( SecondStickerFromLeft, stickers.secondFromLeft )
-                    , ( ThirdStickerFromLeft, stickers.thirdFromLeft )
-                    , ( ThirdStickerFromRight, stickers.thirdFromRight )
-                    , ( SecondStickerFromRight, stickers.secondFromRight )
-                    , ( FirstStickerFromRight, stickers.firstFromRight )
+                    [ ( PLL.FirstStickerFromLeft, stickers.firstFromLeft )
+                    , ( PLL.SecondStickerFromLeft, stickers.secondFromLeft )
+                    , ( PLL.ThirdStickerFromLeft, stickers.thirdFromLeft )
+                    , ( PLL.ThirdStickerFromRight, stickers.thirdFromRight )
+                    , ( PLL.SecondStickerFromRight, stickers.secondFromRight )
+                    , ( PLL.FirstStickerFromRight, stickers.firstFromRight )
                     ]
                         -- Get all pairs of neighbours
                         |> List.foldl
@@ -1076,11 +1100,11 @@ allStickers : List.Nonempty.Nonempty PLL.Sticker
 allStickers =
     List.Nonempty.Nonempty
         PLL.FirstStickerFromLeft
-        [ SecondStickerFromLeft
-        , ThirdStickerFromLeft
-        , ThirdStickerFromRight
-        , SecondStickerFromRight
-        , FirstStickerFromRight
+        [ PLL.SecondStickerFromLeft
+        , PLL.ThirdStickerFromLeft
+        , PLL.ThirdStickerFromRight
+        , PLL.SecondStickerFromRight
+        , PLL.FirstStickerFromRight
         ]
 
 
