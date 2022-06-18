@@ -38,8 +38,9 @@ main =
                                                         (Result.withDefault
                                                             { patterns = Nothing
                                                             , absentPatterns = Nothing
-                                                            , oppositelyColored = Nothing
-                                                            , adjacentlyColored = Nothing
+                                                            , oppositelyColored = []
+                                                            , notOppositelyColored = []
+                                                            , adjacentlyColored = []
                                                             , identicallyColored = Nothing
                                                             , differentlyColored = Nothing
                                                             , noOtherStickersMatchThanThese = Nothing
@@ -80,7 +81,7 @@ log x =
 explainPLLRecognitionPattern : PLL.RecognitionSpecification -> String
 explainPLLRecognitionPattern spec =
     let
-        { patterns, absentPatterns, oppositelyColored, adjacentlyColored, identicallyColored, differentlyColored, noOtherStickersMatchThanThese } =
+        { patterns, absentPatterns, oppositelyColored, notOppositelyColored, adjacentlyColored, identicallyColored, differentlyColored, noOtherStickersMatchThanThese } =
             sortForDisplay spec
 
         parts =
@@ -99,6 +100,8 @@ explainPLLRecognitionPattern spec =
                                 { article = Definite, finalConjunction = And }
                                 (List.Nonempty.map PLL.Pattern patterns_)
                     )
+                |> Maybe.map List.singleton
+                |> Maybe.withDefault []
             , absentPatterns
                 |> Maybe.map
                     (\patterns_ ->
@@ -117,8 +120,10 @@ explainPLLRecognitionPattern spec =
                                 { article = NoArticle, finalConjunction = Or }
                                 (List.Nonempty.map PLL.Pattern patterns_)
                     )
+                |> Maybe.map List.singleton
+                |> Maybe.withDefault []
             , oppositelyColored
-                |> Maybe.map
+                |> List.map
                     (\( first, second ) ->
                         nonemptyToSentenceList { article = Definite, finalConjunction = And } first
                             ++ " "
@@ -134,8 +139,25 @@ explainPLLRecognitionPattern spec =
                             ++ " the opposite color of "
                             ++ nonemptyToSentenceList { article = Definite, finalConjunction = And } second
                     )
+            , notOppositelyColored
+                |> List.map
+                    (\( first, second ) ->
+                        nonemptyToSentenceList { article = Definite, finalConjunction = And } first
+                            ++ " "
+                            ++ (if
+                                    (List.Nonempty.length first > 1)
+                                        || isPlural (List.Nonempty.head first)
+                                then
+                                    "are"
+
+                                else
+                                    "is"
+                               )
+                            ++ " not the opposite color of "
+                            ++ nonemptyToSentenceList { article = Definite, finalConjunction = And } second
+                    )
             , adjacentlyColored
-                |> Maybe.map
+                |> List.map
                     (\( first, second ) ->
                         nonemptyToSentenceList { article = Definite, finalConjunction = And } first
                             ++ " "
@@ -164,6 +186,8 @@ explainPLLRecognitionPattern spec =
                                )
                             ++ "the same color"
                     )
+                |> Maybe.map List.singleton
+                |> Maybe.withDefault []
             , differentlyColored
                 |> Maybe.map
                     (\elements ->
@@ -177,16 +201,20 @@ explainPLLRecognitionPattern spec =
                                )
                             ++ "different colors from each other"
                     )
+                |> Maybe.map List.singleton
+                |> Maybe.withDefault []
             , noOtherStickersMatchThanThese
                 |> Maybe.map
                     (\elements ->
                         "There are no other stickers that match the color of any other sticker than "
                             ++ nonemptyToSentenceList { article = Definite, finalConjunction = And } elements
                     )
+                |> Maybe.map List.singleton
+                |> Maybe.withDefault []
             ]
     in
     (parts
-        |> List.filterMap identity
+        |> List.concat
         |> List.map capitalize
         |> String.join ". "
         |> String.trim
@@ -206,16 +234,24 @@ sortForDisplay spec =
             spec.absentPatterns
     , oppositelyColored =
         spec.oppositelyColored
-            |> Maybe.map ensurePatternsAreInFirstSpot
-            |> Maybe.map
+            |> List.map ensurePatternsAreInFirstSpot
+            |> List.map
+                (Tuple.mapBoth
+                    (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                    (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                )
+    , notOppositelyColored =
+        spec.notOppositelyColored
+            |> List.map ensurePatternsAreInFirstSpot
+            |> List.map
                 (Tuple.mapBoth
                     (List.Nonempty.sortWith sortByFurthestLeftComparison)
                     (List.Nonempty.sortWith sortByFurthestLeftComparison)
                 )
     , adjacentlyColored =
         spec.adjacentlyColored
-            |> Maybe.map ensurePatternsAreInFirstSpot
-            |> Maybe.map
+            |> List.map ensurePatternsAreInFirstSpot
+            |> List.map
                 (Tuple.mapBoth
                     (List.Nonempty.sortWith sortByFurthestLeftComparison)
                     (List.Nonempty.sortWith sortByFurthestLeftComparison)

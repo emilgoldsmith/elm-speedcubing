@@ -974,8 +974,9 @@ referenceAlgorithms =
 type alias RecognitionSpecification =
     { patterns : Maybe (List.Nonempty.Nonempty RecognitionPattern)
     , absentPatterns : Maybe (List.Nonempty.Nonempty RecognitionPattern)
-    , oppositelyColored : Maybe ( List.Nonempty.Nonempty RecognitionElement, List.Nonempty.Nonempty RecognitionElement )
-    , adjacentlyColored : Maybe ( List.Nonempty.Nonempty RecognitionElement, List.Nonempty.Nonempty RecognitionElement )
+    , oppositelyColored : List ( List.Nonempty.Nonempty RecognitionElement, List.Nonempty.Nonempty RecognitionElement )
+    , notOppositelyColored : List ( List.Nonempty.Nonempty RecognitionElement, List.Nonempty.Nonempty RecognitionElement )
+    , adjacentlyColored : List ( List.Nonempty.Nonempty RecognitionElement, List.Nonempty.Nonempty RecognitionElement )
     , identicallyColored : Maybe ( RecognitionElement, RecognitionElement, List RecognitionElement )
     , differentlyColored : Maybe ( RecognitionElement, RecognitionElement, List RecognitionElement )
     , noOtherStickersMatchThanThese : Maybe (List.Nonempty.Nonempty RecognitionElement)
@@ -987,8 +988,9 @@ emptySpec : RecognitionSpecification
 emptySpec =
     { patterns = Nothing
     , absentPatterns = Nothing
-    , oppositelyColored = Nothing
-    , adjacentlyColored = Nothing
+    , oppositelyColored = []
+    , notOppositelyColored = []
+    , adjacentlyColored = []
     , identicallyColored = Nothing
     , differentlyColored = Nothing
     , noOtherStickersMatchThanThese = Nothing
@@ -1085,6 +1087,135 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
         |> Result.map
             (\ufrReferenceAlgorithmPreAUF ->
                 case pll of
+                    H ->
+                        { emptySpec
+                            | patterns = Just <| nonempty LeftHeadlights [ RightHeadlights ]
+                            , oppositelyColored =
+                                [ ( singleton <| Pattern LeftHeadlights
+                                  , singleton <| Sticker SecondStickerFromLeft
+                                  )
+                                , ( singleton <| Pattern RightHeadlights
+                                  , singleton <| Sticker SecondStickerFromRight
+                                  )
+                                ]
+                        }
+
+                    Ua ->
+                        case ufrReferenceAlgorithmPreAUF of
+                            AUF.None ->
+                                { emptySpec
+                                    | patterns = Just <| nonempty LeftHeadlights [ RightHeadlights ]
+                                    , noOtherBlocksPresent = True
+                                    , oppositelyColored =
+                                        [ ( singleton <| Pattern RightHeadlights
+                                          , singleton <| Sticker SecondStickerFromRight
+                                          )
+                                        ]
+                                    , notOppositelyColored =
+                                        [ ( singleton <| Pattern LeftHeadlights
+                                          , singleton <| Sticker SecondStickerFromLeft
+                                          )
+                                        ]
+                                }
+
+                            AUF.Clockwise ->
+                                { emptySpec
+                                    | patterns = Just <| nonempty LeftHeadlights [ RightHeadlights ]
+                                    , absentPatterns = Just <| singleton SixChecker
+                                    , noOtherBlocksPresent = True
+                                    , identicallyColored =
+                                        Just
+                                            ( Pattern RightHeadlights
+                                            , Sticker SecondStickerFromLeft
+                                            , []
+                                            )
+                                    , notOppositelyColored =
+                                        [ ( singleton <| Pattern RightHeadlights
+                                          , singleton <| Sticker SecondStickerFromRight
+                                          )
+                                        ]
+                                }
+
+                            AUF.Halfway ->
+                                { emptySpec
+                                    | patterns = Just <| nonempty LeftThreeBar [ RightHeadlights ]
+                                    , noOtherBlocksPresent = True
+                                    , adjacentlyColored =
+                                        [ ( singleton <| Pattern RightHeadlights
+                                          , singleton <| Sticker SecondStickerFromRight
+                                          )
+                                        ]
+                                }
+
+                            AUF.CounterClockwise ->
+                                { emptySpec
+                                    | patterns = Just <| nonempty LeftHeadlights [ RightThreeBar ]
+                                    , noOtherBlocksPresent = True
+                                    , oppositelyColored =
+                                        [ ( singleton <| Pattern LeftHeadlights
+                                          , singleton <| Sticker SecondStickerFromLeft
+                                          )
+                                        ]
+                                }
+
+                    Ub ->
+                        case ufrReferenceAlgorithmPreAUF of
+                            AUF.None ->
+                                { emptySpec
+                                    | patterns = Just <| nonempty LeftHeadlights [ RightHeadlights ]
+                                    , absentPatterns = Just <| singleton SixChecker
+                                    , noOtherBlocksPresent = True
+                                    , identicallyColored =
+                                        Just
+                                            ( Pattern LeftHeadlights
+                                            , Sticker SecondStickerFromRight
+                                            , []
+                                            )
+                                    , notOppositelyColored =
+                                        [ ( singleton <| Pattern LeftHeadlights
+                                          , singleton <| Sticker SecondStickerFromLeft
+                                          )
+                                        ]
+                                }
+
+                            AUF.Clockwise ->
+                                { emptySpec
+                                    | patterns = Just <| nonempty LeftHeadlights [ RightHeadlights ]
+                                    , noOtherBlocksPresent = True
+                                    , oppositelyColored =
+                                        [ ( singleton <| Pattern LeftHeadlights
+                                          , singleton <| Sticker SecondStickerFromLeft
+                                          )
+                                        ]
+                                    , notOppositelyColored =
+                                        [ ( singleton <| Pattern RightHeadlights
+                                          , singleton <| Sticker SecondStickerFromRight
+                                          )
+                                        ]
+                                }
+
+                            AUF.Halfway ->
+                                { emptySpec
+                                    | patterns = Just <| nonempty RightHeadlights [ LeftThreeBar ]
+                                    , noOtherBlocksPresent = True
+                                    , oppositelyColored =
+                                        [ ( singleton <| Pattern RightHeadlights
+                                          , singleton <| Sticker SecondStickerFromRight
+                                          )
+                                        ]
+                                }
+
+                            AUF.CounterClockwise ->
+                                { emptySpec
+                                    | patterns = Just <| nonempty RightThreeBar [ LeftHeadlights ]
+                                    , noOtherBlocksPresent = True
+                                    , adjacentlyColored =
+                                        [ ( singleton <| Pattern LeftHeadlights
+                                          , singleton <| Sticker SecondStickerFromLeft
+                                          )
+                                        ]
+                                }
+
                     T ->
                         let
                             u2 =
@@ -1092,10 +1223,10 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
                                     | patterns = Just <| nonempty RightInsideTwoBar [ LeftHeadlights ]
                                     , noOtherBlocksPresent = True
                                     , oppositelyColored =
-                                        Just
-                                            ( singleton <| Pattern LeftHeadlights
-                                            , singleton <| Sticker SecondStickerFromLeft
-                                            )
+                                        [ ( singleton <| Pattern LeftHeadlights
+                                          , singleton <| Sticker SecondStickerFromLeft
+                                          )
+                                        ]
                                 }
 
                             none =
@@ -1103,10 +1234,10 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
                                     | patterns = Just <| nonempty RightOutsideTwoBar [ Bookends ]
                                     , noOtherBlocksPresent = True
                                     , adjacentlyColored =
-                                        Just
-                                            ( singleton <| Pattern RightOutsideTwoBar
-                                            , singleton <| Sticker ThirdStickerFromRight
-                                            )
+                                        [ ( singleton <| Pattern RightOutsideTwoBar
+                                          , singleton <| Sticker ThirdStickerFromRight
+                                          )
+                                        ]
                                     , differentlyColored =
                                         Just
                                             ( Sticker ThirdStickerFromRight
@@ -1135,10 +1266,10 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
                                     | patterns = Just <| nonempty Bookends [ LeftInsideTwoBar ]
                                     , noOtherBlocksPresent = True
                                     , adjacentlyColored =
-                                        Just
-                                            ( singleton <| Pattern Bookends
-                                            , singleton <| Pattern LeftInsideTwoBar
-                                            )
+                                        [ ( singleton <| Pattern Bookends
+                                          , singleton <| Pattern LeftInsideTwoBar
+                                          )
+                                        ]
                                 }
 
                             AUF.Halfway ->
@@ -1177,12 +1308,12 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
                                     | patterns = Just <| singleton Bookends
                                     , noOtherBlocksPresent = True
                                     , oppositelyColored =
-                                        Just
-                                            ( singleton <| Pattern Bookends
-                                            , nonempty
+                                        [ ( singleton <| Pattern Bookends
+                                          , nonempty
                                                 (Sticker ThirdStickerFromLeft)
                                                 [ Sticker SecondStickerFromRight ]
-                                            )
+                                          )
+                                        ]
                                     , differentlyColored =
                                         Just
                                             ( Sticker SecondStickerFromLeft
@@ -1238,14 +1369,21 @@ mirrorSpec spec =
     { patterns = Maybe.map (List.Nonempty.map mirrorPattern) spec.patterns
     , absentPatterns = Maybe.map (List.Nonempty.map mirrorPattern) spec.absentPatterns
     , oppositelyColored =
-        Maybe.map
+        List.map
             (Tuple.mapBoth
                 (List.Nonempty.map mirrorElement)
                 (List.Nonempty.map mirrorElement)
             )
             spec.oppositelyColored
+    , notOppositelyColored =
+        List.map
+            (Tuple.mapBoth
+                (List.Nonempty.map mirrorElement)
+                (List.Nonempty.map mirrorElement)
+            )
+            spec.notOppositelyColored
     , adjacentlyColored =
-        Maybe.map
+        List.map
             (Tuple.mapBoth
                 (List.Nonempty.map mirrorElement)
                 (List.Nonempty.map mirrorElement)
