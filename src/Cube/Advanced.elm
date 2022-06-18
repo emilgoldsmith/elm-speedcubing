@@ -30,7 +30,7 @@ module Cube.Advanced exposing
 
 # Displayers
 
-@docs CubeTheme, Rgb255Color, defaultTheme, DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
+@docs CubeTheme, Rgb255Color, defaultTheme, DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, displayAngles, view, debugViewAllowingVisualTesting
 
 
 # Rendering
