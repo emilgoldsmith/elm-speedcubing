@@ -277,6 +277,21 @@ sortByFurthestLeftComparison a b =
 
                         PLL.RightThreeBar ->
                             4
+
+                        PLL.LeftFourChecker ->
+                            1
+
+                        PLL.RightFourChecker ->
+                            3
+
+                        PLL.LeftFiveChecker ->
+                            1
+
+                        PLL.RightFiveChecker ->
+                            2
+
+                        PLL.SixChecker ->
+                            1
     in
     compare (toFloat a) (toFloat b)
 

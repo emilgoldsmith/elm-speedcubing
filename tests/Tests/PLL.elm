@@ -621,6 +621,63 @@ getRecognitionStickers algorithms ( preAUF, pll ) =
            )
 
 
+isPatternPresent : RecognitionStickerColors -> PLL.RecognitionPattern -> Bool
+isPatternPresent colors pattern =
+    case pattern of
+        PLL.Bookends ->
+            colors.firstFromLeft == colors.firstFromRight
+
+        PLL.LeftHeadlights ->
+            colors.firstFromLeft == colors.thirdFromLeft
+
+        PLL.RightHeadlights ->
+            colors.firstFromRight == colors.thirdFromRight
+
+        PLL.LeftThreeBar ->
+            (colors.firstFromLeft == colors.secondFromLeft)
+                && (colors.secondFromLeft == colors.thirdFromLeft)
+
+        PLL.RightThreeBar ->
+            (colors.firstFromRight == colors.secondFromRight)
+                && (colors.secondFromRight == colors.thirdFromRight)
+
+        PLL.LeftInsideTwoBar ->
+            colors.secondFromLeft == colors.thirdFromLeft
+
+        PLL.RightInsideTwoBar ->
+            colors.secondFromRight == colors.thirdFromRight
+
+        PLL.LeftOutsideTwoBar ->
+            colors.firstFromLeft == colors.secondFromLeft
+
+        PLL.RightOutsideTwoBar ->
+            colors.firstFromRight == colors.secondFromRight
+
+        PLL.LeftFourChecker ->
+            (colors.firstFromLeft == colors.thirdFromLeft)
+                && (colors.secondFromLeft == colors.thirdFromRight)
+
+        PLL.RightFourChecker ->
+            (colors.firstFromRight == colors.thirdFromRight)
+                && (colors.secondFromRight == colors.thirdFromRight)
+
+        PLL.LeftFiveChecker ->
+            (colors.firstFromLeft == colors.thirdFromLeft)
+                && (colors.secondFromLeft == colors.thirdFromRight)
+                && (colors.thirdFromLeft == colors.secondFromRight)
+
+        PLL.RightFiveChecker ->
+            (colors.firstFromRight == colors.thirdFromRight)
+                && (colors.secondFromRight == colors.thirdFromRight)
+                && (colors.thirdFromRight == colors.secondFromRight)
+
+        PLL.SixChecker ->
+            (colors.firstFromLeft == colors.thirdFromLeft)
+                && (colors.secondFromLeft == colors.thirdFromRight)
+                && (colors.thirdFromLeft == colors.secondFromRight)
+                && (colors.thirdFromRight == colors.firstFromRight)
+
+
 getElementStickers : PLL.RecognitionElement -> List.Nonempty.Nonempty PLL.Sticker
 getElementStickers element =
     case element of
@@ -683,6 +740,50 @@ getPatternStickers pattern =
                 FirstStickerFromRight
                 [ SecondStickerFromRight ]
 
+        PLL.LeftFourChecker ->
+            List.Nonempty.Nonempty
+                FirstStickerFromLeft
+                [ SecondStickerFromLeft
+                , ThirdStickerFromLeft
+                , ThirdStickerFromRight
+                ]
+
+        PLL.RightFourChecker ->
+            List.Nonempty.Nonempty
+                FirstStickerFromRight
+                [ SecondStickerFromRight
+                , ThirdStickerFromRight
+                , ThirdStickerFromLeft
+                ]
+
+        PLL.LeftFiveChecker ->
+            List.Nonempty.Nonempty
+                FirstStickerFromLeft
+                [ SecondStickerFromLeft
+                , ThirdStickerFromLeft
+                , ThirdStickerFromRight
+                , SecondStickerFromRight
+                ]
+
+        PLL.RightFiveChecker ->
+            List.Nonempty.Nonempty
+                FirstStickerFromRight
+                [ SecondStickerFromRight
+                , ThirdStickerFromRight
+                , ThirdStickerFromLeft
+                , SecondStickerFromLeft
+                ]
+
+        PLL.SixChecker ->
+            List.Nonempty.Nonempty
+                FirstStickerFromLeft
+                [ SecondStickerFromLeft
+                , ThirdStickerFromLeft
+                , ThirdStickerFromRight
+                , SecondStickerFromRight
+                , FirstStickerFromRight
+                ]
+
 
 getStickerColor : RecognitionStickerColors -> PLL.Sticker -> Cube.Advanced.Color
 getStickerColor colors sticker =
@@ -716,13 +817,7 @@ verifySpecForStickers stickers spec =
 
             Just patterns ->
                 patterns
-                    |> List.Nonempty.map
-                        (getPatternStickers
-                            >> List.Nonempty.map (getStickerColor stickers)
-                            >> List.Nonempty.uniq
-                        )
-                    -- Every pattern should have all the colors be the same
-                    |> List.Nonempty.all (List.Nonempty.length >> (==) 1)
+                    |> List.Nonempty.all (isPatternPresent stickers)
         , if not spec.noOtherBlocksPresent then
             True
 
@@ -748,6 +843,7 @@ verifySpecForStickers stickers spec =
                             )
                             { prev = Nothing, acc = [] }
                         |> .acc
+                        -- Keep all stickers that have an equal neighbour
                         |> List.concatMap
                             (\( a, b ) ->
                                 if Tuple.second a == Tuple.second b then
@@ -782,14 +878,7 @@ verifySpecForStickers stickers spec =
 
             Just absentPatterns ->
                 absentPatterns
-                    |> List.Nonempty.map
-                        (getPatternStickers
-                            >> List.Nonempty.map (getStickerColor stickers)
-                            >> List.Nonempty.uniq
-                        )
-                    -- Every pattern should have at least two different colors as it should
-                    -- be an absent pattern
-                    |> List.Nonempty.all (\list -> List.Nonempty.length list > 1)
+                    |> List.Nonempty.all (not << isPatternPresent stickers)
         , case spec.oppositelyColored of
             Nothing ->
                 True
@@ -880,25 +969,30 @@ verifySpecForStickers stickers spec =
 
             Just elements ->
                 let
-                    allGroupsAreSameColored =
+                    allPatternsVerified =
                         elements
-                            |> List.Nonempty.map
-                                (getElementStickers
-                                    >> List.Nonempty.map (getStickerColor stickers)
-                                    >> List.Nonempty.uniq
-                                    >> List.Nonempty.length
-                                )
-                            |> List.Nonempty.all ((==) 1)
+                            |> List.Nonempty.all
+                                (\element ->
+                                    case element of
+                                        PLL.Sticker _ ->
+                                            True
 
+                                        PLL.Pattern pattern ->
+                                            isPatternPresent stickers pattern
+                                )
+
+                    -- The stickers we are okay having matches on
                     excludedStickers =
                         elements
                             |> List.Nonempty.concatMap getElementStickers
 
+                    -- The colors no other stickers than the specified ones can match
                     excludedColors =
                         excludedStickers
                             |> List.Nonempty.map (getStickerColor stickers)
                             |> List.Nonempty.uniq
 
+                    -- The stickers that can't have matches
                     includedStickers =
                         allStickers
                             |> List.Nonempty.toList
@@ -907,6 +1001,7 @@ verifySpecForStickers stickers spec =
                                     not <| List.Nonempty.member x excludedStickers
                                 )
 
+                    -- The colors included in those
                     includedColors =
                         includedStickers
                             |> List.map (getStickerColor stickers)
@@ -922,7 +1017,7 @@ verifySpecForStickers stickers spec =
                     allStickersHaveADistinctColor =
                         List.length includedStickers == List.length includedColors
                 in
-                allGroupsAreSameColored && noExcludedColorsAreMatched && allStickersHaveADistinctColor
+                allPatternsVerified && noExcludedColorsAreMatched && allStickersHaveADistinctColor
         ]
 
 
@@ -933,6 +1028,24 @@ isBlockPattern pattern =
             False
 
         PLL.RightHeadlights ->
+            False
+
+        PLL.Bookends ->
+            False
+
+        PLL.LeftFourChecker ->
+            False
+
+        PLL.RightFourChecker ->
+            False
+
+        PLL.LeftFiveChecker ->
+            False
+
+        PLL.RightFiveChecker ->
+            False
+
+        PLL.SixChecker ->
             False
 
         PLL.LeftInsideTwoBar ->
@@ -946,9 +1059,6 @@ isBlockPattern pattern =
 
         PLL.RightOutsideTwoBar ->
             True
-
-        PLL.Bookends ->
-            False
 
         PLL.LeftThreeBar ->
             True
