@@ -1009,18 +1009,14 @@ verifySpecForStickers stickers spec =
             Just absentPatterns ->
                 absentPatterns
                     |> List.Nonempty.all (not << isPatternPresent stickers)
-        , case spec.oppositelyColored of
-            Nothing ->
-                True
-
-            Just oppositelyColored ->
-                oppositelyColored
-                    |> mapSameForBoth
-                        (List.Nonempty.concatMap getElementStickers
-                            >> List.Nonempty.map (getStickerColor stickers)
-                            >> List.Nonempty.uniq
-                        )
-                    |> (\x ->
+        , spec.oppositelyColored
+            |> List.all
+                (mapSameForBoth
+                    (List.Nonempty.concatMap getElementStickers
+                        >> List.Nonempty.map (getStickerColor stickers)
+                        >> List.Nonempty.uniq
+                    )
+                    >> (\x ->
                             case x of
                                 -- They have to each group be the same color all stickers
                                 -- and for that color to be opposite to the one of the
@@ -1031,18 +1027,34 @@ verifySpecForStickers stickers spec =
                                 _ ->
                                     False
                        )
-        , case spec.adjacentlyColored of
-            Nothing ->
-                True
+                )
+        , spec.notOppositelyColored
+            |> List.all
+                (mapSameForBoth
+                    (List.Nonempty.concatMap getElementStickers
+                        >> List.Nonempty.map (getStickerColor stickers)
+                        >> List.Nonempty.uniq
+                    )
+                    >> (\x ->
+                            case x of
+                                -- They have to each group be the same color all stickers
+                                -- and for that color to not be opposite to the one of the
+                                -- other group
+                                ( List.Nonempty.Nonempty firstColor [], List.Nonempty.Nonempty secondColor [] ) ->
+                                    not <| areOppositeColors firstColor secondColor
 
-            Just adjacentlyColored ->
-                adjacentlyColored
-                    |> mapSameForBoth
-                        (List.Nonempty.concatMap getElementStickers
-                            >> List.Nonempty.map (getStickerColor stickers)
-                            >> List.Nonempty.uniq
-                        )
-                    |> (\x ->
+                                _ ->
+                                    False
+                       )
+                )
+        , spec.adjacentlyColored
+            |> List.all
+                (mapSameForBoth
+                    (List.Nonempty.concatMap getElementStickers
+                        >> List.Nonempty.map (getStickerColor stickers)
+                        >> List.Nonempty.uniq
+                    )
+                    >> (\x ->
                             case x of
                                 -- They have to each group be the same color all stickers
                                 -- and for that color to be adjacent to the one of the
@@ -1053,6 +1065,7 @@ verifySpecForStickers stickers spec =
                                 _ ->
                                     False
                        )
+                )
         , case spec.identicallyColored of
             Nothing ->
                 True
@@ -1249,8 +1262,9 @@ extractAllPatterns spec =
     List.Extra.unique <|
         extractPatternsFromMaybePatterns spec.patterns
             ++ extractPatternsFromMaybePatterns spec.absentPatterns
-            ++ extractPatternsFromTuple spec.oppositelyColored
-            ++ extractPatternsFromTuple spec.adjacentlyColored
+            ++ List.concatMap extractPatternsFromTuple spec.oppositelyColored
+            ++ List.concatMap extractPatternsFromTuple spec.notOppositelyColored
+            ++ List.concatMap extractPatternsFromTuple spec.adjacentlyColored
             ++ extractPatternsFromMinLength2List spec.identicallyColored
             ++ extractPatternsFromMinLength2List spec.differentlyColored
             ++ extractPatternsFromMaybeElements spec.noOtherStickersMatchThanThese
@@ -1263,11 +1277,9 @@ extractPatternsFromMaybePatterns maybeList =
         |> Maybe.withDefault []
 
 
-extractPatternsFromTuple : Maybe ( List.Nonempty.Nonempty PLL.RecognitionElement, List.Nonempty.Nonempty PLL.RecognitionElement ) -> List PLL.RecognitionPattern
-extractPatternsFromTuple maybeTuple =
-    maybeTuple
-        |> Maybe.map (\( a, b ) -> List.Nonempty.toList a ++ List.Nonempty.toList b)
-        |> Maybe.withDefault []
+extractPatternsFromTuple : ( List.Nonempty.Nonempty PLL.RecognitionElement, List.Nonempty.Nonempty PLL.RecognitionElement ) -> List PLL.RecognitionPattern
+extractPatternsFromTuple ( a, b ) =
+    (List.Nonempty.toList a ++ List.Nonempty.toList b)
         |> List.filterMap getPattern
 
 
