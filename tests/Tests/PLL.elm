@@ -500,108 +500,214 @@ getUniqueTwoSidedRecognitionSpecificationTests : Test
 getUniqueTwoSidedRecognitionSpecificationTests =
     only <|
         describe "getUniqueTwoSidedRecognitionSpecificationTests"
-            [ fuzz2 (Fuzz.tuple ( aufFuzzer, testedPlls )) recognitionAngleFuzzer "no patterns (except absent ones) mentioned that are not included in the patterns" <|
-                \case_ recognitionAngle ->
-                    let
-                        spec =
-                            PLL.getUniqueTwoSidedRecognitionSpecification
-                                PLL.referenceAlgorithms
-                                recognitionAngle
-                                case_
+            [ fuzz3
+                (Fuzz.tuple ( aufFuzzer, testedPlls ))
+                recognitionAngleFuzzer
+                pllAlgorithmsFuzzer
+                "no patterns (except absent ones) mentioned that are not included in the patterns"
+              <|
+                \case_ recognitionAngle algorithms ->
+                    case
+                        PLL.getUniqueTwoSidedRecognitionSpecification
+                            algorithms
+                            recognitionAngle
+                            case_
+                    of
+                        Err err ->
+                            Expect.fail ("spec failed: " ++ Debug.toString err)
 
-                        patterns =
-                            spec.patterns
-                                |> Maybe.map List.Nonempty.toList
-                                |> Maybe.withDefault []
+                        Ok spec ->
+                            let
+                                patterns =
+                                    spec.patterns
+                                        |> Maybe.map List.Nonempty.toList
+                                        |> Maybe.withDefault []
 
-                        otherPatterns =
-                            extractAllPatterns { spec | patterns = Nothing, absentPatterns = Nothing }
-                    in
-                    List.all (\x -> List.member x patterns) otherPatterns
-                        |> Expect.true ("There was a pattern mentioned not included in patterns. The spec was: " ++ Debug.toString spec)
-            , fuzz2 (Fuzz.tuple ( aufFuzzer, testedPlls )) recognitionAngleFuzzer "no patterns mentioned that are included in absent patterns" <|
-                \case_ recognitionAngle ->
-                    let
-                        spec =
-                            PLL.getUniqueTwoSidedRecognitionSpecification
-                                PLL.referenceAlgorithms
-                                recognitionAngle
-                                case_
+                                otherPatterns =
+                                    extractAllPatterns { spec | patterns = Nothing, absentPatterns = Nothing }
+                            in
+                            List.all (\x -> List.member x patterns) otherPatterns
+                                |> Expect.true ("There was a pattern mentioned not included in patterns. The spec was: " ++ Debug.toString spec)
+            , fuzz3
+                (Fuzz.tuple ( aufFuzzer, testedPlls ))
+                recognitionAngleFuzzer
+                pllAlgorithmsFuzzer
+                "no patterns mentioned that are included in absent patterns"
+              <|
+                \case_ recognitionAngle algorithms ->
+                    case
+                        PLL.getUniqueTwoSidedRecognitionSpecification
+                            algorithms
+                            recognitionAngle
+                            case_
+                    of
+                        Err err ->
+                            Expect.fail ("spec failed: " ++ Debug.toString err)
 
-                        absentPatterns =
-                            spec.absentPatterns
-                                |> Maybe.map List.Nonempty.toList
-                                |> Maybe.withDefault []
+                        Ok spec ->
+                            let
+                                absentPatterns =
+                                    spec.absentPatterns
+                                        |> Maybe.map List.Nonempty.toList
+                                        |> Maybe.withDefault []
 
-                        otherPatterns =
-                            extractAllPatterns { spec | absentPatterns = Nothing }
-                    in
-                    List.all (\x -> not <| List.member x absentPatterns) otherPatterns
-                        |> Expect.true ("There was a pattern mentioned that was also included in absent patterns. The spec was: " ++ Debug.toString spec)
+                                otherPatterns =
+                                    extractAllPatterns { spec | absentPatterns = Nothing }
+                            in
+                            List.all (\x -> not <| List.member x absentPatterns) otherPatterns
+                                |> Expect.true ("There was a pattern mentioned that was also included in absent patterns. The spec was: " ++ Debug.toString spec)
 
             -- This one also ensures that it's internally coherent as otherwise
             -- it wouldn't describe the case correctly if for example a sticker
             -- is supposed to be two different colors
-            , fuzz2 (Fuzz.tuple ( aufFuzzer, testedPlls )) recognitionAngleFuzzer "the spec matches the case" <|
-                \case_ recognitionAngle ->
-                    let
-                        spec =
-                            PLL.getUniqueTwoSidedRecognitionSpecification
-                                PLL.referenceAlgorithms
-                                recognitionAngle
-                                case_
+            , fuzz3
+                (Fuzz.tuple ( aufFuzzer, testedPlls ))
+                recognitionAngleFuzzer
+                pllAlgorithmsFuzzer
+                "the spec matches the case"
+              <|
+                \case_ recognitionAngle algorithms ->
+                    case
+                        PLL.getUniqueTwoSidedRecognitionSpecification
+                            algorithms
+                            recognitionAngle
+                            case_
+                    of
+                        Err err ->
+                            Expect.fail ("spec failed: " ++ Debug.toString err)
 
-                        stickers =
-                            getRecognitionStickers
-                                PLL.referenceAlgorithms
-                                recognitionAngle
-                                case_
-                    in
-                    verifySpecForStickers stickers spec
-                        |> Expect.true
-                            ("the spec didn't correctly describe the stickers. The spec was:\n"
-                                ++ Debug.toString spec
-                                ++ "\nThe stickers were:\n"
-                                ++ Debug.toString stickers
-                            )
-            , fuzz2 (Fuzz.tuple ( aufFuzzer, testedPlls )) recognitionAngleFuzzer "check that no other cases except for symmetric ones match this spec; that it's therefore uniquely determinable by this description" <|
-                \( preAUF, pll ) recognitionAngle ->
-                    let
-                        spec =
-                            PLL.getUniqueTwoSidedRecognitionSpecification
-                                PLL.referenceAlgorithms
-                                recognitionAngle
-                                ( preAUF, pll )
-
-                        equivalentPreAUFs =
-                            PLL.getAllEquivalentAUFs ( preAUF, pll, AUF.None )
-                                |> List.Nonempty.toList
-                                |> List.map (\( x, _ ) -> x)
-
-                        allOtherCases =
-                            List.Nonempty.Extra.lift2
-                                Tuple.pair
-                                AUF.all
-                                PLL.all
-                                |> List.Nonempty.filter (\( preAUF_, pll_ ) -> not <| pll == pll_ && List.member preAUF_ equivalentPreAUFs)
-                                    ( preAUF, pll )
-                    in
-                    allOtherCases
-                        |> List.Nonempty.toList
-                        |> List.filter
-                            (\otherCase ->
-                                verifySpecForStickers
-                                    (getRecognitionStickers
-                                        PLL.referenceAlgorithms
+                        Ok spec ->
+                            let
+                                stickers =
+                                    getRecognitionStickers
+                                        algorithms
                                         recognitionAngle
-                                        otherCase
+                                        case_
+                            in
+                            verifySpecForStickers stickers spec
+                                |> Expect.true
+                                    ("the spec didn't correctly describe the stickers. The spec was:\n"
+                                        ++ Debug.toString spec
+                                        ++ "\nThe stickers were:\n"
+                                        ++ Debug.toString stickers
                                     )
-                                    spec
-                            )
-                        |> Expect.equalLists []
+            , fuzz3 (Fuzz.tuple ( aufFuzzer, testedPlls )) recognitionAngleFuzzer pllAlgorithmsFuzzer "check that no other cases except for symmetric ones match this spec; that it's therefore uniquely determinable by this description" <|
+                \( preAUF, pll ) recognitionAngle algorithms ->
+                    case
+                        PLL.getUniqueTwoSidedRecognitionSpecification
+                            algorithms
+                            recognitionAngle
+                            ( preAUF, pll )
+                    of
+                        Err err ->
+                            Expect.fail ("spec failed: " ++ Debug.toString err)
+
+                        Ok spec ->
+                            let
+                                equivalentPreAUFs =
+                                    PLL.getAllEquivalentAUFs ( preAUF, pll, AUF.None )
+                                        |> List.Nonempty.toList
+                                        |> List.map (\( x, _ ) -> x)
+
+                                allOtherCases =
+                                    List.Nonempty.Extra.lift2
+                                        Tuple.pair
+                                        AUF.all
+                                        PLL.all
+                                        |> List.Nonempty.filter (\( preAUF_, pll_ ) -> not <| pll == pll_ && List.member preAUF_ equivalentPreAUFs)
+                                            ( preAUF, pll )
+                            in
+                            allOtherCases
+                                |> List.Nonempty.toList
+                                |> List.filter
+                                    (\otherCase ->
+                                        verifySpecForStickers
+                                            (getRecognitionStickers
+                                                algorithms
+                                                recognitionAngle
+                                                otherCase
+                                            )
+                                            spec
+                                    )
+                                |> Expect.equalLists []
             , todo "include postAUF"
-            , todo "include non-reference algorithms"
             ]
+
+
+pllAlgorithmsFuzzer : Fuzz.Fuzzer PLL.Algorithms
+pllAlgorithmsFuzzer =
+    Fuzz.oneOf
+        [ Fuzz.constant PLL.referenceAlgorithms
+        , Fuzz.constant jpermsAlgorithms
+        ]
+
+
+jpermsAlgorithms : PLL.Algorithms
+jpermsAlgorithms =
+    { ua =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M2 U M U2 M' U M2"
+    , ub =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M2 U' M U2 M' U' M2"
+    , h =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M2 U M2 U2 M2 U M2"
+    , z =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M U M2 U M2 U M U2 M2"
+    , aa =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x L2 D2 (L' U' L) D2 (L' U L')"
+    , ab =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x (L U' L) D2 (L' U L) D2 L2"
+    , e =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x' (L' U L D') (L' U' L D) (L' U' L D') (L' U L D)"
+    , t =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R' U') R' F R2 U' R' U' (R U R') F'"
+    , f =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R' U' F' (R U R' U') R' F R2 U' R' U' (R U R') U R"
+    , jb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R' F') (R U R' U') R' F R2 U' R')"
+    , ja =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x (R2 F R F') R U2 (r' U r) U2"
+    , ra =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U' R' U') (R U R D) (R' U' R D') (R' U2 R')"
+    , rb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R2 F R (U R U' R') F' R U2 R' U2 R"
+    , y =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "F (R U' R' U') (R U R') F' (R U R' U') (R' F R F')"
+    , v =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R U' (R U R') D R D' R (U' D) R2 U R2 D' R2"
+    , na =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R' U) (R U R' F' R U R' U' R' F R2 U' R') (U2 R U' R')"
+    , nb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "r' D' F (r U' r') F' D (r2 U r' U') (r' F r F')"
+    , ga =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R2 U R' U R' U' R U' R2 (U' D) (R' U R) D'"
+    , gb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R' U' R) (U D') R2 U R' U R U' R U' R2 D"
+    , gc =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R2 U' R U' R U R' U R2 (U D') (R U' R') D"
+    , gd =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R') (U' D) R2 U' R U' R' U R' U R2 D'"
+    }
 
 
 type alias RecognitionStickerColors =
