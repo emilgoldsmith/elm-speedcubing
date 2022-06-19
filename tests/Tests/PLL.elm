@@ -488,110 +488,131 @@ getAllAUFEquivalencyClassesTests =
 
 testedPlls : Fuzz.Fuzzer PLL
 testedPlls =
-    Fuzz.oneOf (List.map Fuzz.constant [ PLL.E, PLL.T, PLL.Ga ])
+    Fuzz.oneOf (List.map Fuzz.constant [ PLL.H ])
 
 
 recognitionAngleFuzzer : Fuzz.Fuzzer PLL.RecognitionAngle
 recognitionAngleFuzzer =
-    Fuzz.oneOf [ Fuzz.constant PLL.ufrRecognitionAngle, Fuzz.constant PLL.uflRecognitionAngle ]
+    Fuzz.oneOf
+        [ Fuzz.constant PLL.ufrRecognitionAngle
+
+        -- , Fuzz.constant PLL.uflRecognitionAngle
+        ]
 
 
 getUniqueTwoSidedRecognitionSpecificationTests : Test
 getUniqueTwoSidedRecognitionSpecificationTests =
-    only <|
-        describe "getUniqueTwoSidedRecognitionSpecificationTests"
-            [ fuzz3
+    describe "getUniqueTwoSidedRecognitionSpecificationTests"
+        [ fuzz3
+            (Fuzz.tuple ( aufFuzzer, testedPlls ))
+            recognitionAngleFuzzer
+            pllAlgorithmsFuzzer
+            "no patterns (except absent ones) mentioned that are not included in the patterns"
+          <|
+            \case_ recognitionAngle algorithms ->
+                case
+                    PLL.getUniqueTwoSidedRecognitionSpecification
+                        algorithms
+                        recognitionAngle
+                        case_
+                of
+                    Err err ->
+                        Expect.fail ("spec failed: " ++ Debug.toString err)
+
+                    Ok spec ->
+                        let
+                            patterns =
+                                spec.caseRecognition.patterns
+                                    |> Maybe.map List.Nonempty.toList
+                                    |> Maybe.withDefault []
+
+                            { caseRecognition } =
+                                spec
+
+                            otherPatternsCaseRecognition =
+                                { caseRecognition | patterns = Nothing, absentPatterns = Nothing }
+
+                            otherPatterns =
+                                extractAllPatterns { spec | caseRecognition = otherPatternsCaseRecognition }
+                        in
+                        List.all (\x -> List.member x patterns) otherPatterns
+                            |> Expect.true ("There was a pattern mentioned not included in patterns. The spec was: " ++ Debug.toString spec)
+        , fuzz3
+            (Fuzz.tuple ( aufFuzzer, testedPlls ))
+            recognitionAngleFuzzer
+            pllAlgorithmsFuzzer
+            "no patterns mentioned that are included in absent patterns"
+          <|
+            \case_ recognitionAngle algorithms ->
+                case
+                    PLL.getUniqueTwoSidedRecognitionSpecification
+                        algorithms
+                        recognitionAngle
+                        case_
+                of
+                    Err err ->
+                        Expect.fail ("spec failed: " ++ Debug.toString err)
+
+                    Ok spec ->
+                        let
+                            absentPatterns =
+                                spec.caseRecognition.absentPatterns
+                                    |> Maybe.map List.Nonempty.toList
+                                    |> Maybe.withDefault []
+
+                            { caseRecognition } =
+                                spec
+
+                            otherPatternsCaseRecognition =
+                                { caseRecognition | absentPatterns = Nothing }
+
+                            otherPatterns =
+                                extractAllPatterns { spec | caseRecognition = otherPatternsCaseRecognition }
+                        in
+                        List.all (\x -> not <| List.member x absentPatterns) otherPatterns
+                            |> Expect.true ("There was a pattern mentioned that was also included in absent patterns. The spec was: " ++ Debug.toString spec)
+
+        -- This one also ensures that it's internally coherent as otherwise
+        -- it wouldn't describe the case correctly if for example a sticker
+        -- is supposed to be two different colors
+        , fuzz3
+            (Fuzz.tuple ( aufFuzzer, testedPlls ))
+            recognitionAngleFuzzer
+            pllAlgorithmsFuzzer
+            "the spec matches the case"
+          <|
+            \case_ recognitionAngle algorithms ->
+                case
+                    PLL.getUniqueTwoSidedRecognitionSpecification
+                        algorithms
+                        recognitionAngle
+                        case_
+                of
+                    Err err ->
+                        Expect.fail ("spec failed: " ++ Debug.toString err)
+
+                    Ok spec ->
+                        let
+                            stickers =
+                                getRecognitionStickers
+                                    algorithms
+                                    recognitionAngle
+                                    case_
+                        in
+                        verifySpecForStickers stickers spec
+                            |> Expect.true
+                                ("the spec didn't correctly describe the stickers. The spec was:\n"
+                                    ++ Debug.toString spec
+                                    ++ "\nThe stickers were:\n"
+                                    ++ Debug.toString stickers
+                                )
+        , only <|
+            fuzz3
                 (Fuzz.tuple ( aufFuzzer, testedPlls ))
                 recognitionAngleFuzzer
                 pllAlgorithmsFuzzer
-                "no patterns (except absent ones) mentioned that are not included in the patterns"
-              <|
-                \case_ recognitionAngle algorithms ->
-                    case
-                        PLL.getUniqueTwoSidedRecognitionSpecification
-                            algorithms
-                            recognitionAngle
-                            case_
-                    of
-                        Err err ->
-                            Expect.fail ("spec failed: " ++ Debug.toString err)
-
-                        Ok spec ->
-                            let
-                                patterns =
-                                    spec.patterns
-                                        |> Maybe.map List.Nonempty.toList
-                                        |> Maybe.withDefault []
-
-                                otherPatterns =
-                                    extractAllPatterns { spec | patterns = Nothing, absentPatterns = Nothing }
-                            in
-                            List.all (\x -> List.member x patterns) otherPatterns
-                                |> Expect.true ("There was a pattern mentioned not included in patterns. The spec was: " ++ Debug.toString spec)
-            , fuzz3
-                (Fuzz.tuple ( aufFuzzer, testedPlls ))
-                recognitionAngleFuzzer
-                pllAlgorithmsFuzzer
-                "no patterns mentioned that are included in absent patterns"
-              <|
-                \case_ recognitionAngle algorithms ->
-                    case
-                        PLL.getUniqueTwoSidedRecognitionSpecification
-                            algorithms
-                            recognitionAngle
-                            case_
-                    of
-                        Err err ->
-                            Expect.fail ("spec failed: " ++ Debug.toString err)
-
-                        Ok spec ->
-                            let
-                                absentPatterns =
-                                    spec.absentPatterns
-                                        |> Maybe.map List.Nonempty.toList
-                                        |> Maybe.withDefault []
-
-                                otherPatterns =
-                                    extractAllPatterns { spec | absentPatterns = Nothing }
-                            in
-                            List.all (\x -> not <| List.member x absentPatterns) otherPatterns
-                                |> Expect.true ("There was a pattern mentioned that was also included in absent patterns. The spec was: " ++ Debug.toString spec)
-
-            -- This one also ensures that it's internally coherent as otherwise
-            -- it wouldn't describe the case correctly if for example a sticker
-            -- is supposed to be two different colors
-            , fuzz3
-                (Fuzz.tuple ( aufFuzzer, testedPlls ))
-                recognitionAngleFuzzer
-                pllAlgorithmsFuzzer
-                "the spec matches the case"
-              <|
-                \case_ recognitionAngle algorithms ->
-                    case
-                        PLL.getUniqueTwoSidedRecognitionSpecification
-                            algorithms
-                            recognitionAngle
-                            case_
-                    of
-                        Err err ->
-                            Expect.fail ("spec failed: " ++ Debug.toString err)
-
-                        Ok spec ->
-                            let
-                                stickers =
-                                    getRecognitionStickers
-                                        algorithms
-                                        recognitionAngle
-                                        case_
-                            in
-                            verifySpecForStickers stickers spec
-                                |> Expect.true
-                                    ("the spec didn't correctly describe the stickers. The spec was:\n"
-                                        ++ Debug.toString spec
-                                        ++ "\nThe stickers were:\n"
-                                        ++ Debug.toString stickers
-                                    )
-            , fuzz3 (Fuzz.tuple ( aufFuzzer, testedPlls )) recognitionAngleFuzzer pllAlgorithmsFuzzer "check that no other cases except for symmetric ones match this spec; that it's therefore uniquely determinable by this description" <|
+                "check that no other cases except for symmetric ones match this spec; that it's therefore uniquely determinable by this description"
+            <|
                 \( preAUF, pll ) recognitionAngle algorithms ->
                     case
                         PLL.getUniqueTwoSidedRecognitionSpecification
@@ -630,8 +651,9 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                             spec
                                     )
                                 |> Expect.equalLists []
-            , todo "include postAUF"
-            ]
+        , todo "include postAUF"
+        , todo "spec cannot have any part removed"
+        ]
 
 
 pllAlgorithmsFuzzer : Fuzz.Fuzzer PLL.Algorithms
@@ -941,14 +963,14 @@ verifySpecForStickers : RecognitionStickerColors -> PLL.RecognitionSpecification
 verifySpecForStickers stickers spec =
     List.all
         identity
-        [ case spec.patterns of
+        [ case spec.caseRecognition.patterns of
             Nothing ->
                 True
 
             Just patterns ->
                 patterns
                     |> List.Nonempty.all (isPatternPresent stickers)
-        , if not spec.noOtherBlocksPresent then
+        , if not spec.caseRecognition.noOtherBlocksPresent then
             True
 
           else
@@ -985,7 +1007,7 @@ verifySpecForStickers stickers spec =
                         |> List.Extra.unique
 
                 stickersThatAreInPatternBlocks =
-                    case spec.patterns of
+                    case spec.caseRecognition.patterns of
                         Nothing ->
                             []
 
@@ -1002,14 +1024,14 @@ verifySpecForStickers stickers spec =
                         not <| List.member x stickersThatAreInPatternBlocks
                     )
                 |> List.isEmpty
-        , case spec.absentPatterns of
+        , case spec.caseRecognition.absentPatterns of
             Nothing ->
                 True
 
             Just absentPatterns ->
                 absentPatterns
                     |> List.Nonempty.all (not << isPatternPresent stickers)
-        , spec.oppositelyColored
+        , spec.caseRecognition.oppositelyColored
             |> List.all
                 (mapSameForBoth
                     (List.Nonempty.concatMap getElementStickers
@@ -1028,7 +1050,7 @@ verifySpecForStickers stickers spec =
                                     False
                        )
                 )
-        , spec.notOppositelyColored
+        , spec.caseRecognition.notOppositelyColored
             |> List.all
                 (mapSameForBoth
                     (List.Nonempty.concatMap getElementStickers
@@ -1047,7 +1069,7 @@ verifySpecForStickers stickers spec =
                                     False
                        )
                 )
-        , spec.adjacentlyColored
+        , spec.caseRecognition.adjacentlyColored
             |> List.all
                 (mapSameForBoth
                     (List.Nonempty.concatMap getElementStickers
@@ -1066,7 +1088,7 @@ verifySpecForStickers stickers spec =
                                     False
                        )
                 )
-        , case spec.identicallyColored of
+        , case spec.caseRecognition.identicallyColored of
             Nothing ->
                 True
 
@@ -1076,7 +1098,7 @@ verifySpecForStickers stickers spec =
                     |> List.Nonempty.map (getStickerColor stickers)
                     |> List.Nonempty.uniq
                     |> (List.Nonempty.length >> (==) 1)
-        , case spec.differentlyColored of
+        , case spec.caseRecognition.differentlyColored of
             Nothing ->
                 True
 
@@ -1106,7 +1128,7 @@ verifySpecForStickers stickers spec =
                             |> List.Nonempty.length
                 in
                 allGroupsAreSameColored && numDistinctColors == expectedDistinctColors
-        , case spec.noOtherStickersMatchThanThese of
+        , case spec.caseRecognition.noOtherStickersMatchThanThese of
             Nothing ->
                 True
 
@@ -1260,14 +1282,14 @@ areAdjacentColors a b =
 extractAllPatterns : PLL.RecognitionSpecification -> List PLL.RecognitionPattern
 extractAllPatterns spec =
     List.Extra.unique <|
-        extractPatternsFromMaybePatterns spec.patterns
-            ++ extractPatternsFromMaybePatterns spec.absentPatterns
-            ++ List.concatMap extractPatternsFromTuple spec.oppositelyColored
-            ++ List.concatMap extractPatternsFromTuple spec.notOppositelyColored
-            ++ List.concatMap extractPatternsFromTuple spec.adjacentlyColored
-            ++ extractPatternsFromMinLength2List spec.identicallyColored
-            ++ extractPatternsFromMinLength2List spec.differentlyColored
-            ++ extractPatternsFromMaybeElements spec.noOtherStickersMatchThanThese
+        extractPatternsFromMaybePatterns spec.caseRecognition.patterns
+            ++ extractPatternsFromMaybePatterns spec.caseRecognition.absentPatterns
+            ++ List.concatMap extractPatternsFromTuple spec.caseRecognition.oppositelyColored
+            ++ List.concatMap extractPatternsFromTuple spec.caseRecognition.notOppositelyColored
+            ++ List.concatMap extractPatternsFromTuple spec.caseRecognition.adjacentlyColored
+            ++ extractPatternsFromMinLength2List spec.caseRecognition.identicallyColored
+            ++ extractPatternsFromMinLength2List spec.caseRecognition.differentlyColored
+            ++ extractPatternsFromMaybeElements spec.caseRecognition.noOtherStickersMatchThanThese
 
 
 extractPatternsFromMaybePatterns : Maybe (List.Nonempty.Nonempty PLL.RecognitionPattern) -> List PLL.RecognitionPattern
