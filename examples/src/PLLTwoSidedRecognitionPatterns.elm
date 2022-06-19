@@ -3,6 +3,7 @@ module PLLTwoSidedRecognitionPatterns exposing (main)
 import AUF
 import Algorithm exposing (Algorithm)
 import Cube
+import Cube.Advanced
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import List.Nonempty
@@ -36,18 +37,28 @@ main =
                                                 [ text <|
                                                     explainPLLRecognitionPattern <|
                                                         (Result.withDefault
-                                                            { patterns = Nothing
-                                                            , absentPatterns = Nothing
-                                                            , oppositelyColored = []
-                                                            , notOppositelyColored = []
-                                                            , adjacentlyColored = []
-                                                            , identicallyColored = Nothing
-                                                            , differentlyColored = Nothing
-                                                            , noOtherStickersMatchThanThese = Nothing
-                                                            , noOtherBlocksPresent = False
+                                                            { caseRecognition =
+                                                                { patterns = Nothing
+                                                                , absentPatterns = Nothing
+                                                                , oppositelyColored = []
+                                                                , notOppositelyColored = []
+                                                                , adjacentlyColored = []
+                                                                , identicallyColored = Nothing
+                                                                , differentlyColored = Nothing
+                                                                , noOtherStickersMatchThanThese = Nothing
+                                                                , noOtherBlocksPresent = False
+                                                                }
+                                                            , postAUFRecognition =
+                                                                List.Nonempty.singleton
+                                                                    ( List.Nonempty.singleton <| PLL.Pattern PLL.SixChecker
+                                                                    , Cube.Advanced.UpOrDown Cube.Advanced.U
+                                                                    )
                                                             }
                                                          <|
-                                                            PLL.getUniqueTwoSidedRecognitionSpecification algorithms PLL.ufrRecognitionAngle ( Debug.log "preAUF" preAUF, Debug.log "pll" pll )
+                                                            PLL.getUniqueTwoSidedRecognitionSpecification
+                                                                jpermsAlgorithms
+                                                                PLL.ufrRecognitionAngle
+                                                                ( Debug.log "preAUF" preAUF, Debug.log "pll" pll )
                                                         )
                                                 , Cube.view [ style "align-self" "center" ]
                                                     { pixelSize = 50
@@ -69,6 +80,74 @@ main =
         )
 
 
+jpermsAlgorithms : PLL.Algorithms
+jpermsAlgorithms =
+    { ua =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M2 U M U2 M' U M2"
+    , ub =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M2 U' M U2 M' U' M2"
+    , h =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M2 U M2 U2 M2 U M2"
+    , z =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M U M2 U M2 U M U2 M2"
+    , aa =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x L2 D2 (L' U' L) D2 (L' U L')"
+    , ab =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x (L U' L) D2 (L' U L) D2 L2"
+    , e =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x' (L' U L D') (L' U' L D) (L' U' L D') (L' U L D)"
+    , t =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R' U') R' F R2 U' R' U' (R U R') F'"
+    , f =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R' U' F' (R U R' U') R' F R2 U' R' U' (R U R') U R"
+    , jb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R' F') (R U R' U') R' F R2 U' R')"
+    , ja =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x (R2 F R F') R U2 (r' U r) U2"
+    , ra =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U' R' U') (R U R D) (R' U' R D') (R' U2 R')"
+    , rb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R2 F R (U R U' R') F' R U2 R' U2 R"
+    , y =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "F (R U' R' U') (R U R') F' (R U R' U') (R' F R F')"
+    , v =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R U' (R U R') D R D' R (U' D) R2 U R2 D' R2"
+    , na =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R' U) (R U R' F' R U R' U' R' F R2 U' R') (U2 R U' R')"
+    , nb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "r' D' F (r U' r') F' D (r2 U r' U') (r' F r F')"
+    , ga =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R2 U R' U R' U' R U' R2 (U' D) (R' U R) D'"
+    , gb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R' U' R) (U D') R2 U R' U R U' R U' R2 D"
+    , gc =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R2 U' R U' R U R' U R2 (U D') (R U' R') D"
+    , gd =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R') (U' D) R2 U' R U' R' U R' U R2 D'"
+    }
+
+
 log : Algorithm -> Algorithm
 log x =
     let
@@ -83,6 +162,7 @@ explainPLLRecognitionPattern spec =
     let
         { patterns, absentPatterns, oppositelyColored, notOppositelyColored, adjacentlyColored, identicallyColored, differentlyColored, noOtherStickersMatchThanThese } =
             sortForDisplay spec
+                |> .caseRecognition
 
         parts =
             [ patterns
@@ -223,53 +303,57 @@ explainPLLRecognitionPattern spec =
 
 
 sortForDisplay : PLL.RecognitionSpecification -> PLL.RecognitionSpecification
-sortForDisplay spec =
-    { patterns =
-        Maybe.map
-            (List.Nonempty.sortWith sortPatternsByFurthestLeftComparison)
-            spec.patterns
-    , absentPatterns =
-        Maybe.map
-            (List.Nonempty.sortWith sortPatternsByFurthestLeftComparison)
-            spec.absentPatterns
-    , oppositelyColored =
-        spec.oppositelyColored
-            |> List.map ensurePatternsAreInFirstSpot
-            |> List.map
-                (Tuple.mapBoth
+sortForDisplay ({ caseRecognition } as spec) =
+    let
+        sortedCaseRecognition =
+            { patterns =
+                Maybe.map
+                    (List.Nonempty.sortWith sortPatternsByFurthestLeftComparison)
+                    caseRecognition.patterns
+            , absentPatterns =
+                Maybe.map
+                    (List.Nonempty.sortWith sortPatternsByFurthestLeftComparison)
+                    caseRecognition.absentPatterns
+            , oppositelyColored =
+                caseRecognition.oppositelyColored
+                    |> List.map ensurePatternsAreInFirstSpot
+                    |> List.map
+                        (Tuple.mapBoth
+                            (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                            (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                        )
+            , notOppositelyColored =
+                caseRecognition.notOppositelyColored
+                    |> List.map ensurePatternsAreInFirstSpot
+                    |> List.map
+                        (Tuple.mapBoth
+                            (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                            (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                        )
+            , adjacentlyColored =
+                caseRecognition.adjacentlyColored
+                    |> List.map ensurePatternsAreInFirstSpot
+                    |> List.map
+                        (Tuple.mapBoth
+                            (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                            (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                        )
+            , identicallyColored =
+                Maybe.map
+                    (sortMinLength2ListWith sortByFurthestLeftComparison)
+                    caseRecognition.identicallyColored
+            , differentlyColored =
+                Maybe.map
+                    (sortMinLength2ListWith sortByFurthestLeftComparison)
+                    caseRecognition.differentlyColored
+            , noOtherStickersMatchThanThese =
+                Maybe.map
                     (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                    (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                )
-    , notOppositelyColored =
-        spec.notOppositelyColored
-            |> List.map ensurePatternsAreInFirstSpot
-            |> List.map
-                (Tuple.mapBoth
-                    (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                    (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                )
-    , adjacentlyColored =
-        spec.adjacentlyColored
-            |> List.map ensurePatternsAreInFirstSpot
-            |> List.map
-                (Tuple.mapBoth
-                    (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                    (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                )
-    , identicallyColored =
-        Maybe.map
-            (sortMinLength2ListWith sortByFurthestLeftComparison)
-            spec.identicallyColored
-    , differentlyColored =
-        Maybe.map
-            (sortMinLength2ListWith sortByFurthestLeftComparison)
-            spec.differentlyColored
-    , noOtherStickersMatchThanThese =
-        Maybe.map
-            (List.Nonempty.sortWith sortByFurthestLeftComparison)
-            spec.noOtherStickersMatchThanThese
-    , noOtherBlocksPresent = spec.noOtherBlocksPresent
-    }
+                    caseRecognition.noOtherStickersMatchThanThese
+            , noOtherBlocksPresent = caseRecognition.noOtherBlocksPresent
+            }
+    in
+    { spec | caseRecognition = sortedCaseRecognition }
 
 
 sortByFurthestLeftComparison : PLL.RecognitionElement -> PLL.RecognitionElement -> Order
