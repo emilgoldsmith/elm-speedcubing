@@ -8,6 +8,7 @@ module Cube.Advanced exposing
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
     , addAUFsToAlgorithm, detectAUFs
     , canBeSolvedBySingleUTurn
+    , colorToFaceItBelongsTo
     )
 
 {-|
@@ -1509,6 +1510,33 @@ faceToColor face =
 
         LeftOrRight R ->
             RightColor
+
+
+{-| Get the color corresponding to the given face
+-}
+colorToFaceItBelongsTo : Color -> Maybe Face
+colorToFaceItBelongsTo color =
+    case color of
+        PlasticColor ->
+            Nothing
+
+        UpColor ->
+            Just <| UpOrDown U
+
+        DownColor ->
+            Just <| UpOrDown D
+
+        FrontColor ->
+            Just <| FrontOrBack F
+
+        BackColor ->
+            Just <| FrontOrBack B
+
+        LeftColor ->
+            Just <| LeftOrRight L
+
+        RightColor ->
+            Just <| LeftOrRight R
 
 
 
