@@ -606,111 +606,111 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                     ++ "\nThe stickers were:\n"
                                     ++ Debug.toString stickers
                                 )
-        , fuzz3
-            (Fuzz.tuple ( aufFuzzer, testedPlls ))
-            recognitionAngleFuzzer
-            pllAlgorithmsFuzzer
-            "check that no other cases except for symmetric ones match this spec; that it's therefore uniquely determinable by this description"
-          <|
-            \( preAUF, pll ) recognitionAngle algorithms ->
-                case
-                    PLL.getUniqueTwoSidedRecognitionSpecification
-                        algorithms
-                        recognitionAngle
-                        ( preAUF, pll )
-                of
-                    Err err ->
-                        Expect.fail ("spec failed: " ++ Debug.toString err)
-
-                    Ok spec ->
-                        let
-                            equivalentPreAUFs =
-                                PLL.getAllEquivalentAUFs ( preAUF, pll, AUF.None )
-                                    |> List.Nonempty.toList
-                                    |> List.map (\( x, _ ) -> x)
-
-                            allOtherCases =
-                                List.Nonempty.Extra.lift2
-                                    Tuple.pair
-                                    AUF.all
-                                    PLL.all
-                                    |> List.Nonempty.filter (\( preAUF_, pll_ ) -> not <| pll == pll_ && List.member preAUF_ equivalentPreAUFs)
-                                        ( preAUF, pll )
-                        in
-                        allOtherCases
-                            |> List.Nonempty.toList
-                            |> List.filter
-                                (\otherCase ->
-                                    verifySpecForStickers
-                                        (getRecognitionStickers
-                                            algorithms
-                                            recognitionAngle
-                                            otherCase
-                                        )
-                                        spec
-                                )
-                            |> Expect.equalLists []
         , only <|
             fuzz3
                 (Fuzz.tuple ( aufFuzzer, testedPlls ))
                 recognitionAngleFuzzer
                 pllAlgorithmsFuzzer
-                "postAUF recognition gives correct elements going to correct faces"
+                "check that no other cases except for symmetric ones match this spec; that it's therefore uniquely determinable by this description"
             <|
-                \case_ recognitionAngle algorithms ->
+                \( preAUF, pll ) recognitionAngle algorithms ->
                     case
                         PLL.getUniqueTwoSidedRecognitionSpecification
                             algorithms
                             recognitionAngle
-                            case_
+                            ( preAUF, pll )
                     of
                         Err err ->
                             Expect.fail ("spec failed: " ++ Debug.toString err)
 
-                        Ok { postAUFRecognition } ->
-                            postAUFRecognition
+                        Ok spec ->
+                            let
+                                equivalentPreAUFs =
+                                    PLL.getAllEquivalentAUFs ( preAUF, pll, AUF.None )
+                                        |> List.Nonempty.toList
+                                        |> List.map (\( x, _ ) -> x)
+
+                                allOtherCases =
+                                    List.Nonempty.Extra.lift2
+                                        Tuple.pair
+                                        AUF.all
+                                        PLL.all
+                                        |> List.Nonempty.filter (\( preAUF_, pll_ ) -> not <| pll == pll_ && List.member preAUF_ equivalentPreAUFs)
+                                            ( preAUF, pll )
+                            in
+                            allOtherCases
                                 |> List.Nonempty.toList
                                 |> List.filter
-                                    (\( elements, targetFace ) ->
-                                        let
-                                            expectedElementColor =
-                                                case targetFace of
-                                                    Cube.Advanced.UpOrDown Cube.Advanced.U ->
-                                                        UpColor
-
-                                                    Cube.Advanced.UpOrDown Cube.Advanced.D ->
-                                                        DownColor
-
-                                                    Cube.Advanced.LeftOrRight Cube.Advanced.L ->
-                                                        LeftColor
-
-                                                    Cube.Advanced.LeftOrRight Cube.Advanced.R ->
-                                                        RightColor
-
-                                                    Cube.Advanced.FrontOrBack Cube.Advanced.F ->
-                                                        FrontColor
-
-                                                    Cube.Advanced.FrontOrBack Cube.Advanced.B ->
-                                                        BackColor
-
-                                            -- This is under the assumption that it gets the colors on
-                                            -- cases that don't have any postAUF so that the cube would
-                                            -- be solved after algorithm application and the color
-                                            -- should therefore be the target face
-                                            stickerColors =
-                                                getRecognitionStickers algorithms recognitionAngle case_
-
-                                            elementColors =
-                                                elements
-                                                    |> List.Nonempty.concatMap getElementStickers
-                                                    |> List.Nonempty.map (getStickerColor stickerColors)
-                                        in
-                                        elementColors
-                                            -- We only want to keep the ones that don't fit for a good
-                                            -- error message
-                                            |> List.Nonempty.any (\elementColor -> elementColor /= expectedElementColor)
+                                    (\otherCase ->
+                                        verifySpecForStickers
+                                            (getRecognitionStickers
+                                                algorithms
+                                                recognitionAngle
+                                                otherCase
+                                            )
+                                            spec
                                     )
                                 |> Expect.equalLists []
+        , fuzz3
+            (Fuzz.tuple ( aufFuzzer, testedPlls ))
+            recognitionAngleFuzzer
+            pllAlgorithmsFuzzer
+            "postAUF recognition gives correct elements going to correct faces"
+          <|
+            \case_ recognitionAngle algorithms ->
+                case
+                    PLL.getUniqueTwoSidedRecognitionSpecification
+                        algorithms
+                        recognitionAngle
+                        case_
+                of
+                    Err err ->
+                        Expect.fail ("spec failed: " ++ Debug.toString err)
+
+                    Ok { postAUFRecognition } ->
+                        postAUFRecognition
+                            |> List.Nonempty.toList
+                            |> List.filter
+                                (\( elements, targetFace ) ->
+                                    let
+                                        expectedElementColor =
+                                            case targetFace of
+                                                Cube.Advanced.UpOrDown Cube.Advanced.U ->
+                                                    UpColor
+
+                                                Cube.Advanced.UpOrDown Cube.Advanced.D ->
+                                                    DownColor
+
+                                                Cube.Advanced.LeftOrRight Cube.Advanced.L ->
+                                                    LeftColor
+
+                                                Cube.Advanced.LeftOrRight Cube.Advanced.R ->
+                                                    RightColor
+
+                                                Cube.Advanced.FrontOrBack Cube.Advanced.F ->
+                                                    FrontColor
+
+                                                Cube.Advanced.FrontOrBack Cube.Advanced.B ->
+                                                    BackColor
+
+                                        -- This is under the assumption that it gets the colors on
+                                        -- cases that don't have any postAUF so that the cube would
+                                        -- be solved after algorithm application and the color
+                                        -- should therefore be the target face
+                                        stickerColors =
+                                            getRecognitionStickers algorithms recognitionAngle case_
+
+                                        elementColors =
+                                            elements
+                                                |> List.Nonempty.concatMap getElementStickers
+                                                |> List.Nonempty.map (getStickerColor stickerColors)
+                                    in
+                                    elementColors
+                                        -- We only want to keep the ones that don't fit for a good
+                                        -- error message
+                                        |> List.Nonempty.any (\elementColor -> elementColor /= expectedElementColor)
+                                )
+                            |> Expect.equalLists []
         , todo "spec cannot have any part removed"
         ]
 
@@ -870,7 +870,11 @@ isPatternPresent colors pattern =
 
         PLL.RightFourChecker ->
             (colors.firstFromRight == colors.thirdFromRight)
-                && (colors.secondFromRight == colors.thirdFromRight)
+                && (colors.secondFromRight == colors.thirdFromLeft)
+
+        PLL.InnerFourChecker ->
+            (colors.secondFromLeft == colors.thirdFromRight)
+                && (colors.thirdFromLeft == colors.secondFromRight)
 
         PLL.LeftFiveChecker ->
             (colors.firstFromLeft == colors.thirdFromLeft)
@@ -879,8 +883,8 @@ isPatternPresent colors pattern =
 
         PLL.RightFiveChecker ->
             (colors.firstFromRight == colors.thirdFromRight)
-                && (colors.secondFromRight == colors.thirdFromRight)
-                && (colors.thirdFromRight == colors.secondFromRight)
+                && (colors.secondFromRight == colors.thirdFromLeft)
+                && (colors.thirdFromRight == colors.secondFromLeft)
 
         PLL.SixChecker ->
             (colors.firstFromLeft == colors.thirdFromLeft)
@@ -965,6 +969,14 @@ getPatternStickers pattern =
                 [ PLL.SecondStickerFromRight
                 , PLL.ThirdStickerFromRight
                 , PLL.ThirdStickerFromLeft
+                ]
+
+        PLL.InnerFourChecker ->
+            List.Nonempty.Nonempty
+                PLL.SecondStickerFromLeft
+                [ PLL.ThirdStickerFromLeft
+                , PLL.ThirdStickerFromRight
+                , PLL.SecondStickerFromRight
                 ]
 
         PLL.LeftFiveChecker ->
@@ -1261,6 +1273,9 @@ isBlockPattern pattern =
             False
 
         PLL.RightFourChecker ->
+            False
+
+        PLL.InnerFourChecker ->
             False
 
         PLL.LeftFiveChecker ->
