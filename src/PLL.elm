@@ -1025,6 +1025,7 @@ type RecognitionPattern
     | Bookends
     | LeftFourChecker
     | RightFourChecker
+    | InnerFourChecker
     | LeftFiveChecker
     | RightFiveChecker
     | SixChecker
@@ -1236,6 +1237,218 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
                                             ]
                                     }
 
+                        Z ->
+                            let
+                                none =
+                                    { emptyCaseSpec
+                                        | patterns = Just <| singleton SixChecker
+                                    }
+
+                                u =
+                                    { emptyCaseSpec
+                                        | patterns = Just <| nonempty LeftHeadlights [ RightHeadlights ]
+                                        , noOtherStickersMatchThanThese =
+                                            Just <|
+                                                nonempty
+                                                    (Pattern LeftHeadlights)
+                                                    [ Pattern RightHeadlights ]
+                                        , notOppositelyColored =
+                                            [ ( singleton <| Pattern LeftHeadlights
+                                              , singleton <| Sticker SecondStickerFromLeft
+                                              )
+                                            ]
+                                    }
+                            in
+                            case ufrReferenceAlgorithmPreAUF of
+                                AUF.None ->
+                                    none
+
+                                AUF.Clockwise ->
+                                    u
+
+                                AUF.Halfway ->
+                                    none
+
+                                AUF.CounterClockwise ->
+                                    u
+
+                        Aa ->
+                            case ufrReferenceAlgorithmPreAUF of
+                                AUF.None ->
+                                    { emptyCaseSpec
+                                        | patterns = Just <| nonempty LeftOutsideTwoBar [ Bookends ]
+                                        , noOtherBlocksPresent = True
+                                        , oppositelyColored =
+                                            [ ( singleton <| Pattern LeftOutsideTwoBar
+                                              , singleton <| Sticker ThirdStickerFromLeft
+                                              )
+                                            ]
+                                        , differentlyColored =
+                                            Just
+                                                ( Sticker ThirdStickerFromLeft
+                                                , Sticker SecondStickerFromRight
+                                                , []
+                                                )
+                                    }
+
+                                AUF.Clockwise ->
+                                    { emptyCaseSpec
+                                        | patterns = Just <| nonempty Bookends [ LeftInsideTwoBar, RightInsideTwoBar ]
+                                        , noOtherBlocksPresent = True
+                                        , oppositelyColored =
+                                            [ ( singleton <| Pattern RightInsideTwoBar
+                                              , singleton <| Sticker FirstStickerFromRight
+                                              )
+                                            ]
+                                    }
+
+                                AUF.Halfway ->
+                                    { emptyCaseSpec
+                                        | patterns = Just <| nonempty LeftFourChecker [ RightOutsideTwoBar ]
+                                    }
+
+                                AUF.CounterClockwise ->
+                                    { emptyCaseSpec
+                                        | patterns = Just <| singleton RightHeadlights
+                                        , absentPatterns =
+                                            Just <|
+                                                nonempty
+                                                    RightFourChecker
+                                                    [ LeftHeadlights ]
+                                        , noOtherBlocksPresent = True
+                                        , adjacentlyColored =
+                                            [ ( singleton <| Pattern RightHeadlights
+                                              , singleton <| Sticker SecondStickerFromRight
+                                              )
+                                            ]
+                                    }
+
+                        Ab ->
+                            case ufrReferenceAlgorithmPreAUF of
+                                AUF.CounterClockwise ->
+                                    { emptyCaseSpec
+                                        | patterns = Just <| nonempty RightOutsideTwoBar [ Bookends ]
+                                        , noOtherBlocksPresent = True
+                                        , oppositelyColored =
+                                            [ ( singleton <| Pattern RightOutsideTwoBar
+                                              , singleton <| Sticker ThirdStickerFromRight
+                                              )
+                                            ]
+                                        , differentlyColored =
+                                            Just
+                                                ( Sticker ThirdStickerFromRight
+                                                , Sticker SecondStickerFromLeft
+                                                , []
+                                                )
+                                    }
+
+                                AUF.Halfway ->
+                                    { emptyCaseSpec
+                                        | patterns = Just <| nonempty Bookends [ LeftInsideTwoBar, RightInsideTwoBar ]
+                                        , noOtherBlocksPresent = True
+                                        , oppositelyColored =
+                                            [ ( singleton <| Pattern LeftInsideTwoBar
+                                              , singleton <| Sticker FirstStickerFromLeft
+                                              )
+                                            ]
+                                    }
+
+                                AUF.Clockwise ->
+                                    { emptyCaseSpec
+                                        | patterns = Just <| nonempty RightFourChecker [ LeftOutsideTwoBar ]
+                                    }
+
+                                AUF.None ->
+                                    { emptyCaseSpec
+                                        | patterns = Just <| singleton LeftHeadlights
+                                        , absentPatterns =
+                                            Just <|
+                                                nonempty
+                                                    LeftFourChecker
+                                                    [ RightHeadlights ]
+                                        , noOtherBlocksPresent = True
+                                        , adjacentlyColored =
+                                            [ ( singleton <| Pattern LeftHeadlights
+                                              , singleton <| Sticker SecondStickerFromLeft
+                                              )
+                                            ]
+                                    }
+
+                        E ->
+                            let
+                                u =
+                                    { emptyCaseSpec
+                                        | absentPatterns =
+                                            Just <|
+                                                nonempty
+                                                    Bookends
+                                                    [ LeftHeadlights, RightHeadlights ]
+                                        , noOtherBlocksPresent = True
+                                        , identicallyColored =
+                                            Just
+                                                ( Sticker ThirdStickerFromLeft
+                                                , Sticker SecondStickerFromRight
+                                                , []
+                                                )
+                                        , differentlyColored =
+                                            Just
+                                                ( Sticker SecondStickerFromLeft
+                                                , Sticker ThirdStickerFromRight
+                                                , []
+                                                )
+                                    }
+                            in
+                            case ufrReferenceAlgorithmPreAUF of
+                                AUF.None ->
+                                    mirrorCaseSpec u
+
+                                AUF.Clockwise ->
+                                    u
+
+                                AUF.Halfway ->
+                                    mirrorCaseSpec u
+
+                                AUF.CounterClockwise ->
+                                    u
+
+                        F ->
+                            let
+                                none =
+                                    { emptyCaseSpec
+                                        | patterns = Just <| singleton LeftThreeBar
+                                        , noOtherStickersMatchThanThese =
+                                            Just <|
+                                                singleton
+                                                    (Pattern LeftThreeBar)
+                                    }
+
+                                u2 =
+                                    { emptyCaseSpec
+                                        | patterns =
+                                            Just <|
+                                                nonempty
+                                                    Bookends
+                                                    [ InnerFourChecker ]
+                                        , oppositelyColored =
+                                            [ ( singleton <| Sticker FirstStickerFromRight
+                                              , singleton <| Sticker SecondStickerFromRight
+                                              )
+                                            ]
+                                    }
+                            in
+                            case ufrReferenceAlgorithmPreAUF of
+                                AUF.None ->
+                                    none
+
+                                AUF.Clockwise ->
+                                    mirrorCaseSpec none
+
+                                AUF.Halfway ->
+                                    u2
+
+                                AUF.CounterClockwise ->
+                                    mirrorCaseSpec u2
+
                         T ->
                             let
                                 u2 =
@@ -1306,21 +1519,9 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
 
                                 AUF.CounterClockwise ->
                                     { emptyCaseSpec
-                                        | patterns = Just <| singleton RightHeadlights
-                                        , absentPatterns = Just <| singleton LeftHeadlights
+                                        | patterns = Just <| singleton RightFourChecker
+                                        , absentPatterns = Just <| nonempty LeftHeadlights [ RightFiveChecker ]
                                         , noOtherBlocksPresent = True
-                                        , identicallyColored =
-                                            Just
-                                                ( Sticker ThirdStickerFromLeft
-                                                , Sticker SecondStickerFromRight
-                                                , []
-                                                )
-                                        , differentlyColored =
-                                            Just
-                                                ( Sticker SecondStickerFromLeft
-                                                , Sticker ThirdStickerFromRight
-                                                , []
-                                                )
                                     }
 
                                 AUF.None ->
@@ -1341,43 +1542,6 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
                                                 , []
                                                 )
                                     }
-
-                        E ->
-                            let
-                                u =
-                                    { emptyCaseSpec
-                                        | absentPatterns =
-                                            Just <|
-                                                nonempty
-                                                    Bookends
-                                                    [ LeftHeadlights, RightHeadlights ]
-                                        , noOtherBlocksPresent = True
-                                        , identicallyColored =
-                                            Just
-                                                ( Sticker ThirdStickerFromLeft
-                                                , Sticker SecondStickerFromRight
-                                                , []
-                                                )
-                                        , differentlyColored =
-                                            Just
-                                                ( Sticker SecondStickerFromLeft
-                                                , Sticker ThirdStickerFromRight
-                                                , []
-                                                )
-                                    }
-                            in
-                            case ufrReferenceAlgorithmPreAUF of
-                                AUF.None ->
-                                    mirrorCaseSpec u
-
-                                AUF.Clockwise ->
-                                    u
-
-                                AUF.Halfway ->
-                                    mirrorCaseSpec u
-
-                                AUF.CounterClockwise ->
-                                    u
 
                         _ ->
                             emptyCaseSpec
@@ -1489,6 +1653,9 @@ mirrorPattern pattern =
 
         RightFourChecker ->
             LeftFourChecker
+
+        InnerFourChecker ->
+            InnerFourChecker
 
         LeftFiveChecker ->
             RightFiveChecker
