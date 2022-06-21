@@ -488,7 +488,7 @@ getAllAUFEquivalencyClassesTests =
 
 testedPlls : Fuzz.Fuzzer PLL
 testedPlls =
-    Fuzz.oneOf (List.map Fuzz.constant [ PLL.F ])
+    Fuzz.oneOf (List.map Fuzz.constant [ PLL.F, PLL.H, PLL.Ga, PLL.Aa, PLL.Ab, PLL.Z ])
 
 
 recognitionAngleFuzzer : Fuzz.Fuzzer PLL.RecognitionAngle
