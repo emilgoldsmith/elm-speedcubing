@@ -1,5 +1,6 @@
-module List.Nonempty.Extra exposing (lift2, lift3)
+module List.Nonempty.Extra exposing (find, lift2, lift3, minimum)
 
+import List.Extra
 import List.Nonempty
 
 
@@ -31,3 +32,15 @@ lift3 f la lb lc =
                                 |> List.Nonempty.map (\c -> f a b c)
                         )
             )
+
+
+minimum : List.Nonempty.Nonempty comparable -> comparable
+minimum =
+    List.Nonempty.foldl1 min
+
+
+find : (a -> Bool) -> List.Nonempty.Nonempty a -> Maybe a
+find f list =
+    list
+        |> List.Nonempty.toList
+        |> List.Extra.find f
