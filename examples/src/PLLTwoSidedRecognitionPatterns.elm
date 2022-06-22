@@ -50,9 +50,13 @@ main =
                                                                 }
                                                             , postAUFRecognition =
                                                                 List.Nonempty.singleton
-                                                                    ( List.Nonempty.singleton <| PLL.Pattern PLL.SixChecker
-                                                                    , Cube.Advanced.UpOrDown Cube.Advanced.U
-                                                                    )
+                                                                    { elementsWithOriginalFace =
+                                                                        List.Nonempty.singleton <|
+                                                                            ( PLL.Pattern PLL.SixChecker
+                                                                            , Cube.Advanced.UpOrDown Cube.Advanced.U
+                                                                            )
+                                                                    , finalFace = Cube.Advanced.UpOrDown Cube.Advanced.U
+                                                                    }
                                                             }
                                                          <|
                                                             PLL.getUniqueTwoSidedRecognitionSpecification
@@ -160,9 +164,17 @@ log x =
 explainPLLRecognitionPattern : PLL.RecognitionSpecification -> String
 explainPLLRecognitionPattern spec =
     let
-        { patterns, absentPatterns, oppositelyColored, notOppositelyColored, adjacentlyColored, identicallyColored, differentlyColored, noOtherStickersMatchThanThese } =
+        sortedSpec =
             sortForDisplay spec
-                |> .caseRecognition
+
+        { patterns, absentPatterns, oppositelyColored, notOppositelyColored, adjacentlyColored, identicallyColored, differentlyColored, noOtherStickersMatchThanThese } =
+            sortedSpec.caseRecognition
+
+        { postAUFRecognition } =
+            sortedSpec
+
+        separator =
+            Comma
 
         parts =
             [ patterns
@@ -177,7 +189,10 @@ explainPLLRecognitionPattern spec =
                                )
                             ++ " "
                             ++ nonemptyToSentenceList
-                                { article = Definite, finalConjunction = And }
+                                { article = Definite
+                                , finalConjunction = And
+                                , separator = separator
+                                }
                                 (List.Nonempty.map PLL.Pattern patterns_)
                     )
                 |> Maybe.map List.singleton
@@ -197,7 +212,10 @@ explainPLLRecognitionPattern spec =
                                )
                             ++ " no "
                             ++ nonemptyToSentenceList
-                                { article = NoArticle, finalConjunction = Or }
+                                { article = NoArticle
+                                , finalConjunction = Or
+                                , separator = separator
+                                }
                                 (List.Nonempty.map PLL.Pattern patterns_)
                     )
                 |> Maybe.map List.singleton
@@ -205,7 +223,12 @@ explainPLLRecognitionPattern spec =
             , oppositelyColored
                 |> List.map
                     (\( first, second ) ->
-                        nonemptyToSentenceList { article = Definite, finalConjunction = And } first
+                        nonemptyToSentenceList
+                            { article = Definite
+                            , finalConjunction = And
+                            , separator = separator
+                            }
+                            first
                             ++ " "
                             ++ (if
                                     (List.Nonempty.length first > 1)
@@ -217,12 +240,12 @@ explainPLLRecognitionPattern spec =
                                     "is"
                                )
                             ++ " the opposite color of "
-                            ++ nonemptyToSentenceList { article = Definite, finalConjunction = And } second
+                            ++ nonemptyToSentenceList { article = Definite, finalConjunction = And, separator = separator } second
                     )
             , notOppositelyColored
                 |> List.map
                     (\( first, second ) ->
-                        nonemptyToSentenceList { article = Definite, finalConjunction = And } first
+                        nonemptyToSentenceList { article = Definite, finalConjunction = And, separator = separator } first
                             ++ " "
                             ++ (if
                                     (List.Nonempty.length first > 1)
@@ -234,12 +257,22 @@ explainPLLRecognitionPattern spec =
                                     "is"
                                )
                             ++ " not the opposite color of "
-                            ++ nonemptyToSentenceList { article = Definite, finalConjunction = And } second
+                            ++ nonemptyToSentenceList
+                                { article = Definite
+                                , finalConjunction = And
+                                , separator = separator
+                                }
+                                second
                     )
             , adjacentlyColored
                 |> List.map
                     (\( first, second ) ->
-                        nonemptyToSentenceList { article = Definite, finalConjunction = And } first
+                        nonemptyToSentenceList
+                            { article = Definite
+                            , finalConjunction = And
+                            , separator = separator
+                            }
+                            first
                             ++ " "
                             ++ (if
                                     (List.Nonempty.length first > 1)
@@ -251,12 +284,22 @@ explainPLLRecognitionPattern spec =
                                     "is"
                                )
                             ++ " the adjacent color of "
-                            ++ nonemptyToSentenceList { article = Definite, finalConjunction = And } second
+                            ++ nonemptyToSentenceList
+                                { article = Definite
+                                , finalConjunction = And
+                                , separator = separator
+                                }
+                                second
                     )
             , identicallyColored
                 |> Maybe.map
                     (\elements ->
-                        minLength2ToSentenceList { article = Definite, finalConjunction = And } elements
+                        minLength2ToSentenceList
+                            { article = Definite
+                            , finalConjunction = And
+                            , separator = separator
+                            }
+                            elements
                             ++ " are "
                             ++ (if lengthOfMinLength2List elements > 2 then
                                     "all "
@@ -271,7 +314,12 @@ explainPLLRecognitionPattern spec =
             , differentlyColored
                 |> Maybe.map
                     (\elements ->
-                        minLength2ToSentenceList { article = Definite, finalConjunction = And } elements
+                        minLength2ToSentenceList
+                            { article = Definite
+                            , finalConjunction = And
+                            , separator = separator
+                            }
+                            elements
                             ++ " are "
                             ++ (if lengthOfMinLength2List elements > 2 then
                                     "all "
@@ -287,11 +335,55 @@ explainPLLRecognitionPattern spec =
                 |> Maybe.map
                     (\elements ->
                         "There are no other stickers that match the color of any other sticker than "
-                            ++ nonemptyToSentenceList { article = Definite, finalConjunction = And } elements
+                            ++ nonemptyToSentenceList
+                                { article = Definite
+                                , finalConjunction = And
+                                , separator = separator
+                                }
+                                elements
                     )
                 |> Maybe.map List.singleton
                 |> Maybe.withDefault []
             ]
+
+        listOfPostAUFPatternsToLookAt =
+            Debug.log "AUF" postAUFRecognition
+                |> List.Nonempty.toList
+                |> List.map
+                    (\({ elementsWithOriginalFace, finalFace } as arg) ->
+                        nonemptyToSentenceList
+                            { article = Definite
+                            , finalConjunction = And
+                            , separator = separator
+                            }
+                            (List.Nonempty.map Tuple.first elementsWithOriginalFace)
+                            ++ (if staysInSamePlace arg then
+                                    " which will stay in place"
+
+                                else
+                                    " which will end up on the "
+                                        ++ (case finalFace of
+                                                Cube.Advanced.UpOrDown Cube.Advanced.U ->
+                                                    "top"
+
+                                                Cube.Advanced.UpOrDown Cube.Advanced.D ->
+                                                    "bottom"
+
+                                                Cube.Advanced.LeftOrRight Cube.Advanced.L ->
+                                                    "left"
+
+                                                Cube.Advanced.LeftOrRight Cube.Advanced.R ->
+                                                    "right"
+
+                                                Cube.Advanced.FrontOrBack Cube.Advanced.F ->
+                                                    "front"
+
+                                                Cube.Advanced.FrontOrBack Cube.Advanced.B ->
+                                                    "back"
+                                           )
+                                        ++ " side of the cube"
+                               )
+                    )
     in
     (parts
         |> List.concat
@@ -299,61 +391,90 @@ explainPLLRecognitionPattern spec =
         |> String.join ". "
         |> String.trim
     )
+        ++ ". You can identify what the last AUF will be by looking at "
+        ++ buildSentenceList
+            { finalConjunction = Or, separator = Semicolon }
+            listOfPostAUFPatternsToLookAt
         ++ "."
 
 
+staysInSamePlace :
+    { elementsWithOriginalFace : List.Nonempty.Nonempty ( PLL.RecognitionElement, Cube.Advanced.Face )
+    , finalFace : Cube.Advanced.Face
+    }
+    -> Bool
+staysInSamePlace { elementsWithOriginalFace, finalFace } =
+    elementsWithOriginalFace
+        |> List.Nonempty.all
+            (Tuple.second >> (==) finalFace)
+
+
 sortForDisplay : PLL.RecognitionSpecification -> PLL.RecognitionSpecification
-sortForDisplay ({ caseRecognition } as spec) =
-    let
-        sortedCaseRecognition =
-            { patterns =
-                Maybe.map
-                    (List.Nonempty.sortWith sortPatternsByFurthestLeftComparison)
-                    caseRecognition.patterns
-            , absentPatterns =
-                Maybe.map
-                    (List.Nonempty.sortWith sortPatternsByFurthestLeftComparison)
-                    caseRecognition.absentPatterns
-            , oppositelyColored =
-                caseRecognition.oppositelyColored
-                    |> List.map ensurePatternsAreInFirstSpot
-                    |> List.map
-                        (Tuple.mapBoth
-                            (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                            (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                        )
-            , notOppositelyColored =
-                caseRecognition.notOppositelyColored
-                    |> List.map ensurePatternsAreInFirstSpot
-                    |> List.map
-                        (Tuple.mapBoth
-                            (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                            (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                        )
-            , adjacentlyColored =
-                caseRecognition.adjacentlyColored
-                    |> List.map ensurePatternsAreInFirstSpot
-                    |> List.map
-                        (Tuple.mapBoth
-                            (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                            (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                        )
-            , identicallyColored =
-                Maybe.map
-                    (sortMinLength2ListWith sortByFurthestLeftComparison)
-                    caseRecognition.identicallyColored
-            , differentlyColored =
-                Maybe.map
-                    (sortMinLength2ListWith sortByFurthestLeftComparison)
-                    caseRecognition.differentlyColored
-            , noOtherStickersMatchThanThese =
-                Maybe.map
-                    (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                    caseRecognition.noOtherStickersMatchThanThese
-            , noOtherBlocksPresent = caseRecognition.noOtherBlocksPresent
-            }
-    in
-    { spec | caseRecognition = sortedCaseRecognition }
+sortForDisplay { caseRecognition, postAUFRecognition } =
+    { caseRecognition =
+        { patterns =
+            Maybe.map
+                (List.Nonempty.sortWith sortPatternsByFurthestLeftComparison)
+                caseRecognition.patterns
+        , absentPatterns =
+            Maybe.map
+                (List.Nonempty.sortWith sortPatternsByFurthestLeftComparison)
+                caseRecognition.absentPatterns
+        , oppositelyColored =
+            caseRecognition.oppositelyColored
+                |> List.map ensurePatternsAreInFirstSpot
+                |> List.map
+                    (Tuple.mapBoth
+                        (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                        (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                    )
+        , notOppositelyColored =
+            caseRecognition.notOppositelyColored
+                |> List.map ensurePatternsAreInFirstSpot
+                |> List.map
+                    (Tuple.mapBoth
+                        (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                        (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                    )
+        , adjacentlyColored =
+            caseRecognition.adjacentlyColored
+                |> List.map ensurePatternsAreInFirstSpot
+                |> List.map
+                    (Tuple.mapBoth
+                        (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                        (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                    )
+        , identicallyColored =
+            Maybe.map
+                (sortMinLength2ListWith sortByFurthestLeftComparison)
+                caseRecognition.identicallyColored
+        , differentlyColored =
+            Maybe.map
+                (sortMinLength2ListWith sortByFurthestLeftComparison)
+                caseRecognition.differentlyColored
+        , noOtherStickersMatchThanThese =
+            Maybe.map
+                (List.Nonempty.sortWith sortByFurthestLeftComparison)
+                caseRecognition.noOtherStickersMatchThanThese
+        , noOtherBlocksPresent = caseRecognition.noOtherBlocksPresent
+        }
+    , postAUFRecognition =
+        List.Nonempty.map
+            (\arg ->
+                { arg
+                    | elementsWithOriginalFace =
+                        List.Nonempty.sortWith
+                            sortTupleByFurthestLeftComparison
+                            arg.elementsWithOriginalFace
+                }
+            )
+            postAUFRecognition
+    }
+
+
+sortTupleByFurthestLeftComparison : ( PLL.RecognitionElement, a ) -> ( PLL.RecognitionElement, a ) -> Order
+sortTupleByFurthestLeftComparison ( a, _ ) ( b, _ ) =
+    sortByFurthestLeftComparison a b
 
 
 sortByFurthestLeftComparison : PLL.RecognitionElement -> PLL.RecognitionElement -> Order
@@ -416,6 +537,9 @@ sortByFurthestLeftComparison a b =
                         PLL.RightFourChecker ->
                             3
 
+                        PLL.InnerFourChecker ->
+                            2
+
                         PLL.LeftFiveChecker ->
                             1
 
@@ -471,41 +595,57 @@ type Conjunction
     | Or
 
 
-toSentenceList : { article : Article, finalConjunction : Conjunction } -> List PLL.RecognitionElement -> String
-toSentenceList { article, finalConjunction } list =
-    case list of
+type Separator
+    = Comma
+    | Semicolon
+
+
+toSentenceList : { article : Article, finalConjunction : Conjunction, separator : Separator } -> List PLL.RecognitionElement -> String
+toSentenceList { article, finalConjunction, separator } list =
+    list
+        |> List.map (elementToString { article = article })
+        |> buildSentenceList { finalConjunction = finalConjunction, separator = separator }
+
+
+buildSentenceList : { finalConjunction : Conjunction, separator : Separator } -> List String -> String
+buildSentenceList { finalConjunction, separator } strings =
+    let
+        separatorString =
+            case separator of
+                Comma ->
+                    ","
+
+                Semicolon ->
+                    ";"
+
+        conjunctionString =
+            case finalConjunction of
+                And ->
+                    "and"
+
+                Or ->
+                    "or"
+    in
+    case strings of
         [] ->
             ""
 
         [ x ] ->
-            elementToString { article = article } x
+            x
 
         [ x, y ] ->
-            let
-                conjunctionString =
-                    case finalConjunction of
-                        And ->
-                            "and"
-
-                        Or ->
-                            "or"
-            in
-            elementToString { article = article } x
-                ++ " "
-                ++ conjunctionString
-                ++ " "
-                ++ elementToString { article = article } y
+            x ++ separatorString ++ " " ++ conjunctionString ++ " " ++ y
 
         x :: xs ->
-            elementToString { article = article } x ++ ", " ++ toSentenceList { article = article, finalConjunction = finalConjunction } xs
+            x ++ separatorString ++ " " ++ buildSentenceList { finalConjunction = finalConjunction, separator = separator } xs
 
 
-nonemptyToSentenceList : { article : Article, finalConjunction : Conjunction } -> List.Nonempty.Nonempty PLL.RecognitionElement -> String
+nonemptyToSentenceList : { article : Article, finalConjunction : Conjunction, separator : Separator } -> List.Nonempty.Nonempty PLL.RecognitionElement -> String
 nonemptyToSentenceList args =
     List.Nonempty.toList >> toSentenceList args
 
 
-minLength2ToSentenceList : { article : Article, finalConjunction : Conjunction } -> ( PLL.RecognitionElement, PLL.RecognitionElement, List PLL.RecognitionElement ) -> String
+minLength2ToSentenceList : { article : Article, finalConjunction : Conjunction, separator : Separator } -> ( PLL.RecognitionElement, PLL.RecognitionElement, List PLL.RecognitionElement ) -> String
 minLength2ToSentenceList args ( first, second, rest ) =
     toSentenceList args (first :: second :: rest)
 

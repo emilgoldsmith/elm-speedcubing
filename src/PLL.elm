@@ -976,9 +976,13 @@ type alias RecognitionSpecification =
     { caseRecognition : CaseRecognitionSpecification
     , postAUFRecognition :
         List.Nonempty.Nonempty
-            ( List.Nonempty.Nonempty RecognitionElement
-            , Cube.Advanced.Face
-            )
+            { elementsWithOriginalFace :
+                List.Nonempty.Nonempty
+                    ( RecognitionElement
+                    , Cube.Advanced.Face
+                    )
+            , finalFace : Cube.Advanced.Face
+            }
     }
 
 
@@ -1161,7 +1165,11 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
 
                                             Pattern pattern ->
                                                 if originalFace == finalFace then
-                                                    Just ( pattern, finalFace )
+                                                    Just
+                                                        { pattern = pattern
+                                                        , orignalFace = originalFace
+                                                        , finalFace = finalFace
+                                                        }
 
                                                 else
                                                     Nothing
@@ -1171,35 +1179,39 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
                     -- as this is obviously the easiest to recognize post AUF with
                     case
                         List.head <|
-                            List.sortBy (Tuple.first >> howVisibleIsPattern) <|
+                            List.sortBy (.pattern >> howVisibleIsPattern) <|
                                 patternsThatStayInPlace
                     of
                         Just patternThatStaysInPlace ->
                             List.Nonempty.singleton <|
-                                Tuple.mapFirst (\element -> List.Nonempty.singleton (Pattern element)) <|
-                                    patternThatStaysInPlace
+                                { elementsWithOriginalFace =
+                                    List.Nonempty.singleton
+                                        ( Pattern patternThatStaysInPlace.pattern
+                                        , patternThatStaysInPlace.orignalFace
+                                        )
+                                , finalFace = patternThatStaysInPlace.finalFace
+                                }
 
                         Nothing ->
                             let
                                 groupedElements =
                                     elementsWithTargets
                                         |> List.foldl
-                                            (\{ element, originalFace, finalFace } acc ->
+                                            (\({ originalFace, finalFace } as cur) acc ->
                                                 if originalFace == finalFace then
                                                     { acc
-                                                        | staysInPlace = ( element, finalFace ) :: acc.staysInPlace
+                                                        | staysInPlace = cur :: acc.staysInPlace
                                                     }
 
                                                 else if faceVisible recognitionAngle finalFace then
                                                     { acc
                                                         | switchesToOtherVisibleSide =
-                                                            ( element, finalFace )
-                                                                :: acc.switchesToOtherVisibleSide
+                                                            cur :: acc.switchesToOtherVisibleSide
                                                     }
 
                                                 else
                                                     { acc
-                                                        | rest = ( element, finalFace ) :: acc.rest
+                                                        | rest = cur :: acc.rest
                                                     }
                                             )
                                             { staysInPlace = []
@@ -1218,13 +1230,25 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
 
                                 sortedGroupedElements =
                                     { staysInPlace =
-                                        List.sortBy (Tuple.first >> howVisibleIsElementGroup)
+                                        List.sortBy
+                                            (.elementsWithOriginalFace
+                                                >> List.Nonempty.map Tuple.first
+                                                >> howVisibleIsElementGroup
+                                            )
                                             stickersAlsoGrouped.staysInPlace
                                     , switchesToOtherVisibleSide =
-                                        List.sortBy (Tuple.first >> howVisibleIsElementGroup)
+                                        List.sortBy
+                                            (.elementsWithOriginalFace
+                                                >> List.Nonempty.map Tuple.first
+                                                >> howVisibleIsElementGroup
+                                            )
                                             stickersAlsoGrouped.switchesToOtherVisibleSide
                                     , rest =
-                                        List.sortBy (Tuple.first >> howVisibleIsElementGroup)
+                                        List.sortBy
+                                            (.elementsWithOriginalFace
+                                                >> List.Nonempty.map Tuple.first
+                                                >> howVisibleIsElementGroup
+                                            )
                                             stickersAlsoGrouped.rest
                                     }
 
@@ -1235,11 +1259,16 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
                                         ]
 
                                 finalList =
-                                    List.sortBy (Tuple.first >> howVisibleIsElementGroup)
+                                    List.sortBy
+                                        (.elementsWithOriginalFace
+                                            >> List.Nonempty.map Tuple.first
+                                            >> howVisibleIsElementGroup
+                                        )
                                         (if
                                             bestPatternsThatStayVisible
                                                 |> List.any
-                                                    (Tuple.first
+                                                    (.elementsWithOriginalFace
+                                                        >> List.Nonempty.map Tuple.first
                                                         >> List.Nonempty.Extra.find isPattern
                                                         >> (/=) Nothing
                                                     )
@@ -1261,56 +1290,89 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
                                     -- This should never happen so make a nonsense case that should
                                     -- definitely fail tests and obviously be wrong
                                     (List.Nonempty.Nonempty
-                                        ( List.Nonempty.singleton <| Pattern LeftThreeBar
-                                        , Cube.Advanced.FrontOrBack Cube.Advanced.F
-                                        )
-                                        [ ( List.Nonempty.singleton <| Pattern SixChecker
-                                          , Cube.Advanced.FrontOrBack Cube.Advanced.F
-                                          )
+                                        { elementsWithOriginalFace =
+                                            List.Nonempty.singleton
+                                                ( Pattern LeftThreeBar, Cube.Advanced.UpOrDown Cube.Advanced.U )
+                                        , finalFace = Cube.Advanced.FrontOrBack Cube.Advanced.F
+                                        }
+                                        [ { elementsWithOriginalFace =
+                                                List.Nonempty.singleton
+                                                    ( Pattern SixChecker, Cube.Advanced.UpOrDown Cube.Advanced.U )
+                                          , finalFace = Cube.Advanced.FrontOrBack Cube.Advanced.F
+                                          }
                                         ]
                                     )
                 }
             )
 
 
-groupStickersByFinalFace : List ( RecognitionElement, Cube.Advanced.Face ) -> List ( List.Nonempty.Nonempty RecognitionElement, Cube.Advanced.Face )
+groupStickersByFinalFace :
+    List
+        { element : RecognitionElement
+        , originalFace : Cube.Advanced.Face
+        , finalFace : Cube.Advanced.Face
+        }
+    ->
+        List
+            { elementsWithOriginalFace :
+                List.Nonempty.Nonempty
+                    ( RecognitionElement
+                    , Cube.Advanced.Face
+                    )
+            , finalFace : Cube.Advanced.Face
+            }
 groupStickersByFinalFace list =
     let
         groupedByFace =
             list
                 |> List.foldl
-                    (\( element, face ) acc ->
+                    (\{ element, originalFace, finalFace } acc ->
                         -- The order doesn't matter just that they get separated
-                        case face of
-                            Cube.Advanced.FrontOrBack Cube.Advanced.F ->
+                        case element of
+                            Pattern _ ->
                                 { acc
-                                    | f = element :: acc.f
+                                    | patterns =
+                                        { elementsWithOriginalFace =
+                                            List.Nonempty.singleton
+                                                ( element
+                                                , originalFace
+                                                )
+                                        , finalFace = finalFace
+                                        }
+                                            :: acc.patterns
                                 }
 
-                            Cube.Advanced.FrontOrBack Cube.Advanced.B ->
-                                { acc
-                                    | b = element :: acc.b
-                                }
+                            Sticker sticker ->
+                                case finalFace of
+                                    Cube.Advanced.FrontOrBack Cube.Advanced.F ->
+                                        { acc
+                                            | f = ( sticker, originalFace ) :: acc.f
+                                        }
 
-                            Cube.Advanced.LeftOrRight Cube.Advanced.L ->
-                                { acc
-                                    | l = element :: acc.l
-                                }
+                                    Cube.Advanced.FrontOrBack Cube.Advanced.B ->
+                                        { acc
+                                            | b = ( sticker, originalFace ) :: acc.b
+                                        }
 
-                            Cube.Advanced.LeftOrRight Cube.Advanced.R ->
-                                { acc
-                                    | r = element :: acc.r
-                                }
+                                    Cube.Advanced.LeftOrRight Cube.Advanced.L ->
+                                        { acc
+                                            | l = ( sticker, originalFace ) :: acc.l
+                                        }
 
-                            Cube.Advanced.UpOrDown Cube.Advanced.U ->
-                                { acc
-                                    | u = element :: acc.u
-                                }
+                                    Cube.Advanced.LeftOrRight Cube.Advanced.R ->
+                                        { acc
+                                            | r = ( sticker, originalFace ) :: acc.r
+                                        }
 
-                            Cube.Advanced.UpOrDown Cube.Advanced.D ->
-                                { acc
-                                    | d = element :: acc.d
-                                }
+                                    Cube.Advanced.UpOrDown Cube.Advanced.U ->
+                                        { acc
+                                            | u = ( sticker, originalFace ) :: acc.u
+                                        }
+
+                                    Cube.Advanced.UpOrDown Cube.Advanced.D ->
+                                        { acc
+                                            | d = ( sticker, originalFace ) :: acc.d
+                                        }
                     )
                     { u = []
                     , d = []
@@ -1318,25 +1380,33 @@ groupStickersByFinalFace list =
                     , r = []
                     , f = []
                     , b = []
+                    , patterns = []
                     }
     in
-    [ ( groupedByFace.u, Cube.Advanced.UpOrDown Cube.Advanced.U )
-    , ( groupedByFace.d, Cube.Advanced.UpOrDown Cube.Advanced.D )
-    , ( groupedByFace.l, Cube.Advanced.LeftOrRight Cube.Advanced.L )
-    , ( groupedByFace.r, Cube.Advanced.LeftOrRight Cube.Advanced.R )
-    , ( groupedByFace.f, Cube.Advanced.FrontOrBack Cube.Advanced.F )
-    , ( groupedByFace.b, Cube.Advanced.FrontOrBack Cube.Advanced.B )
-    ]
-        |> List.foldl
-            (\( elements, face ) acc ->
-                case List.Nonempty.fromList elements of
-                    Nothing ->
-                        acc
+    groupedByFace.patterns
+        ++ ([ ( groupedByFace.u, Cube.Advanced.UpOrDown Cube.Advanced.U )
+            , ( groupedByFace.d, Cube.Advanced.UpOrDown Cube.Advanced.D )
+            , ( groupedByFace.l, Cube.Advanced.LeftOrRight Cube.Advanced.L )
+            , ( groupedByFace.r, Cube.Advanced.LeftOrRight Cube.Advanced.R )
+            , ( groupedByFace.f, Cube.Advanced.FrontOrBack Cube.Advanced.F )
+            , ( groupedByFace.b, Cube.Advanced.FrontOrBack Cube.Advanced.B )
+            ]
+                |> List.foldl
+                    (\( elementsWithOriginalFace, finalFace ) acc ->
+                        case List.Nonempty.fromList elementsWithOriginalFace of
+                            Nothing ->
+                                acc
 
-                    Just nonemptyElements ->
-                        ( nonemptyElements, face ) :: acc
-            )
-            []
+                            Just nonemptyElementsWithOriginalFace ->
+                                { elementsWithOriginalFace =
+                                    nonemptyElementsWithOriginalFace
+                                        |> List.Nonempty.map (Tuple.mapFirst Sticker)
+                                , finalFace = finalFace
+                                }
+                                    :: acc
+                    )
+                    []
+           )
 
 
 faceVisible : RecognitionAngle -> Cube.Advanced.Face -> Bool

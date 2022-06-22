@@ -671,10 +671,10 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                             postAUFRecognition
                                 |> List.Nonempty.toList
                                 |> List.filter
-                                    (\( elements, targetFace ) ->
+                                    (\{ elementsWithOriginalFace, finalFace } ->
                                         let
                                             expectedElementColor =
-                                                Cube.Advanced.faceToColor targetFace
+                                                Cube.Advanced.faceToColor finalFace
 
                                             -- This is under the assumption that it gets the colors on
                                             -- cases that don't have any postAUF so that the cube would
@@ -684,7 +684,8 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                                 getRecognitionStickers algorithms recognitionAngle case_
 
                                             elementColors =
-                                                elements
+                                                elementsWithOriginalFace
+                                                    |> List.Nonempty.map Tuple.first
                                                     |> List.Nonempty.concatMap getElementStickers
                                                     |> List.Nonempty.map (getStickerColor stickerColors)
                                         in
