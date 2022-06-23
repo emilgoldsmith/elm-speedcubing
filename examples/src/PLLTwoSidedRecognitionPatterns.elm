@@ -43,8 +43,8 @@ main =
                                                                 , oppositelyColored = []
                                                                 , notOppositelyColored = []
                                                                 , adjacentlyColored = []
-                                                                , identicallyColored = Nothing
-                                                                , differentlyColored = Nothing
+                                                                , identicallyColored = []
+                                                                , differentlyColored = []
                                                                 , noOtherStickersMatchThanThese = Nothing
                                                                 , noOtherBlocksPresent = False
                                                                 }
@@ -292,7 +292,7 @@ explainPLLRecognitionPattern spec =
                                 second
                     )
             , identicallyColored
-                |> Maybe.map
+                |> List.map
                     (\elements ->
                         minLength2ToSentenceList
                             { article = Definite
@@ -309,10 +309,8 @@ explainPLLRecognitionPattern spec =
                                )
                             ++ "the same color"
                     )
-                |> Maybe.map List.singleton
-                |> Maybe.withDefault []
             , differentlyColored
-                |> Maybe.map
+                |> List.map
                     (\elements ->
                         minLength2ToSentenceList
                             { article = Definite
@@ -329,8 +327,6 @@ explainPLLRecognitionPattern spec =
                                )
                             ++ "different colors from each other"
                     )
-                |> Maybe.map List.singleton
-                |> Maybe.withDefault []
             , noOtherStickersMatchThanThese
                 |> Maybe.map
                     (\elements ->
@@ -347,7 +343,7 @@ explainPLLRecognitionPattern spec =
             ]
 
         listOfPostAUFPatternsToLookAt =
-            Debug.log "AUF" postAUFRecognition
+            postAUFRecognition
                 |> List.Nonempty.toList
                 |> List.map
                     (\({ elementsWithOriginalFace, finalFace } as arg) ->
@@ -445,11 +441,11 @@ sortForDisplay { caseRecognition, postAUFRecognition } =
                         (List.Nonempty.sortWith sortByFurthestLeftComparison)
                     )
         , identicallyColored =
-            Maybe.map
+            List.map
                 (sortMinLength2ListWith sortByFurthestLeftComparison)
                 caseRecognition.identicallyColored
         , differentlyColored =
-            Maybe.map
+            List.map
                 (sortMinLength2ListWith sortByFurthestLeftComparison)
                 caseRecognition.differentlyColored
         , noOtherStickersMatchThanThese =
