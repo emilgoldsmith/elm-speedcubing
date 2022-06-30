@@ -1,4 +1,4 @@
-module List.Nonempty.Extra exposing (find, lift2, lift3, minimum)
+module List.Nonempty.Extra exposing (find, getAt, lift2, lift3, minimum, removeAt)
 
 import List.Extra
 import List.Nonempty
@@ -44,3 +44,18 @@ find f list =
     list
         |> List.Nonempty.toList
         |> List.Extra.find f
+
+
+removeAt : Int -> List.Nonempty.Nonempty a -> Maybe (List.Nonempty.Nonempty a)
+removeAt index list =
+    list
+        |> List.Nonempty.toList
+        |> List.Extra.removeAt index
+        |> List.Nonempty.fromList
+
+
+getAt : Int -> List.Nonempty.Nonempty a -> Maybe a
+getAt index list =
+    list
+        |> List.Nonempty.toList
+        |> List.Extra.getAt index

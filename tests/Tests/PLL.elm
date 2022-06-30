@@ -11,6 +11,7 @@ import List.Extra
 import List.Nonempty
 import List.Nonempty.Extra
 import PLL exposing (PLL)
+import Random
 import Test exposing (..)
 import TestHelpers.Cube exposing (plainCubie, solvedCubeRendering)
 import Tests.AUF exposing (aufFuzzer)
@@ -514,22 +515,7 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                         Expect.fail ("spec failed: " ++ Debug.toString err)
 
                     Ok spec ->
-                        let
-                            patterns =
-                                spec.caseRecognition.patterns
-                                    |> Maybe.map List.Nonempty.toList
-                                    |> Maybe.withDefault []
-
-                            { caseRecognition } =
-                                spec
-
-                            otherPatternsCaseRecognition =
-                                { caseRecognition | patterns = Nothing, absentPatterns = Nothing }
-
-                            otherPatterns =
-                                extractAllPatterns { spec | caseRecognition = otherPatternsCaseRecognition }
-                        in
-                        List.all (\x -> List.member x patterns) otherPatterns
+                        allMentionedPatternsListedInPatterns spec
                             |> Expect.true ("There was a pattern mentioned not included in patterns. The spec was: " ++ Debug.toString spec)
         , fuzz3
             (Fuzz.tuple ( aufFuzzer, pllFuzzer ))
@@ -548,22 +534,7 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                         Expect.fail ("spec failed: " ++ Debug.toString err)
 
                     Ok spec ->
-                        let
-                            absentPatterns =
-                                spec.caseRecognition.absentPatterns
-                                    |> Maybe.map List.Nonempty.toList
-                                    |> Maybe.withDefault []
-
-                            { caseRecognition } =
-                                spec
-
-                            otherPatternsCaseRecognition =
-                                { caseRecognition | absentPatterns = Nothing }
-
-                            otherPatterns =
-                                extractAllPatterns { spec | caseRecognition = otherPatternsCaseRecognition }
-                        in
-                        List.all (\x -> not <| List.member x absentPatterns) otherPatterns
+                        noMentionedPatternsIncludedInAbsentPatterns spec
                             |> Expect.true ("There was a pattern mentioned that was also included in absent patterns. The spec was: " ++ Debug.toString spec)
 
         -- This one also ensures that it's internally coherent as otherwise
@@ -688,8 +659,475 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                         |> List.Nonempty.any (\elementColor -> elementColor /= expectedElementColor)
                                 )
                             |> Expect.equalLists []
-        , todo "spec cannot have any part removed"
+        , fuzz3
+            (Fuzz.tuple ( aufFuzzer, pllFuzzer ))
+            (Fuzz.tuple ( recognitionAngleFuzzer, pllAlgorithmsFuzzer ))
+            (Fuzz.tuple ( Fuzz.intRange 0 8, Fuzz.intRange 0 Random.maxInt ))
+            "spec cannot have any part removed and still uniquely identify the case"
+          <|
+            \( preAUF, pll ) ( recognitionAngle, algorithms ) ( keyIndex, subIndex ) ->
+                case
+                    PLL.getUniqueTwoSidedRecognitionSpecification
+                        algorithms
+                        recognitionAngle
+                        ( preAUF, pll )
+                of
+                    Err err ->
+                        Expect.fail ("spec failed: " ++ Debug.toString err)
+
+                    Ok spec ->
+                        case removePartFromSpec keyIndex subIndex spec of
+                            Nothing ->
+                                Expect.pass
+
+                            Just ( specWithPartRemoved, partRemovedString ) ->
+                                if
+                                    not
+                                        (allMentionedPatternsListedInPatterns specWithPartRemoved
+                                            && noMentionedPatternsIncludedInAbsentPatterns specWithPartRemoved
+                                            && verifySpecForStickers
+                                                (getRecognitionStickers
+                                                    algorithms
+                                                    recognitionAngle
+                                                    ( preAUF, pll )
+                                                )
+                                                specWithPartRemoved
+                                        )
+                                then
+                                    -- The spec was made invalid by removing a part so we don't want
+                                    -- the test to fail over an invalid spec
+                                    Expect.pass
+
+                                else
+                                    let
+                                        equivalentPreAUFs =
+                                            PLL.getAllEquivalentAUFs ( preAUF, pll, AUF.None )
+                                                |> List.Nonempty.toList
+                                                |> List.map (\( x, _ ) -> x)
+
+                                        allOtherCases =
+                                            List.Nonempty.Extra.lift2
+                                                Tuple.pair
+                                                AUF.all
+                                                PLL.all
+                                                |> List.Nonempty.filter (\( preAUF_, pll_ ) -> not <| pll == pll_ && List.member preAUF_ equivalentPreAUFs)
+                                                    ( preAUF, pll )
+                                    in
+                                    allOtherCases
+                                        |> List.Nonempty.toList
+                                        |> List.Extra.find
+                                            (\otherCase ->
+                                                verifySpecForStickers
+                                                    (getRecognitionStickers
+                                                        algorithms
+                                                        recognitionAngle
+                                                        otherCase
+                                                    )
+                                                    specWithPartRemoved
+                                            )
+                                        |> Expect.notEqual Nothing
+                                        |> Expect.onFail
+                                            ("The spec still uniquely identified the case, even though the following part was removed: "
+                                                ++ partRemovedString
+                                                ++ ". The spec after removing was: "
+                                                ++ Debug.toString specWithPartRemoved
+                                            )
         ]
+
+
+noMentionedPatternsIncludedInAbsentPatterns : PLL.RecognitionSpecification -> Bool
+noMentionedPatternsIncludedInAbsentPatterns spec =
+    let
+        absentPatterns =
+            spec.caseRecognition.absentPatterns
+                |> Maybe.map List.Nonempty.toList
+                |> Maybe.withDefault []
+
+        { caseRecognition } =
+            spec
+
+        otherPatternsCaseRecognition =
+            { caseRecognition | absentPatterns = Nothing }
+
+        otherPatterns =
+            extractAllPatterns { spec | caseRecognition = otherPatternsCaseRecognition }
+    in
+    List.all (\x -> not <| List.member x absentPatterns) otherPatterns
+
+
+allMentionedPatternsListedInPatterns : PLL.RecognitionSpecification -> Bool
+allMentionedPatternsListedInPatterns spec =
+    let
+        patterns =
+            spec.caseRecognition.patterns
+                |> Maybe.map List.Nonempty.toList
+                |> Maybe.withDefault []
+
+        { caseRecognition } =
+            spec
+
+        otherPatternsCaseRecognition =
+            { caseRecognition | patterns = Nothing, absentPatterns = Nothing }
+
+        otherPatterns =
+            extractAllPatterns { spec | caseRecognition = otherPatternsCaseRecognition }
+    in
+    List.all (\x -> List.member x patterns) otherPatterns
+
+
+removePartFromSpec : Int -> Int -> PLL.RecognitionSpecification -> Maybe ( PLL.RecognitionSpecification, String )
+removePartFromSpec keyIndex subIndex ({ caseRecognition } as spec) =
+    case modBy 9 keyIndex of
+        0 ->
+            caseRecognition.patterns
+                |> Maybe.map
+                    (\patterns ->
+                        let
+                            fixedSubIndex =
+                                modBy (List.Nonempty.length patterns) subIndex
+
+                            removedItemString =
+                                List.Nonempty.Extra.getAt fixedSubIndex patterns
+                                    |> Maybe.map Debug.toString
+                                    |> Maybe.withDefault ""
+
+                            updatedCaseRecognition =
+                                { caseRecognition
+                                    | patterns = List.Nonempty.Extra.removeAt fixedSubIndex patterns
+                                }
+                        in
+                        ( { spec | caseRecognition = updatedCaseRecognition }
+                        , removedItemString ++ " from patterns key"
+                        )
+                    )
+
+        1 ->
+            caseRecognition.absentPatterns
+                |> Maybe.map
+                    (\absentPatterns ->
+                        let
+                            fixedSubIndex =
+                                modBy (List.Nonempty.length absentPatterns) subIndex
+
+                            removedItemString =
+                                List.Nonempty.Extra.getAt fixedSubIndex absentPatterns
+                                    |> Maybe.map Debug.toString
+                                    |> Maybe.withDefault ""
+
+                            updatedCaseRecognition =
+                                { caseRecognition
+                                    | absentPatterns = List.Nonempty.Extra.removeAt fixedSubIndex absentPatterns
+                                }
+                        in
+                        ( { spec | caseRecognition = updatedCaseRecognition }
+                        , removedItemString ++ " from absentPatterns key"
+                        )
+                    )
+
+        2 ->
+            if List.isEmpty caseRecognition.oppositelyColored then
+                Nothing
+
+            else
+                let
+                    ( newOppositelyColored, removedItemString ) =
+                        removeItemFromNonemptyListPair
+                            subIndex
+                            caseRecognition.oppositelyColored
+
+                    updatedCaseRecognition =
+                        { caseRecognition
+                            | oppositelyColored = newOppositelyColored
+                        }
+                in
+                Just
+                    ( { spec | caseRecognition = updatedCaseRecognition }
+                    , removedItemString ++ " from oppositelyColored key"
+                    )
+
+        3 ->
+            if List.isEmpty caseRecognition.notOppositelyColored then
+                Nothing
+
+            else
+                let
+                    ( newNotOppositelyColored, removedItemString ) =
+                        removeItemFromNonemptyListPair
+                            subIndex
+                            caseRecognition.notOppositelyColored
+
+                    updatedCaseRecognition =
+                        { caseRecognition
+                            | notOppositelyColored = newNotOppositelyColored
+                        }
+                in
+                Just
+                    ( { spec | caseRecognition = updatedCaseRecognition }
+                    , removedItemString ++ " from notOppositelyColored key"
+                    )
+
+        4 ->
+            if List.isEmpty caseRecognition.adjacentlyColored then
+                Nothing
+
+            else
+                let
+                    ( newAdjacentlyColored, removedItemString ) =
+                        removeItemFromNonemptyListPair
+                            subIndex
+                            caseRecognition.adjacentlyColored
+
+                    updatedCaseRecognition =
+                        { caseRecognition
+                            | adjacentlyColored = newAdjacentlyColored
+                        }
+                in
+                Just
+                    ( { spec | caseRecognition = updatedCaseRecognition }
+                    , removedItemString ++ " from adjacentlyColored key"
+                    )
+
+        5 ->
+            if List.isEmpty caseRecognition.identicallyColored then
+                Nothing
+
+            else
+                let
+                    ( newIdenticallyColored, removedItemString ) =
+                        removeItemFromMinLength2List
+                            subIndex
+                            caseRecognition.identicallyColored
+
+                    updatedCaseRecognition =
+                        { caseRecognition
+                            | identicallyColored = newIdenticallyColored
+                        }
+                in
+                Just
+                    ( { spec | caseRecognition = updatedCaseRecognition }
+                    , removedItemString ++ " from identicallyColored key"
+                    )
+
+        6 ->
+            if List.isEmpty caseRecognition.differentlyColored then
+                Nothing
+
+            else
+                let
+                    ( differentlyColored, removedItemString ) =
+                        removeItemFromMinLength2List
+                            subIndex
+                            caseRecognition.differentlyColored
+
+                    updatedCaseRecognition =
+                        { caseRecognition
+                            | differentlyColored = differentlyColored
+                        }
+                in
+                Just
+                    ( { spec | caseRecognition = updatedCaseRecognition }
+                    , removedItemString ++ " from differentlyColored key"
+                    )
+
+        7 ->
+            caseRecognition.noOtherStickersMatchThanThese
+                |> Maybe.map
+                    (\noOtherStickersMatchThanThese ->
+                        let
+                            fixedSubIndex =
+                                modBy
+                                    (List.Nonempty.length noOtherStickersMatchThanThese)
+                                    subIndex
+
+                            removedItemString =
+                                List.Nonempty.Extra.getAt fixedSubIndex noOtherStickersMatchThanThese
+                                    |> Maybe.map Debug.toString
+                                    |> Maybe.withDefault ""
+
+                            updatedCaseRecognition =
+                                { caseRecognition
+                                    | noOtherStickersMatchThanThese = List.Nonempty.Extra.removeAt fixedSubIndex noOtherStickersMatchThanThese
+                                }
+                        in
+                        ( { spec | caseRecognition = updatedCaseRecognition }
+                        , removedItemString ++ " from noOtherStickersMatchThanThese key"
+                        )
+                    )
+
+        8 ->
+            if spec.caseRecognition.noOtherBlocksPresent == False then
+                -- Nothing left to remove
+                Nothing
+
+            else
+                let
+                    updatedCaseRecognition =
+                        { caseRecognition
+                            | noOtherBlocksPresent = False
+                        }
+                in
+                Just
+                    ( { spec | caseRecognition = updatedCaseRecognition }
+                    , "noOtherBlocksPresent set to false"
+                    )
+
+        _ ->
+            Just
+                ( { spec
+                    | caseRecognition =
+                        { patterns = Nothing
+                        , absentPatterns = Nothing
+                        , oppositelyColored = []
+                        , notOppositelyColored = []
+                        , adjacentlyColored = []
+                        , identicallyColored = []
+                        , differentlyColored = []
+                        , noOtherStickersMatchThanThese = Nothing
+                        , noOtherBlocksPresent = False
+                        }
+                  }
+                , "invalid keyIndex"
+                )
+
+
+removeItemFromMinLength2List :
+    Int
+    -> List ( a, a, List a )
+    -> ( List ( a, a, List a ), String )
+removeItemFromMinLength2List subIndex list =
+    let
+        length =
+            list
+                |> List.map (minLength2ToList >> List.length)
+                |> List.sum
+
+        targetSubIndex =
+            modBy length subIndex
+    in
+    list
+        |> List.map minLength2ToList
+        |> List.foldl
+            (\current ( accList, curSubIndex, removedItem ) ->
+                if curSubIndex > targetSubIndex then
+                    ( current :: accList, curSubIndex, removedItem )
+
+                else if curSubIndex + List.length current > targetSubIndex then
+                    ( List.Extra.removeAt
+                        (targetSubIndex - curSubIndex)
+                        current
+                        :: accList
+                    , curSubIndex + List.length current
+                    , List.Extra.getAt
+                        (targetSubIndex - curSubIndex)
+                        current
+                        |> Maybe.map Debug.toString
+                        |> Maybe.withDefault ""
+                    )
+
+                else
+                    ( current :: accList
+                    , curSubIndex + List.length current
+                    , removedItem
+                    )
+            )
+            ( [], 0, "" )
+        |> (\( a, _, b ) ->
+                ( a
+                    |> List.filterMap minLength2FromList
+                , b
+                )
+           )
+
+
+minLength2ToList : ( a, a, List a ) -> List a
+minLength2ToList ( first, second, tail ) =
+    first :: second :: tail
+
+
+minLength2FromList : List a -> Maybe ( a, a, List a )
+minLength2FromList list =
+    case list of
+        first :: second :: tail ->
+            Just ( first, second, tail )
+
+        _ ->
+            Nothing
+
+
+removeItemFromNonemptyListPair :
+    Int
+    -> List ( List.Nonempty.Nonempty a, List.Nonempty.Nonempty a )
+    -> ( List ( List.Nonempty.Nonempty a, List.Nonempty.Nonempty a ), String )
+removeItemFromNonemptyListPair subIndex list =
+    let
+        length =
+            list
+                |> List.map
+                    (Tuple.mapBoth
+                        List.Nonempty.length
+                        List.Nonempty.length
+                    )
+                |> List.map (\( a, b ) -> a + b)
+                |> List.sum
+
+        targetSubIndex =
+            modBy length subIndex
+    in
+    list
+        |> List.foldl
+            (\( a, b ) ( accList, curSubIndex, removedItem ) ->
+                if curSubIndex > targetSubIndex then
+                    ( ( a, b ) :: accList, curSubIndex, removedItem )
+
+                else if curSubIndex + List.Nonempty.length a > targetSubIndex then
+                    ( List.Nonempty.Extra.removeAt
+                        (targetSubIndex - curSubIndex)
+                        a
+                        |> Maybe.map
+                            (\newA ->
+                                ( newA, b ) :: accList
+                            )
+                        |> Maybe.withDefault accList
+                    , curSubIndex + List.Nonempty.length a
+                    , List.Nonempty.Extra.getAt
+                        (targetSubIndex - curSubIndex)
+                        a
+                        |> Maybe.map Debug.toString
+                        |> Maybe.withDefault ""
+                    )
+
+                else if
+                    curSubIndex
+                        + List.Nonempty.length a
+                        + List.Nonempty.length b
+                        > targetSubIndex
+                then
+                    ( List.Nonempty.Extra.removeAt
+                        (targetSubIndex - List.Nonempty.length a - curSubIndex)
+                        b
+                        |> Maybe.map
+                            (\newB ->
+                                ( a, newB ) :: accList
+                            )
+                        |> Maybe.withDefault accList
+                    , curSubIndex + List.Nonempty.length a + List.Nonempty.length b
+                    , List.Nonempty.Extra.getAt
+                        (targetSubIndex - List.Nonempty.length a - curSubIndex)
+                        b
+                        |> Maybe.map Debug.toString
+                        |> Maybe.withDefault ""
+                    )
+
+                else
+                    ( ( a, b ) :: accList
+                    , curSubIndex
+                        + List.Nonempty.length a
+                        + List.Nonempty.length b
+                    , removedItem
+                    )
+            )
+            ( [], 0, "" )
+        |> (\( a, _, b ) -> ( a, b ))
 
 
 pllAlgorithmsFuzzer : Fuzz.Fuzzer PLL.Algorithms
