@@ -1131,8 +1131,9 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
                             Cube.solved
                                 |> Cube.applyAlgorithm
                                     (Algorithm.inverse <|
-                                        Algorithm.append (AUF.toAlgorithm originalPreAUF) <|
-                                            getAlgorithm algorithms pll
+                                        Cube.makeAlgorithmMaintainOrientation <|
+                                            Algorithm.append (AUF.toAlgorithm originalPreAUF) <|
+                                                getAlgorithm algorithms pll
                                     )
                                 |> Cube.Advanced.render
 
