@@ -73,7 +73,8 @@ main =
                                                     Cube.applyAlgorithm
                                                         (log <|
                                                             Algorithm.inverse <|
-                                                                Algorithm.append (AUF.toAlgorithm preAUF) (PLL.getAlgorithm algorithms pll)
+                                                                Cube.makeAlgorithmMaintainOrientation <|
+                                                                    Algorithm.append (AUF.toAlgorithm preAUF) (PLL.getAlgorithm jpermsAlgorithms pll)
                                                         )
                                                         Cube.solved
                                                 ]
@@ -115,7 +116,7 @@ jpermsAlgorithms =
             Algorithm.fromString "R' U' F' (R U R' U') R' F R2 U' R' U' (R U R') U R"
     , jb =
         Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R U R' F') (R U R' U') R' F R2 U' R')"
+            Algorithm.fromString "(R U R' F') (R U R' U') R' F R2 U' R'"
     , ja =
         Result.withDefault Algorithm.empty <|
             Algorithm.fromString "x (R2 F R F') R U2 (r' U r) U2"
@@ -167,7 +168,7 @@ explainPLLRecognitionPattern spec =
         sortedSpec =
             sortForDisplay spec
 
-        { patterns, absentPatterns, oppositelyColored, notOppositelyColored, adjacentlyColored, identicallyColored, differentlyColored, noOtherStickersMatchThanThese } =
+        { patterns, absentPatterns, oppositelyColored, notOppositelyColored, adjacentlyColored, identicallyColored, differentlyColored, noOtherStickersMatchThanThese, noOtherBlocksPresent } =
             sortedSpec.caseRecognition
 
         { postAUFRecognition } =
@@ -194,9 +195,21 @@ explainPLLRecognitionPattern spec =
                                 , separator = separator
                                 }
                                 (List.Nonempty.map PLL.Pattern patterns_)
+                            ++ (if noOtherBlocksPresent then
+                                    ". No other blocks appear"
+
+                                else
+                                    ""
+                               )
                     )
                 |> Maybe.map List.singleton
-                |> Maybe.withDefault []
+                |> Maybe.withDefault
+                    (if noOtherBlocksPresent then
+                        [ "No blocks appear at all" ]
+
+                     else
+                        []
+                    )
             , absentPatterns
                 |> Maybe.map
                     (\patterns_ ->
@@ -240,7 +253,19 @@ explainPLLRecognitionPattern spec =
                                     "is"
                                )
                             ++ " the opposite color of "
-                            ++ nonemptyToSentenceList { article = Definite, finalConjunction = And, separator = separator } second
+                            ++ (if
+                                    ((first == List.Nonempty.singleton (PLL.Pattern PLL.LeftHeadlights))
+                                        && (second == List.Nonempty.singleton (PLL.Sticker PLL.SecondStickerFromLeft))
+                                    )
+                                        || ((first == List.Nonempty.singleton (PLL.Pattern PLL.RightHeadlights))
+                                                && (second == List.Nonempty.singleton (PLL.Sticker PLL.SecondStickerFromRight))
+                                           )
+                                then
+                                    "the enclosed sticker"
+
+                                else
+                                    nonemptyToSentenceList { article = Definite, finalConjunction = And, separator = separator } second
+                               )
                     )
             , notOppositelyColored
                 |> List.map
@@ -257,12 +282,19 @@ explainPLLRecognitionPattern spec =
                                     "is"
                                )
                             ++ " not the opposite color of "
-                            ++ nonemptyToSentenceList
-                                { article = Definite
-                                , finalConjunction = And
-                                , separator = separator
-                                }
-                                second
+                            ++ (if
+                                    ((first == List.Nonempty.singleton (PLL.Pattern PLL.LeftHeadlights))
+                                        && (second == List.Nonempty.singleton (PLL.Sticker PLL.SecondStickerFromLeft))
+                                    )
+                                        || ((first == List.Nonempty.singleton (PLL.Pattern PLL.RightHeadlights))
+                                                && (second == List.Nonempty.singleton (PLL.Sticker PLL.SecondStickerFromRight))
+                                           )
+                                then
+                                    "the enclosed sticker"
+
+                                else
+                                    nonemptyToSentenceList { article = Definite, finalConjunction = And, separator = separator } second
+                               )
                     )
             , adjacentlyColored
                 |> List.map
@@ -284,12 +316,19 @@ explainPLLRecognitionPattern spec =
                                     "is"
                                )
                             ++ " the adjacent color of "
-                            ++ nonemptyToSentenceList
-                                { article = Definite
-                                , finalConjunction = And
-                                , separator = separator
-                                }
-                                second
+                            ++ (if
+                                    ((first == List.Nonempty.singleton (PLL.Pattern PLL.LeftHeadlights))
+                                        && (second == List.Nonempty.singleton (PLL.Sticker PLL.SecondStickerFromLeft))
+                                    )
+                                        || ((first == List.Nonempty.singleton (PLL.Pattern PLL.RightHeadlights))
+                                                && (second == List.Nonempty.singleton (PLL.Sticker PLL.SecondStickerFromRight))
+                                           )
+                                then
+                                    "the enclosed sticker"
+
+                                else
+                                    nonemptyToSentenceList { article = Definite, finalConjunction = And, separator = separator } second
+                               )
                     )
             , identicallyColored
                 |> List.map
@@ -330,7 +369,7 @@ explainPLLRecognitionPattern spec =
             , noOtherStickersMatchThanThese
                 |> Maybe.map
                     (\elements ->
-                        "There are no other stickers that match the color of any other sticker than "
+                        "There are no other stickers that match the color of any other sticker except for "
                             ++ nonemptyToSentenceList
                                 { article = Definite
                                 , finalConjunction = And
@@ -702,8 +741,29 @@ elementToString { article } element =
                         PLL.LeftInsideTwoBar ->
                             { indefiniteArticle = Just "an", object = "inside two-bar on the left" }
 
-                        _ ->
-                            { indefiniteArticle = Nothing, object = "TODO" }
+                        PLL.LeftThreeBar ->
+                            { indefiniteArticle = Just "a", object = "three-bar on the left" }
+
+                        PLL.RightThreeBar ->
+                            { indefiniteArticle = Just "a", object = "three-bar on the right" }
+
+                        PLL.LeftFourChecker ->
+                            { indefiniteArticle = Just "a", object = "four checker pattern on the left" }
+
+                        PLL.RightFourChecker ->
+                            { indefiniteArticle = Just "a", object = "four checker pattern on the right" }
+
+                        PLL.InnerFourChecker ->
+                            { indefiniteArticle = Just "an", object = "inside four checker pattern" }
+
+                        PLL.LeftFiveChecker ->
+                            { indefiniteArticle = Just "a", object = "five checker pattern on the left" }
+
+                        PLL.RightFiveChecker ->
+                            { indefiniteArticle = Just "a", object = "five checker pattern on the right" }
+
+                        PLL.SixChecker ->
+                            { indefiniteArticle = Just "a", object = "six checker pattern" }
 
                 PLL.Sticker sticker ->
                     case sticker of

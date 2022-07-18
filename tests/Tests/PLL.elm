@@ -661,6 +661,130 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                             |> Expect.equalLists []
         , fuzz3
             (Fuzz.tuple ( aufFuzzer, pllFuzzer ))
+            recognitionAngleFuzzer
+            pllAlgorithmsFuzzer
+            "postAUF recognition never gives more than two options, and options are never equal"
+          <|
+            \case_ recognitionAngle algorithms ->
+                case
+                    PLL.getUniqueTwoSidedRecognitionSpecification
+                        algorithms
+                        recognitionAngle
+                        case_
+                of
+                    Err err ->
+                        Expect.fail ("spec failed: " ++ Debug.toString err)
+
+                    Ok { postAUFRecognition } ->
+                        postAUFRecognition
+                            |> Expect.all
+                                [ List.Nonempty.length >> Expect.atMost 2
+                                , List.Nonempty.uniq
+                                    >> List.Nonempty.toList
+                                    >> Expect.equalLists (List.Nonempty.toList postAUFRecognition)
+                                ]
+        , fuzz3
+            (Fuzz.tuple ( aufFuzzer, pllFuzzer ))
+            recognitionAngleFuzzer
+            pllAlgorithmsFuzzer
+            "postAUF recognition never gives top or bottom as final face"
+          <|
+            \case_ recognitionAngle algorithms ->
+                case
+                    PLL.getUniqueTwoSidedRecognitionSpecification
+                        algorithms
+                        recognitionAngle
+                        case_
+                of
+                    Err err ->
+                        Expect.fail ("spec failed: " ++ Debug.toString err)
+
+                    Ok { postAUFRecognition } ->
+                        postAUFRecognition
+                            |> List.Nonempty.Extra.find
+                                (\{ finalFace } ->
+                                    case finalFace of
+                                        Cube.Advanced.UpOrDown _ ->
+                                            True
+
+                                        _ ->
+                                            False
+                                )
+                            |> Expect.equal Nothing
+        , fuzz3
+            (Fuzz.tuple ( aufFuzzer, pllFuzzer ))
+            recognitionAngleFuzzer
+            pllAlgorithmsFuzzer
+            "postAUF recognition never references the same sticker in two different ways"
+          <|
+            \case_ recognitionAngle algorithms ->
+                case
+                    PLL.getUniqueTwoSidedRecognitionSpecification
+                        algorithms
+                        recognitionAngle
+                        case_
+                of
+                    Err err ->
+                        Expect.fail ("spec failed: " ++ Debug.toString err)
+
+                    Ok { postAUFRecognition } ->
+                        let
+                            allReferencedStickers =
+                                postAUFRecognition
+                                    |> List.Nonempty.concatMap
+                                        (.elementsWithOriginalFace
+                                            >> List.Nonempty.map Tuple.first
+                                        )
+                        in
+                        List.Nonempty.uniq allReferencedStickers
+                            |> Expect.equal allReferencedStickers
+        , fuzz3
+            (Fuzz.tuple ( aufFuzzer, pllFuzzer ))
+            recognitionAngleFuzzer
+            pllAlgorithmsFuzzer
+            "postAUF recognition never includes any obviously inferior options"
+          <|
+            \case_ recognitionAngle algorithms ->
+                case
+                    PLL.getUniqueTwoSidedRecognitionSpecification
+                        algorithms
+                        recognitionAngle
+                        case_
+                of
+                    Err err ->
+                        Expect.fail ("spec failed: " ++ Debug.toString err)
+
+                    Ok { postAUFRecognition } ->
+                        -- 1. Doesn't stay visible < visible < stays in place
+                        -- 2. Pattern visibility
+                        -- If both of them are at least greater or equal and at least one is
+                        -- strictly greater it is an obviously inferior option
+                        postAUFRecognition
+                            |> List.Nonempty.toList
+                            |> List.filter
+                                (\filteredElement ->
+                                    -- Keep it only if it is inferior for better error messages
+                                    postAUFRecognition
+                                        |> List.Nonempty.any
+                                            (\comparisonElement ->
+                                                (visibilityScore filteredElement
+                                                    <= visibilityScore comparisonElement
+                                                )
+                                                    && (finalFaceScore recognitionAngle filteredElement
+                                                            <= finalFaceScore recognitionAngle comparisonElement
+                                                            && ((visibilityScore filteredElement
+                                                                    /= visibilityScore comparisonElement
+                                                                )
+                                                                    || (finalFaceScore recognitionAngle filteredElement
+                                                                            /= finalFaceScore recognitionAngle comparisonElement
+                                                                       )
+                                                               )
+                                                       )
+                                            )
+                                )
+                            |> Expect.equalLists []
+        , fuzz3
+            (Fuzz.tuple ( aufFuzzer, pllFuzzer ))
             (Fuzz.tuple ( recognitionAngleFuzzer, pllAlgorithmsFuzzer ))
             (Fuzz.tuple ( Fuzz.intRange 0 8, Fuzz.intRange 0 Random.maxInt ))
             "spec cannot have any part removed and still uniquely identify the case"
@@ -733,6 +857,86 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                                 ++ Debug.toString specWithPartRemoved
                                             )
         ]
+
+
+visibilityScore :
+    { elementsWithOriginalFace :
+        List.Nonempty.Nonempty
+            ( PLL.RecognitionElement
+            , Cube.Advanced.Face
+            )
+    , finalFace : Cube.Advanced.Face
+    }
+    -> Float
+visibilityScore { elementsWithOriginalFace } =
+    elementsWithOriginalFace
+        |> List.Nonempty.toList
+        |> List.map Tuple.first
+        |> List.map visibilityOfRecognitionElement
+        |> List.sum
+
+
+visibilityOfRecognitionElement : PLL.RecognitionElement -> Float
+visibilityOfRecognitionElement element =
+    case element of
+        PLL.Sticker _ ->
+            1
+
+        PLL.Pattern _ ->
+            10
+
+
+finalFaceScore :
+    PLL.RecognitionAngle
+    ->
+        { elementsWithOriginalFace :
+            List.Nonempty.Nonempty
+                ( PLL.RecognitionElement
+                , Cube.Advanced.Face
+                )
+        , finalFace : Cube.Advanced.Face
+        }
+    -> Float
+finalFaceScore angle spec =
+    let
+        staysInPlace =
+            spec.elementsWithOriginalFace
+                |> List.Nonempty.map Tuple.second
+                |> List.Nonempty.all ((==) spec.finalFace)
+
+        staysInPlaceScore =
+            2
+
+        staysVisibleScore =
+            1
+
+        elseScore =
+            0
+    in
+    if staysInPlace then
+        staysInPlaceScore
+
+    else
+        case spec.finalFace of
+            Cube.Advanced.FrontOrBack Cube.Advanced.F ->
+                staysVisibleScore
+
+            Cube.Advanced.LeftOrRight Cube.Advanced.L ->
+                if angle == PLL.uflRecognitionAngle then
+                    staysVisibleScore
+
+                else
+                    elseScore
+
+            Cube.Advanced.LeftOrRight Cube.Advanced.R ->
+                if angle == PLL.ufrRecognitionAngle then
+                    staysVisibleScore
+
+                else
+                    elseScore
+
+            _ ->
+                elseScore
 
 
 noMentionedPatternsIncludedInAbsentPatterns : PLL.RecognitionSpecification -> Bool
@@ -1231,8 +1435,9 @@ getRecognitionStickers algorithms recognitionAngle ( preAUF, pll ) =
     Cube.solved
         |> Cube.applyAlgorithm
             (Algorithm.inverse <|
-                Algorithm.append (AUF.toAlgorithm preAUF) <|
-                    PLL.getAlgorithm algorithms pll
+                Cube.makeAlgorithmMaintainOrientation <|
+                    Algorithm.append (AUF.toAlgorithm preAUF) <|
+                        PLL.getAlgorithm algorithms pll
             )
         |> Cube.applyAlgorithm rotationToGetCorrectRecognitionAngle
         |> Cube.Advanced.render
