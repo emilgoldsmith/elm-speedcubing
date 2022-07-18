@@ -316,7 +316,7 @@ AUFs for the given PLL
     import Expect.Extra exposing (equalNonEmptyListMembers)
     import List.Nonempty
 
-    getAllEquivalentAUFs ( AUF.None, PLL.H, AUF.None )
+    getAllEquivalentAUFs ( AUF.None, H, AUF.None )
         |> equalNonEmptyListMembers
             (List.Nonempty.Nonempty
                 ( AUF.None, AUF.None )
@@ -364,7 +364,7 @@ getAllEquivalentAUFs ( preAUF, pll, postAUF ) =
 
 
 {-| Returns a list of lists, where each sublist represents an equivalency class of
-AUF pairs for the given pll. The equivalency classes are also exhaustive, so every
+AUF pairs for the given The equivalency classes are also exhaustive, so every
 possible AUF pair is represented in this list of lists
 -}
 getAllAUFEquivalencyClasses : PLL -> List.Nonempty.Nonempty (List.Nonempty.Nonempty ( AUF, AUF ))
@@ -1045,6 +1045,59 @@ type RecognitionPattern
     | SixChecker
 
 
+allPatterns : List.Nonempty.Nonempty RecognitionPattern
+allPatterns =
+    let
+        fromLeftHeadlights pattern =
+            case pattern of
+                LeftHeadlights ->
+                    Just RightHeadlights
+
+                RightHeadlights ->
+                    Just LeftThreeBar
+
+                LeftThreeBar ->
+                    Just RightThreeBar
+
+                RightThreeBar ->
+                    Just LeftInsideTwoBar
+
+                LeftInsideTwoBar ->
+                    Just RightInsideTwoBar
+
+                RightInsideTwoBar ->
+                    Just LeftOutsideTwoBar
+
+                LeftOutsideTwoBar ->
+                    Just RightOutsideTwoBar
+
+                RightOutsideTwoBar ->
+                    Just Bookends
+
+                Bookends ->
+                    Just LeftFourChecker
+
+                LeftFourChecker ->
+                    Just RightFourChecker
+
+                RightFourChecker ->
+                    Just InnerFourChecker
+
+                InnerFourChecker ->
+                    Just LeftFiveChecker
+
+                LeftFiveChecker ->
+                    Just RightFiveChecker
+
+                RightFiveChecker ->
+                    Just SixChecker
+
+                SixChecker ->
+                    Nothing
+    in
+    Utils.Enumerator.from LeftHeadlights fromLeftHeadlights
+
+
 type Sticker
     = FirstStickerFromLeft
     | SecondStickerFromLeft
@@ -1064,6 +1117,109 @@ allStickers =
         , SecondStickerFromRight
         , FirstStickerFromRight
         ]
+
+
+type alias RecognitionStickerColors =
+    { firstFromLeft : Cube.Advanced.Color
+    , secondFromLeft : Cube.Advanced.Color
+    , thirdFromLeft : Cube.Advanced.Color
+    , firstFromRight : Cube.Advanced.Color
+    , secondFromRight : Cube.Advanced.Color
+    , thirdFromRight : Cube.Advanced.Color
+    }
+
+
+getRecognitionStickers : Algorithms -> RecognitionAngle -> ( AUF, PLL ) -> RecognitionStickerColors
+getRecognitionStickers algorithms recognitionAngle ( preAUF, pll ) =
+    let
+        rotationToGetCorrectRecognitionAngle =
+            if recognitionAngle == ufrRecognitionAngle then
+                Algorithm.empty
+
+            else
+                -- uflRecognitionAngle
+                Algorithm.fromTurnList
+                    [ Algorithm.Turn Algorithm.Y Algorithm.OneQuarter Algorithm.CounterClockwise ]
+    in
+    Cube.solved
+        |> Cube.applyAlgorithm
+            (Algorithm.inverse <|
+                Cube.makeAlgorithmMaintainOrientation <|
+                    Algorithm.append (AUF.toAlgorithm preAUF) <|
+                        getAlgorithm algorithms pll
+            )
+        |> Cube.applyAlgorithm rotationToGetCorrectRecognitionAngle
+        |> Cube.Advanced.render
+        |> (\rendering ->
+                { firstFromLeft = rendering.ufl.f
+                , secondFromLeft = rendering.uf.f
+                , thirdFromLeft = rendering.ufr.f
+                , thirdFromRight = rendering.ufr.r
+                , secondFromRight = rendering.ur.r
+                , firstFromRight = rendering.ubr.r
+                }
+           )
+
+
+isPatternPresent : RecognitionStickerColors -> RecognitionPattern -> Bool
+isPatternPresent colors pattern =
+    case pattern of
+        Bookends ->
+            colors.firstFromLeft == colors.firstFromRight
+
+        LeftHeadlights ->
+            colors.firstFromLeft == colors.thirdFromLeft
+
+        RightHeadlights ->
+            colors.firstFromRight == colors.thirdFromRight
+
+        LeftThreeBar ->
+            (colors.firstFromLeft == colors.secondFromLeft)
+                && (colors.secondFromLeft == colors.thirdFromLeft)
+
+        RightThreeBar ->
+            (colors.firstFromRight == colors.secondFromRight)
+                && (colors.secondFromRight == colors.thirdFromRight)
+
+        LeftInsideTwoBar ->
+            colors.secondFromLeft == colors.thirdFromLeft
+
+        RightInsideTwoBar ->
+            colors.secondFromRight == colors.thirdFromRight
+
+        LeftOutsideTwoBar ->
+            colors.firstFromLeft == colors.secondFromLeft
+
+        RightOutsideTwoBar ->
+            colors.firstFromRight == colors.secondFromRight
+
+        LeftFourChecker ->
+            (colors.firstFromLeft == colors.thirdFromLeft)
+                && (colors.secondFromLeft == colors.thirdFromRight)
+
+        RightFourChecker ->
+            (colors.firstFromRight == colors.thirdFromRight)
+                && (colors.secondFromRight == colors.thirdFromLeft)
+
+        InnerFourChecker ->
+            (colors.secondFromLeft == colors.thirdFromRight)
+                && (colors.thirdFromLeft == colors.secondFromRight)
+
+        LeftFiveChecker ->
+            (colors.firstFromLeft == colors.thirdFromLeft)
+                && (colors.secondFromLeft == colors.thirdFromRight)
+                && (colors.thirdFromLeft == colors.secondFromRight)
+
+        RightFiveChecker ->
+            (colors.firstFromRight == colors.thirdFromRight)
+                && (colors.secondFromRight == colors.thirdFromLeft)
+                && (colors.thirdFromRight == colors.secondFromLeft)
+
+        SixChecker ->
+            (colors.firstFromLeft == colors.thirdFromLeft)
+                && (colors.secondFromLeft == colors.thirdFromRight)
+                && (colors.thirdFromLeft == colors.secondFromRight)
+                && (colors.thirdFromRight == colors.firstFromRight)
 
 
 type RecognitionAngle
@@ -1137,8 +1293,14 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
                                     )
                                 |> Cube.Advanced.render
 
+                        recognitionStickers =
+                            getRecognitionStickers algorithms recognitionAngle ( originalPreAUF, pll )
+
                         allRelevantElements =
-                            caseSpec.patterns
+                            allPatterns
+                                |> List.Nonempty.toList
+                                |> List.filter (isPatternPresent recognitionStickers)
+                                |> List.Nonempty.fromList
                                 |> Maybe.map
                                     (List.Nonempty.map Pattern
                                         >> List.Nonempty.append
@@ -1252,37 +1414,42 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
                                             stickersAlsoGrouped.rest
                                     }
 
-                                bestPatternsThatStayVisible =
-                                    List.filterMap identity
-                                        [ List.head sortedGroupedElements.staysInPlace
-                                        , List.head sortedGroupedElements.switchesToOtherVisibleSide
-                                        ]
-
                                 finalList =
-                                    List.sortBy
-                                        (.elementsWithOriginalFace
-                                            >> List.Nonempty.map Tuple.first
-                                            >> howVisibleIsElementGroup
-                                        )
-                                        (if
-                                            bestPatternsThatStayVisible
-                                                |> List.any
-                                                    (.elementsWithOriginalFace
-                                                        >> List.Nonempty.map Tuple.first
-                                                        >> List.Nonempty.Extra.find isPattern
-                                                        >> (/=) Nothing
-                                                    )
-                                         then
-                                            bestPatternsThatStayVisible
+                                    [ List.head sortedGroupedElements.staysInPlace
+                                    , List.head sortedGroupedElements.switchesToOtherVisibleSide
+                                    , List.head sortedGroupedElements.rest
+                                    ]
+                                        |> List.filterMap identity
+                                        -- The order here of the input list and of the fold direction are important.
+                                        -- We want to be iterating from the best target face (stays in place)
+                                        -- to the worst (rest)
+                                        |> List.foldl
+                                            (\next acc ->
+                                                let
+                                                    nextHasPattern =
+                                                        next.elementsWithOriginalFace
+                                                            |> List.Nonempty.any (Tuple.first >> isPattern)
 
-                                         else
-                                            List.concat
-                                                [ bestPatternsThatStayVisible
-                                                , List.head sortedGroupedElements.rest
-                                                    |> Maybe.map List.singleton
-                                                    |> Maybe.withDefault []
-                                                ]
-                                        )
+                                                    isMoreVisibleThanPreviousGroups =
+                                                        acc
+                                                            |> List.all
+                                                                (\previousGroup ->
+                                                                    nextHasPattern
+                                                                        && not
+                                                                            (previousGroup.elementsWithOriginalFace
+                                                                                |> List.Nonempty.any (Tuple.first >> isPattern)
+                                                                            )
+                                                                )
+                                                in
+                                                if isMoreVisibleThanPreviousGroups then
+                                                    next :: acc
+
+                                                else
+                                                    acc
+                                            )
+                                            []
+                                        -- Keep the order as the :: operator reverses it
+                                        |> List.reverse
                             in
                             finalList
                                 |> List.Nonempty.fromList
