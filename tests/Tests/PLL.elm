@@ -786,7 +786,7 @@ getUniqueTwoSidedRecognitionSpecificationTests =
         , fuzz3
             (Fuzz.tuple ( aufFuzzer, pllFuzzer ))
             (Fuzz.tuple ( recognitionAngleFuzzer, pllAlgorithmsFuzzer ))
-            (Fuzz.tuple ( Fuzz.intRange 0 8, Fuzz.intRange 0 Random.maxInt ))
+            (Fuzz.tuple ( Fuzz.intRange 0 7, Fuzz.intRange 0 Random.maxInt ))
             "spec cannot have any part removed and still uniquely identify the case"
           <|
             \( preAUF, pll ) ( recognitionAngle, algorithms ) ( keyIndex, subIndex ) ->
@@ -1050,27 +1050,6 @@ removePartFromSpec keyIndex subIndex ({ caseRecognition } as spec) =
                     )
 
         3 ->
-            if List.isEmpty caseRecognition.notOppositelyColored then
-                Nothing
-
-            else
-                let
-                    ( newNotOppositelyColored, removedItemString ) =
-                        removeItemFromNonemptyListPair
-                            subIndex
-                            caseRecognition.notOppositelyColored
-
-                    updatedCaseRecognition =
-                        { caseRecognition
-                            | notOppositelyColored = newNotOppositelyColored
-                        }
-                in
-                Just
-                    ( { spec | caseRecognition = updatedCaseRecognition }
-                    , removedItemString ++ " from notOppositelyColored key"
-                    )
-
-        4 ->
             if List.isEmpty caseRecognition.adjacentlyColored then
                 Nothing
 
@@ -1091,7 +1070,7 @@ removePartFromSpec keyIndex subIndex ({ caseRecognition } as spec) =
                     , removedItemString ++ " from adjacentlyColored key"
                     )
 
-        5 ->
+        4 ->
             if List.isEmpty caseRecognition.identicallyColored then
                 Nothing
 
@@ -1112,7 +1091,7 @@ removePartFromSpec keyIndex subIndex ({ caseRecognition } as spec) =
                     , removedItemString ++ " from identicallyColored key"
                     )
 
-        6 ->
+        5 ->
             if List.isEmpty caseRecognition.differentlyColored then
                 Nothing
 
@@ -1133,7 +1112,7 @@ removePartFromSpec keyIndex subIndex ({ caseRecognition } as spec) =
                     , removedItemString ++ " from differentlyColored key"
                     )
 
-        7 ->
+        6 ->
             caseRecognition.noOtherStickersMatchThanThese
                 |> Maybe.map
                     (\noOtherStickersMatchThanThese ->
@@ -1158,7 +1137,7 @@ removePartFromSpec keyIndex subIndex ({ caseRecognition } as spec) =
                         )
                     )
 
-        8 ->
+        7 ->
             if spec.caseRecognition.noOtherBlocksPresent == False then
                 -- Nothing left to remove
                 Nothing
@@ -1182,7 +1161,6 @@ removePartFromSpec keyIndex subIndex ({ caseRecognition } as spec) =
                         { patterns = Nothing
                         , absentPatterns = Nothing
                         , oppositelyColored = []
-                        , notOppositelyColored = []
                         , adjacentlyColored = []
                         , identicallyColored = []
                         , differentlyColored = []
@@ -1741,25 +1719,6 @@ verifySpecForStickers stickers spec =
                                     False
                        )
                 )
-        , spec.caseRecognition.notOppositelyColored
-            |> List.all
-                (mapSameForBoth
-                    (List.Nonempty.concatMap getElementStickers
-                        >> List.Nonempty.map (getStickerColor stickers)
-                        >> List.Nonempty.uniq
-                    )
-                    >> (\x ->
-                            case x of
-                                -- They have to each group be the same color all stickers
-                                -- and for that color to not be opposite to the one of the
-                                -- other group
-                                ( List.Nonempty.Nonempty firstColor [], List.Nonempty.Nonempty secondColor [] ) ->
-                                    not <| areOppositeColors firstColor secondColor
-
-                                _ ->
-                                    False
-                       )
-                )
         , spec.caseRecognition.adjacentlyColored
             |> List.all
                 (mapSameForBoth
@@ -1977,7 +1936,6 @@ extractAllPatterns spec =
         extractPatternsFromMaybePatterns spec.caseRecognition.patterns
             ++ extractPatternsFromMaybePatterns spec.caseRecognition.absentPatterns
             ++ List.concatMap extractPatternsFromTuple spec.caseRecognition.oppositelyColored
-            ++ List.concatMap extractPatternsFromTuple spec.caseRecognition.notOppositelyColored
             ++ List.concatMap extractPatternsFromTuple spec.caseRecognition.adjacentlyColored
             ++ List.concatMap extractPatternsFromMinLength2List spec.caseRecognition.identicallyColored
             ++ List.concatMap extractPatternsFromMinLength2List spec.caseRecognition.differentlyColored

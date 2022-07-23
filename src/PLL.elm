@@ -989,7 +989,6 @@ type alias CaseRecognitionSpecification =
     { patterns : Maybe (List.Nonempty.Nonempty RecognitionPattern)
     , absentPatterns : Maybe (List.Nonempty.Nonempty RecognitionPattern)
     , oppositelyColored : List ( List.Nonempty.Nonempty RecognitionElement, List.Nonempty.Nonempty RecognitionElement )
-    , notOppositelyColored : List ( List.Nonempty.Nonempty RecognitionElement, List.Nonempty.Nonempty RecognitionElement )
     , adjacentlyColored : List ( List.Nonempty.Nonempty RecognitionElement, List.Nonempty.Nonempty RecognitionElement )
     , identicallyColored : List ( RecognitionElement, RecognitionElement, List RecognitionElement )
     , differentlyColored : List ( RecognitionElement, RecognitionElement, List RecognitionElement )
@@ -1003,7 +1002,6 @@ emptyCaseSpec =
     { patterns = Nothing
     , absentPatterns = Nothing
     , oppositelyColored = []
-    , notOppositelyColored = []
     , adjacentlyColored = []
     , identicallyColored = []
     , differentlyColored = []
@@ -1862,7 +1860,7 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                               , singleton <| Sticker SecondStickerFromRight
                               )
                             ]
-                        , notOppositelyColored =
+                        , adjacentlyColored =
                             [ ( singleton <| Pattern LeftHeadlights
                               , singleton <| Sticker SecondStickerFromLeft
                               )
@@ -1879,7 +1877,7 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                               , []
                               )
                             ]
-                        , notOppositelyColored =
+                        , adjacentlyColored =
                             [ ( singleton <| Pattern RightHeadlights
                               , singleton <| Sticker SecondStickerFromRight
                               )
@@ -1918,7 +1916,7 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                               , []
                               )
                             ]
-                        , notOppositelyColored =
+                        , adjacentlyColored =
                             [ ( singleton <| Pattern LeftHeadlights
                               , singleton <| Sticker SecondStickerFromLeft
                               )
@@ -1934,7 +1932,7 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                               , singleton <| Sticker SecondStickerFromLeft
                               )
                             ]
-                        , notOppositelyColored =
+                        , adjacentlyColored =
                             [ ( singleton <| Pattern RightHeadlights
                               , singleton <| Sticker SecondStickerFromRight
                               )
@@ -1976,7 +1974,7 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                                 nonempty
                                     (Pattern LeftHeadlights)
                                     [ Pattern RightHeadlights ]
-                        , notOppositelyColored =
+                        , adjacentlyColored =
                             [ ( singleton <| Pattern LeftHeadlights
                               , singleton <| Sticker SecondStickerFromLeft
                               )
@@ -2322,8 +2320,8 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                         | patterns = Just <| nonempty RightInsideTwoBar [ Bookends ]
                         , noOtherBlocksPresent = True
                         , adjacentlyColored =
-                            [ ( singleton <| Sticker FirstStickerFromRight
-                              , singleton <| Sticker SecondStickerFromRight
+                            [ ( singleton <| Pattern Bookends
+                              , singleton <| Pattern RightInsideTwoBar
                               )
                             ]
                     }
@@ -2381,7 +2379,7 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                         | patterns = Just <| nonempty LeftOutsideTwoBar [ Bookends ]
                         , noOtherBlocksPresent = True
                         , oppositelyColored =
-                            [ ( singleton <| Pattern LeftOutsideTwoBar
+                            [ ( singleton <| Pattern Bookends
                               , singleton <| Sticker SecondStickerFromRight
                               )
                             ]
@@ -2397,9 +2395,9 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                 AUF.Clockwise ->
                     { emptyCaseSpec
                         | patterns = Just <| nonempty LeftOutsideTwoBar [ RightInsideTwoBar, Bookends ]
-                        , notOppositelyColored =
+                        , oppositelyColored =
                             [ ( singleton <| Pattern LeftOutsideTwoBar
-                              , singleton <| Pattern RightInsideTwoBar
+                              , singleton <| Sticker ThirdStickerFromLeft
                               )
                             ]
                     }
@@ -2407,9 +2405,9 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                 AUF.Halfway ->
                     { emptyCaseSpec
                         | patterns = Just <| nonempty LeftOutsideTwoBar [ RightInsideTwoBar, Bookends ]
-                        , oppositelyColored =
+                        , adjacentlyColored =
                             [ ( singleton <| Pattern LeftOutsideTwoBar
-                              , singleton <| Pattern RightInsideTwoBar
+                              , singleton <| Sticker ThirdStickerFromLeft
                               )
                             ]
                     }
@@ -2424,9 +2422,9 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                 AUF.None ->
                     { emptyCaseSpec
                         | patterns = Just <| nonempty LeftInsideTwoBar [ RightOutsideTwoBar, Bookends ]
-                        , notOppositelyColored =
+                        , adjacentlyColored =
                             [ ( singleton <| Pattern LeftInsideTwoBar
-                              , singleton <| Pattern RightOutsideTwoBar
+                              , singleton <| Sticker FirstStickerFromLeft
                               )
                             ]
                     }
@@ -2446,7 +2444,7 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                         | patterns = Just <| nonempty LeftInsideTwoBar [ RightOutsideTwoBar, Bookends ]
                         , oppositelyColored =
                             [ ( singleton <| Pattern LeftInsideTwoBar
-                              , singleton <| Pattern RightOutsideTwoBar
+                              , singleton <| Sticker FirstStickerFromLeft
                               )
                             ]
                     }
@@ -2497,7 +2495,7 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                     { emptyCaseSpec
                         | patterns = Just <| nonempty LeftHeadlights [ RightInsideTwoBar ]
                         , noOtherBlocksPresent = True
-                        , notOppositelyColored =
+                        , adjacentlyColored =
                             [ ( singleton <| Pattern LeftHeadlights
                               , singleton <| Sticker SecondStickerFromLeft
                               )
@@ -2649,14 +2647,13 @@ getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll =
                 AUF.Halfway ->
                     { emptyCaseSpec
                         | absentPatterns = Just <| nonempty LeftHeadlights [ RightHeadlights ]
-                        , identicallyColored =
-                            [ ( Sticker FirstStickerFromLeft
-                              , Sticker SecondStickerFromRight
-                              , []
-                              )
-                            , ( Sticker SecondStickerFromLeft
-                              , Sticker FirstStickerFromRight
-                              , []
+                        , noOtherBlocksPresent = True
+                        , differentlyColored =
+                            [ ( Sticker SecondStickerFromLeft
+                              , Sticker ThirdStickerFromLeft
+                              , [ Sticker ThirdStickerFromRight
+                                , Sticker SecondStickerFromRight
+                                ]
                               )
                             ]
                     }
@@ -2676,13 +2673,6 @@ mirrorCaseSpec spec =
                 (List.Nonempty.map mirrorElement)
             )
             spec.oppositelyColored
-    , notOppositelyColored =
-        List.map
-            (Tuple.mapBoth
-                (List.Nonempty.map mirrorElement)
-                (List.Nonempty.map mirrorElement)
-            )
-            spec.notOppositelyColored
     , adjacentlyColored =
         List.map
             (Tuple.mapBoth
