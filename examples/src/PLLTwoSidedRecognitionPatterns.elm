@@ -41,7 +41,6 @@ main =
                                                                 { patterns = Nothing
                                                                 , absentPatterns = Nothing
                                                                 , oppositelyColored = []
-                                                                , notOppositelyColored = []
                                                                 , adjacentlyColored = []
                                                                 , identicallyColored = []
                                                                 , differentlyColored = []
@@ -67,14 +66,19 @@ main =
                                                 , Cube.view [ style "align-self" "center" ]
                                                     { pixelSize = 50
                                                     , displayAngle = Cube.ufrDisplayAngle
-                                                    , annotateFaces = False
+                                                    , annotateFaces = True
                                                     }
                                                   <|
                                                     Cube.applyAlgorithm
                                                         (log <|
                                                             Algorithm.inverse <|
-                                                                Cube.makeAlgorithmMaintainOrientation <|
-                                                                    Algorithm.append (AUF.toAlgorithm preAUF) (PLL.getAlgorithm jpermsAlgorithms pll)
+                                                                Algorithm.append
+                                                                    (Cube.makeAlgorithmMaintainOrientation <|
+                                                                        Algorithm.append (AUF.toAlgorithm preAUF) <|
+                                                                            PLL.getAlgorithm jpermsAlgorithms pll
+                                                                    )
+                                                                <|
+                                                                    AUF.toAlgorithm preAUF
                                                         )
                                                         Cube.solved
                                                 ]
@@ -168,7 +172,7 @@ explainPLLRecognitionPattern spec =
         sortedSpec =
             sortForDisplay spec
 
-        { patterns, absentPatterns, oppositelyColored, notOppositelyColored, adjacentlyColored, identicallyColored, differentlyColored, noOtherStickersMatchThanThese, noOtherBlocksPresent } =
+        { patterns, absentPatterns, oppositelyColored, adjacentlyColored, identicallyColored, differentlyColored, noOtherStickersMatchThanThese, noOtherBlocksPresent } =
             sortedSpec.caseRecognition
 
         { postAUFRecognition } =
@@ -193,6 +197,7 @@ explainPLLRecognitionPattern spec =
                                 { article = Definite
                                 , finalConjunction = And
                                 , separator = separator
+                                , forcePlural = False
                                 }
                                 (List.Nonempty.map PLL.Pattern patterns_)
                             ++ (if noOtherBlocksPresent then
@@ -213,11 +218,13 @@ explainPLLRecognitionPattern spec =
             , absentPatterns
                 |> Maybe.map
                     (\patterns_ ->
+                        let
+                            plural =
+                                (List.Nonempty.length patterns_ > 1)
+                                    || isPlural (PLL.Pattern <| List.Nonempty.head patterns_)
+                        in
                         "There "
-                            ++ (if
-                                    (List.Nonempty.length patterns_ > 1)
-                                        || isPlural (PLL.Pattern <| List.Nonempty.head patterns_)
-                                then
+                            ++ (if plural then
                                     "are"
 
                                 else
@@ -228,6 +235,7 @@ explainPLLRecognitionPattern spec =
                                 { article = NoArticle
                                 , finalConjunction = Or
                                 , separator = separator
+                                , forcePlural = plural
                                 }
                                 (List.Nonempty.map PLL.Pattern patterns_)
                     )
@@ -240,6 +248,7 @@ explainPLLRecognitionPattern spec =
                             { article = Definite
                             , finalConjunction = And
                             , separator = separator
+                            , forcePlural = False
                             }
                             first
                             ++ " "
@@ -264,36 +273,7 @@ explainPLLRecognitionPattern spec =
                                     "the enclosed sticker"
 
                                 else
-                                    nonemptyToSentenceList { article = Definite, finalConjunction = And, separator = separator } second
-                               )
-                    )
-            , notOppositelyColored
-                |> List.map
-                    (\( first, second ) ->
-                        nonemptyToSentenceList { article = Definite, finalConjunction = And, separator = separator } first
-                            ++ " "
-                            ++ (if
-                                    (List.Nonempty.length first > 1)
-                                        || isPlural (List.Nonempty.head first)
-                                then
-                                    "are"
-
-                                else
-                                    "is"
-                               )
-                            ++ " not the opposite color of "
-                            ++ (if
-                                    ((first == List.Nonempty.singleton (PLL.Pattern PLL.LeftHeadlights))
-                                        && (second == List.Nonempty.singleton (PLL.Sticker PLL.SecondStickerFromLeft))
-                                    )
-                                        || ((first == List.Nonempty.singleton (PLL.Pattern PLL.RightHeadlights))
-                                                && (second == List.Nonempty.singleton (PLL.Sticker PLL.SecondStickerFromRight))
-                                           )
-                                then
-                                    "the enclosed sticker"
-
-                                else
-                                    nonemptyToSentenceList { article = Definite, finalConjunction = And, separator = separator } second
+                                    nonemptyToSentenceList { article = Definite, finalConjunction = And, separator = separator, forcePlural = False } second
                                )
                     )
             , adjacentlyColored
@@ -303,6 +283,7 @@ explainPLLRecognitionPattern spec =
                             { article = Definite
                             , finalConjunction = And
                             , separator = separator
+                            , forcePlural = False
                             }
                             first
                             ++ " "
@@ -327,7 +308,7 @@ explainPLLRecognitionPattern spec =
                                     "the enclosed sticker"
 
                                 else
-                                    nonemptyToSentenceList { article = Definite, finalConjunction = And, separator = separator } second
+                                    nonemptyToSentenceList { article = Definite, finalConjunction = And, separator = separator, forcePlural = False } second
                                )
                     )
             , identicallyColored
@@ -337,6 +318,7 @@ explainPLLRecognitionPattern spec =
                             { article = Definite
                             , finalConjunction = And
                             , separator = separator
+                            , forcePlural = False
                             }
                             elements
                             ++ " are "
@@ -355,6 +337,7 @@ explainPLLRecognitionPattern spec =
                             { article = Definite
                             , finalConjunction = And
                             , separator = separator
+                            , forcePlural = False
                             }
                             elements
                             ++ " are "
@@ -374,6 +357,7 @@ explainPLLRecognitionPattern spec =
                                 { article = Definite
                                 , finalConjunction = And
                                 , separator = separator
+                                , forcePlural = False
                                 }
                                 elements
                     )
@@ -390,6 +374,7 @@ explainPLLRecognitionPattern spec =
                             { article = Definite
                             , finalConjunction = And
                             , separator = separator
+                            , forcePlural = False
                             }
                             (List.Nonempty.map Tuple.first elementsWithOriginalFace)
                             ++ (if staysInSamePlace arg then
@@ -457,14 +442,6 @@ sortForDisplay { caseRecognition, postAUFRecognition } =
                 caseRecognition.absentPatterns
         , oppositelyColored =
             caseRecognition.oppositelyColored
-                |> List.map ensurePatternsAreInFirstSpot
-                |> List.map
-                    (Tuple.mapBoth
-                        (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                        (List.Nonempty.sortWith sortByFurthestLeftComparison)
-                    )
-        , notOppositelyColored =
-            caseRecognition.notOppositelyColored
                 |> List.map ensurePatternsAreInFirstSpot
                 |> List.map
                     (Tuple.mapBoth
@@ -635,10 +612,10 @@ type Separator
     | Semicolon
 
 
-toSentenceList : { article : Article, finalConjunction : Conjunction, separator : Separator } -> List PLL.RecognitionElement -> String
-toSentenceList { article, finalConjunction, separator } list =
+toSentenceList : { article : Article, finalConjunction : Conjunction, separator : Separator, forcePlural : Bool } -> List PLL.RecognitionElement -> String
+toSentenceList { article, finalConjunction, separator, forcePlural } list =
     list
-        |> List.map (elementToString { article = article })
+        |> List.map (elementToString { article = article, forcePlural = forcePlural })
         |> buildSentenceList { finalConjunction = finalConjunction, separator = separator }
 
 
@@ -675,12 +652,12 @@ buildSentenceList { finalConjunction, separator } strings =
             x ++ separatorString ++ " " ++ buildSentenceList { finalConjunction = finalConjunction, separator = separator } xs
 
 
-nonemptyToSentenceList : { article : Article, finalConjunction : Conjunction, separator : Separator } -> List.Nonempty.Nonempty PLL.RecognitionElement -> String
+nonemptyToSentenceList : { article : Article, finalConjunction : Conjunction, separator : Separator, forcePlural : Bool } -> List.Nonempty.Nonempty PLL.RecognitionElement -> String
 nonemptyToSentenceList args =
     List.Nonempty.toList >> toSentenceList args
 
 
-minLength2ToSentenceList : { article : Article, finalConjunction : Conjunction, separator : Separator } -> ( PLL.RecognitionElement, PLL.RecognitionElement, List PLL.RecognitionElement ) -> String
+minLength2ToSentenceList : { article : Article, finalConjunction : Conjunction, separator : Separator, forcePlural : Bool } -> ( PLL.RecognitionElement, PLL.RecognitionElement, List PLL.RecognitionElement ) -> String
 minLength2ToSentenceList args ( first, second, rest ) =
     toSentenceList args (first :: second :: rest)
 
@@ -713,91 +690,98 @@ algorithms =
     PLL.referenceAlgorithms
 
 
-elementToString : { article : Article } -> PLL.RecognitionElement -> String
-elementToString { article } element =
+elementToString : { article : Article, forcePlural : Bool } -> PLL.RecognitionElement -> String
+elementToString { article, forcePlural } element =
     let
-        { indefiniteArticle, object } =
+        { indefiniteArticle, object, pluralized } =
             case element of
                 PLL.Pattern pattern ->
                     case pattern of
                         PLL.Bookends ->
-                            { indefiniteArticle = Nothing, object = "bookends" }
+                            { indefiniteArticle = Nothing, object = "bookends", pluralized = "bookends" }
 
                         PLL.LeftHeadlights ->
-                            { indefiniteArticle = Nothing, object = "headlights on the left" }
+                            { indefiniteArticle = Nothing, object = "headlights on the left", pluralized = "headlights on the left" }
 
                         PLL.RightHeadlights ->
-                            { indefiniteArticle = Nothing, object = "headlights on the right" }
+                            { indefiniteArticle = Nothing, object = "headlights on the right", pluralized = "headlights on the right" }
 
                         PLL.RightOutsideTwoBar ->
-                            { indefiniteArticle = Just "an", object = "outside two-bar on the right" }
+                            { indefiniteArticle = Just "an", object = "outside two-bar on the right", pluralized = "outside two-bars on the right" }
 
                         PLL.LeftOutsideTwoBar ->
-                            { indefiniteArticle = Just "an", object = "outside two-bar on the left" }
+                            { indefiniteArticle = Just "an", object = "outside two-bar on the left", pluralized = "outside two-bars on the left" }
 
                         PLL.RightInsideTwoBar ->
-                            { indefiniteArticle = Just "an", object = "inside two-bar on the right" }
+                            { indefiniteArticle = Just "an", object = "inside two-bar on the right", pluralized = "inside two-bars on the right" }
 
                         PLL.LeftInsideTwoBar ->
-                            { indefiniteArticle = Just "an", object = "inside two-bar on the left" }
+                            { indefiniteArticle = Just "an", object = "inside two-bar on the left", pluralized = "inside two-bars on the left" }
 
                         PLL.LeftThreeBar ->
-                            { indefiniteArticle = Just "a", object = "three-bar on the left" }
+                            { indefiniteArticle = Just "a", object = "three-bar on the left", pluralized = "three-bars on the left" }
 
                         PLL.RightThreeBar ->
-                            { indefiniteArticle = Just "a", object = "three-bar on the right" }
+                            { indefiniteArticle = Just "a", object = "three-bar on the right", pluralized = "three-bars on the right" }
 
                         PLL.LeftFourChecker ->
-                            { indefiniteArticle = Just "a", object = "four checker pattern on the left" }
+                            { indefiniteArticle = Just "a", object = "four checker pattern on the left", pluralized = "four checker patterns on the left" }
 
                         PLL.RightFourChecker ->
-                            { indefiniteArticle = Just "a", object = "four checker pattern on the right" }
+                            { indefiniteArticle = Just "a", object = "four checker pattern on the right", pluralized = "four checker patterns on the right" }
 
                         PLL.InnerFourChecker ->
-                            { indefiniteArticle = Just "an", object = "inside four checker pattern" }
+                            { indefiniteArticle = Just "an", object = "inside four checker pattern", pluralized = "inside four checker patterns" }
 
                         PLL.LeftFiveChecker ->
-                            { indefiniteArticle = Just "a", object = "five checker pattern on the left" }
+                            { indefiniteArticle = Just "a", object = "five checker pattern on the left", pluralized = "five checker patterns on the left" }
 
                         PLL.RightFiveChecker ->
-                            { indefiniteArticle = Just "a", object = "five checker pattern on the right" }
+                            { indefiniteArticle = Just "a", object = "five checker pattern on the right", pluralized = "five checker patterns on the right" }
 
                         PLL.SixChecker ->
-                            { indefiniteArticle = Just "a", object = "six checker pattern" }
+                            { indefiniteArticle = Just "a", object = "six checker pattern", pluralized = "six checker patterns" }
 
                 PLL.Sticker sticker ->
                     case sticker of
                         PLL.FirstStickerFromLeft ->
-                            { indefiniteArticle = Nothing, object = "first sticker from the left" }
+                            { indefiniteArticle = Nothing, object = "first sticker from the left", pluralized = "first stickers from the left" }
 
                         PLL.FirstStickerFromRight ->
-                            { indefiniteArticle = Nothing, object = "first sticker from the right" }
+                            { indefiniteArticle = Nothing, object = "first sticker from the right", pluralized = "first stickers from the right" }
 
                         PLL.SecondStickerFromLeft ->
-                            { indefiniteArticle = Nothing, object = "second sticker from the left" }
+                            { indefiniteArticle = Nothing, object = "second sticker from the left", pluralized = "second stickers from the left" }
 
                         PLL.SecondStickerFromRight ->
-                            { indefiniteArticle = Nothing, object = "second sticker from the right" }
+                            { indefiniteArticle = Nothing, object = "second sticker from the right", pluralized = "second stickers from the right" }
 
                         PLL.ThirdStickerFromLeft ->
-                            { indefiniteArticle = Nothing, object = "third sticker from the left" }
+                            { indefiniteArticle = Nothing, object = "third sticker from the left", pluralized = "third stickers from the left" }
 
                         PLL.ThirdStickerFromRight ->
-                            { indefiniteArticle = Nothing, object = "third sticker from the right" }
+                            { indefiniteArticle = Nothing, object = "third sticker from the right", pluralized = "third stickers from the right" }
+
+        pluralHandledObject =
+            if forcePlural then
+                pluralized
+
+            else
+                object
     in
     case article of
         NoArticle ->
-            object
+            pluralHandledObject
 
         Indefinite ->
             (indefiniteArticle
                 |> Maybe.map (\x -> x ++ " ")
                 |> Maybe.withDefault ""
             )
-                ++ object
+                ++ pluralHandledObject
 
         Definite ->
-            "the " ++ object
+            "the " ++ pluralHandledObject
 
 
 isPlural : PLL.RecognitionElement -> Bool
