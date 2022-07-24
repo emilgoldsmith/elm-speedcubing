@@ -18,6 +18,38 @@ import Tests.AUF exposing (aufFuzzer)
 import Tests.Algorithm exposing (rotationFuzzer)
 
 
+
+-- Fuzzers
+
+
+recognitionAngleFuzzer : Fuzz.Fuzzer PLL.RecognitionAngle
+recognitionAngleFuzzer =
+    Fuzz.oneOf
+        [ Fuzz.constant PLL.ufrRecognitionAngle
+        , Fuzz.constant PLL.uflRecognitionAngle
+        ]
+
+
+pllAlgorithmsFuzzer : Fuzz.Fuzzer PLL.Algorithms
+pllAlgorithmsFuzzer =
+    Fuzz.oneOf
+        [ Fuzz.constant PLL.referenceAlgorithms
+        , Fuzz.constant jpermsAlgorithms
+        ]
+
+
+pllFuzzer : Fuzz.Fuzzer PLL
+pllFuzzer =
+    PLL.all
+        |> List.Nonempty.map Fuzz.constant
+        |> List.Nonempty.toList
+        |> Fuzz.oneOf
+
+
+
+-- Tests
+
+
 referenceAlgTests : Test
 referenceAlgTests =
     describe "referenceAlgs"
@@ -280,6 +312,53 @@ referenceAlgTests =
         ]
 
 
+expectEqualDisregardingAUF : Cube.Advanced.Rendering -> Algorithm.Algorithm -> Expect.Expectation
+expectEqualDisregardingAUF expectedRendering alg =
+    let
+        aufAlgorithms =
+            List.Nonempty.map AUF.toAlgorithm AUF.all
+
+        candidates =
+            List.Nonempty.Extra.lift2
+                (\preAUF postAUF ->
+                    Algorithm.append preAUF <|
+                        Algorithm.append alg <|
+                            postAUF
+                )
+                aufAlgorithms
+                aufAlgorithms
+                |> List.Nonempty.map ((\x -> Cube.applyAlgorithm x Cube.solved) >> Cube.Advanced.render)
+    in
+    List.filter ((==) expectedRendering) (List.Nonempty.toList candidates)
+        |> List.length
+        |> Expect.greaterThan 0
+        |> Expect.onFail
+            ("Algorithm with or without pre and post AUF did not produce the expected rendering. Closest diff was:"
+                ++ "\n\n"
+                ++ "(Actual != Expected)"
+                ++ "\n\n"
+                ++ getShortestDiff candidates expectedRendering
+            )
+
+
+getShortestDiff : List.Nonempty.Nonempty Cube.Advanced.Rendering -> Cube.Advanced.Rendering -> String
+getShortestDiff candidates expected =
+    let
+        diffs =
+            List.Nonempty.map (\x -> TestHelpers.Cube.compareCubeRenderings x expected) candidates
+    in
+    List.Nonempty.foldl1 getShorterString diffs
+
+
+getShorterString : String -> String -> String
+getShorterString a b =
+    if String.length a < String.length b then
+        a
+
+    else
+        b
+
+
 getAlgorithmTests : Test
 getAlgorithmTests =
     describe "getAlgorithm"
@@ -487,14 +566,6 @@ getAllAUFEquivalencyClassesTests =
         ]
 
 
-recognitionAngleFuzzer : Fuzz.Fuzzer PLL.RecognitionAngle
-recognitionAngleFuzzer =
-    Fuzz.oneOf
-        [ Fuzz.constant PLL.ufrRecognitionAngle
-        , Fuzz.constant PLL.uflRecognitionAngle
-        ]
-
-
 getUniqueTwoSidedRecognitionSpecificationTests : Test
 getUniqueTwoSidedRecognitionSpecificationTests =
     describe "getUniqueTwoSidedRecognitionSpecificationTests"
@@ -588,32 +659,7 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                         Expect.fail ("spec failed: " ++ Debug.toString err)
 
                     Ok spec ->
-                        let
-                            equivalentPreAUFs =
-                                PLL.getAllEquivalentAUFs ( preAUF, pll, AUF.None )
-                                    |> List.Nonempty.toList
-                                    |> List.map (\( x, _ ) -> x)
-
-                            allOtherCases =
-                                List.Nonempty.Extra.lift2
-                                    Tuple.pair
-                                    AUF.all
-                                    PLL.all
-                                    |> List.Nonempty.filter (\( preAUF_, pll_ ) -> not <| pll == pll_ && List.member preAUF_ equivalentPreAUFs)
-                                        ( preAUF, pll )
-                        in
-                        allOtherCases
-                            |> List.Nonempty.toList
-                            |> List.filter
-                                (\otherCase ->
-                                    verifySpecForStickers
-                                        (getRecognitionStickers
-                                            algorithms
-                                            recognitionAngle
-                                            otherCase
-                                        )
-                                        spec
-                                )
+                        getOtherNonSymmetricMatchingCases ( preAUF, pll ) algorithms recognitionAngle spec
                             |> Expect.equalLists []
         , fuzz3
             (Fuzz.tuple ( aufFuzzer, pllFuzzer ))
@@ -683,6 +729,76 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                     >> List.Nonempty.toList
                                     >> Expect.equalLists (List.Nonempty.toList postAUFRecognition)
                                 ]
+        , fuzz3
+            (Fuzz.tuple ( aufFuzzer, pllFuzzer ))
+            recognitionAngleFuzzer
+            pllAlgorithmsFuzzer
+            "postAUF recognition gives all the correct original faces"
+          <|
+            \case_ recognitionAngle algorithms ->
+                case
+                    PLL.getUniqueTwoSidedRecognitionSpecification
+                        algorithms
+                        recognitionAngle
+                        case_
+                of
+                    Err err ->
+                        Expect.fail ("spec failed: " ++ Debug.toString err)
+
+                    Ok { postAUFRecognition } ->
+                        postAUFRecognition
+                            |> List.Nonempty.toList
+                            |> List.concatMap
+                                (\{ elementsWithOriginalFace } ->
+                                    elementsWithOriginalFace
+                                        |> List.Nonempty.toList
+                                        |> List.filter
+                                            (\( element, originalFace ) ->
+                                                element
+                                                    |> getElementStickers
+                                                    |> List.Nonempty.any
+                                                        (\sticker ->
+                                                            let
+                                                                ufrExpectedFace =
+                                                                    case sticker of
+                                                                        PLL.FirstStickerFromLeft ->
+                                                                            Cube.Advanced.FrontOrBack Cube.Advanced.F
+
+                                                                        PLL.SecondStickerFromLeft ->
+                                                                            Cube.Advanced.FrontOrBack Cube.Advanced.F
+
+                                                                        PLL.ThirdStickerFromLeft ->
+                                                                            Cube.Advanced.FrontOrBack Cube.Advanced.F
+
+                                                                        PLL.FirstStickerFromRight ->
+                                                                            Cube.Advanced.LeftOrRight Cube.Advanced.R
+
+                                                                        PLL.SecondStickerFromRight ->
+                                                                            Cube.Advanced.LeftOrRight Cube.Advanced.R
+
+                                                                        PLL.ThirdStickerFromRight ->
+                                                                            Cube.Advanced.LeftOrRight Cube.Advanced.R
+
+                                                                recognitionAngleExpectedFace =
+                                                                    if recognitionAngle == PLL.ufrRecognitionAngle then
+                                                                        ufrExpectedFace
+
+                                                                    else
+                                                                        case ufrExpectedFace of
+                                                                            Cube.Advanced.FrontOrBack Cube.Advanced.F ->
+                                                                                Cube.Advanced.LeftOrRight Cube.Advanced.L
+
+                                                                            Cube.Advanced.LeftOrRight Cube.Advanced.R ->
+                                                                                Cube.Advanced.FrontOrBack Cube.Advanced.F
+
+                                                                            _ ->
+                                                                                Cube.Advanced.UpOrDown Cube.Advanced.U
+                                                            in
+                                                            originalFace /= recognitionAngleExpectedFace
+                                                        )
+                                            )
+                                )
+                            |> Expect.equalLists []
         , fuzz3
             (Fuzz.tuple ( aufFuzzer, pllFuzzer ))
             recognitionAngleFuzzer
@@ -759,34 +875,29 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                         -- 2. Pattern visibility
                         -- If both of them are at least greater or equal and at least one is
                         -- strictly greater it is an obviously inferior option
-                        postAUFRecognition
+                        List.Nonempty.Extra.lift2
+                            Tuple.pair
+                            postAUFRecognition
+                            postAUFRecognition
                             |> List.Nonempty.toList
                             |> List.filter
-                                (\filteredElement ->
+                                (\( a, b ) ->
                                     -- Keep it only if it is inferior for better error messages
-                                    postAUFRecognition
-                                        |> List.Nonempty.any
-                                            (\comparisonElement ->
-                                                (visibilityScore filteredElement
-                                                    <= visibilityScore comparisonElement
-                                                )
-                                                    && (finalFaceScore recognitionAngle filteredElement
-                                                            <= finalFaceScore recognitionAngle comparisonElement
-                                                            && ((visibilityScore filteredElement
-                                                                    /= visibilityScore comparisonElement
-                                                                )
-                                                                    || (finalFaceScore recognitionAngle filteredElement
-                                                                            /= finalFaceScore recognitionAngle comparisonElement
-                                                                       )
-                                                               )
-                                                       )
-                                            )
+                                    (visibilityScore a <= visibilityScore b)
+                                        && (finalFaceScore recognitionAngle a
+                                                <= finalFaceScore recognitionAngle b
+                                           )
+                                        && ((visibilityScore a /= visibilityScore b)
+                                                || (finalFaceScore recognitionAngle a
+                                                        /= finalFaceScore recognitionAngle b
+                                                   )
+                                           )
                                 )
                             |> Expect.equalLists []
         , fuzz3
             (Fuzz.tuple ( aufFuzzer, pllFuzzer ))
             (Fuzz.tuple ( recognitionAngleFuzzer, pllAlgorithmsFuzzer ))
-            (Fuzz.tuple ( Fuzz.intRange 0 7, Fuzz.intRange 0 Random.maxInt ))
+            (Fuzz.tuple ( removePartKeyIndexRange, Fuzz.intRange 0 Random.maxInt ))
             "spec cannot have any part removed and still uniquely identify the case"
           <|
             \( preAUF, pll ) ( recognitionAngle, algorithms ) ( keyIndex, subIndex ) ->
@@ -823,33 +934,8 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                     Expect.pass
 
                                 else
-                                    let
-                                        equivalentPreAUFs =
-                                            PLL.getAllEquivalentAUFs ( preAUF, pll, AUF.None )
-                                                |> List.Nonempty.toList
-                                                |> List.map (\( x, _ ) -> x)
-
-                                        allOtherCases =
-                                            List.Nonempty.Extra.lift2
-                                                Tuple.pair
-                                                AUF.all
-                                                PLL.all
-                                                |> List.Nonempty.filter (\( preAUF_, pll_ ) -> not <| pll == pll_ && List.member preAUF_ equivalentPreAUFs)
-                                                    ( preAUF, pll )
-                                    in
-                                    allOtherCases
-                                        |> List.Nonempty.toList
-                                        |> List.Extra.find
-                                            (\otherCase ->
-                                                verifySpecForStickers
-                                                    (getRecognitionStickers
-                                                        algorithms
-                                                        recognitionAngle
-                                                        otherCase
-                                                    )
-                                                    specWithPartRemoved
-                                            )
-                                        |> Expect.notEqual Nothing
+                                    getOtherNonSymmetricMatchingCases ( preAUF, pll ) algorithms recognitionAngle specWithPartRemoved
+                                        |> Expect.notEqual []
                                         |> Expect.onFail
                                             ("The spec still uniquely identified the case, even though the following part was removed: "
                                                 ++ partRemovedString
@@ -857,6 +943,352 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                                 ++ Debug.toString specWithPartRemoved
                                             )
         ]
+
+
+
+-- Checks for two sided recognition
+
+
+noMentionedPatternsIncludedInAbsentPatterns : PLL.RecognitionSpecification -> Bool
+noMentionedPatternsIncludedInAbsentPatterns spec =
+    let
+        absentPatterns =
+            spec.caseRecognition.absentPatterns
+                |> Maybe.map List.Nonempty.toList
+                |> Maybe.withDefault []
+
+        { caseRecognition } =
+            spec
+
+        otherPatternsCaseRecognition =
+            { caseRecognition | absentPatterns = Nothing }
+
+        otherPatterns =
+            extractAllPatterns { spec | caseRecognition = otherPatternsCaseRecognition }
+    in
+    List.all (\x -> not <| List.member x absentPatterns) otherPatterns
+
+
+allMentionedPatternsListedInPatterns : PLL.RecognitionSpecification -> Bool
+allMentionedPatternsListedInPatterns spec =
+    let
+        patterns =
+            spec.caseRecognition.patterns
+                |> Maybe.map List.Nonempty.toList
+                |> Maybe.withDefault []
+
+        { caseRecognition } =
+            spec
+
+        otherPatternsCaseRecognition =
+            { caseRecognition | patterns = Nothing, absentPatterns = Nothing }
+
+        otherPatterns =
+            extractAllPatterns { spec | caseRecognition = otherPatternsCaseRecognition }
+    in
+    List.all (\x -> List.member x patterns) otherPatterns
+
+
+getOtherNonSymmetricMatchingCases : ( AUF, PLL ) -> PLL.Algorithms -> PLL.RecognitionAngle -> PLL.RecognitionSpecification -> List ( AUF, PLL )
+getOtherNonSymmetricMatchingCases ( preAUF, pll ) algorithms recognitionAngle spec =
+    let
+        equivalentPreAUFs =
+            PLL.getAllEquivalentAUFs ( preAUF, pll, AUF.None )
+                |> List.Nonempty.toList
+                |> List.map Tuple.first
+
+        allOtherCases =
+            List.Nonempty.Extra.lift2
+                Tuple.pair
+                AUF.all
+                PLL.all
+                |> List.Nonempty.filter (\( preAUF_, pll_ ) -> not <| pll == pll_ && List.member preAUF_ equivalentPreAUFs)
+                    ( preAUF, pll )
+    in
+    allOtherCases
+        |> List.Nonempty.toList
+        |> List.filter
+            (\otherCase ->
+                verifySpecForStickers
+                    (getRecognitionStickers
+                        algorithms
+                        recognitionAngle
+                        otherCase
+                    )
+                    spec
+            )
+
+
+verifySpecForStickers : RecognitionStickerColors -> PLL.RecognitionSpecification -> Bool
+verifySpecForStickers stickers spec =
+    List.all
+        identity
+        [ case spec.caseRecognition.patterns of
+            Nothing ->
+                True
+
+            Just patterns ->
+                patterns
+                    |> List.Nonempty.all (isPatternPresent stickers)
+        , if not spec.caseRecognition.noOtherBlocksPresent then
+            True
+
+          else
+            let
+                stickersThatArePartOfBlocks =
+                    [ ( PLL.FirstStickerFromLeft, stickers.firstFromLeft )
+                    , ( PLL.SecondStickerFromLeft, stickers.secondFromLeft )
+                    , ( PLL.ThirdStickerFromLeft, stickers.thirdFromLeft )
+                    , ( PLL.ThirdStickerFromRight, stickers.thirdFromRight )
+                    , ( PLL.SecondStickerFromRight, stickers.secondFromRight )
+                    , ( PLL.FirstStickerFromRight, stickers.firstFromRight )
+                    ]
+                        -- Get all pairs of neighbours
+                        |> List.foldl
+                            (\cur { prev, acc } ->
+                                case prev of
+                                    Nothing ->
+                                        { prev = Just cur, acc = acc }
+
+                                    Just prev_ ->
+                                        { prev = Just cur, acc = ( prev_, cur ) :: acc }
+                            )
+                            { prev = Nothing, acc = [] }
+                        |> .acc
+                        -- Keep all stickers that have an equal neighbour
+                        |> List.concatMap
+                            (\( a, b ) ->
+                                if Tuple.second a == Tuple.second b then
+                                    [ Tuple.first a, Tuple.first b ]
+
+                                else
+                                    []
+                            )
+                        |> List.Extra.unique
+
+                stickersThatAreInPatternBlocks =
+                    case spec.caseRecognition.patterns of
+                        Nothing ->
+                            []
+
+                        Just patterns ->
+                            patterns
+                                |> List.Nonempty.toList
+                                |> List.filter isBlockPattern
+                                |> List.map getPatternStickers
+                                |> List.concatMap List.Nonempty.toList
+            in
+            stickersThatArePartOfBlocks
+                |> List.filter
+                    (\x ->
+                        not <| List.member x stickersThatAreInPatternBlocks
+                    )
+                |> List.isEmpty
+        , case spec.caseRecognition.absentPatterns of
+            Nothing ->
+                True
+
+            Just absentPatterns ->
+                absentPatterns
+                    |> List.Nonempty.all (not << isPatternPresent stickers)
+        , spec.caseRecognition.oppositelyColored
+            |> List.all
+                (mapSameForBoth
+                    (List.Nonempty.concatMap getElementStickers
+                        >> List.Nonempty.map (getStickerColor stickers)
+                        >> List.Nonempty.uniq
+                    )
+                    >> (\x ->
+                            case x of
+                                -- Each group should have all stickers be the same color
+                                -- meaning after the uniq only one element should be left in each
+                                -- and that color should be opposite to the one of the
+                                -- other group
+                                ( List.Nonempty.Nonempty firstColor [], List.Nonempty.Nonempty secondColor [] ) ->
+                                    areOppositeColors firstColor secondColor
+
+                                _ ->
+                                    False
+                       )
+                )
+        , spec.caseRecognition.adjacentlyColored
+            |> List.all
+                (mapSameForBoth
+                    (List.Nonempty.concatMap getElementStickers
+                        >> List.Nonempty.map (getStickerColor stickers)
+                        >> List.Nonempty.uniq
+                    )
+                    >> (\x ->
+                            case x of
+                                -- Each group should have all stickers be the same color
+                                -- meaning after the uniq only one element should be left in each
+                                -- and that color should be adjacent to the one of the
+                                -- other group
+                                ( List.Nonempty.Nonempty firstColor [], List.Nonempty.Nonempty secondColor [] ) ->
+                                    areAdjacentColors firstColor secondColor
+
+                                _ ->
+                                    False
+                       )
+                )
+        , spec.caseRecognition.identicallyColored
+            |> List.all
+                (minLength2ToNonemptyList
+                    >> List.Nonempty.concatMap getElementStickers
+                    >> List.Nonempty.map (getStickerColor stickers)
+                    >> List.Nonempty.uniq
+                    >> (List.Nonempty.length >> (==) 1)
+                )
+        , spec.caseRecognition.differentlyColored
+            |> List.all
+                (\elements ->
+                    let
+                        list =
+                            minLength2ToNonemptyList elements
+
+                        expectedDistinctColors =
+                            List.Nonempty.length list
+
+                        allGroupsAreSameColored =
+                            list
+                                |> List.Nonempty.all
+                                    (getElementStickers
+                                        >> List.Nonempty.map (getStickerColor stickers)
+                                        >> List.Nonempty.uniq
+                                        >> List.Nonempty.length
+                                        >> (==) 1
+                                    )
+
+                        numDistinctColors =
+                            list
+                                |> List.Nonempty.concatMap getElementStickers
+                                |> List.Nonempty.map (getStickerColor stickers)
+                                |> List.Nonempty.uniq
+                                |> List.Nonempty.length
+                    in
+                    allGroupsAreSameColored && numDistinctColors == expectedDistinctColors
+                )
+        , case spec.caseRecognition.noOtherStickersMatchThanThese of
+            Nothing ->
+                True
+
+            Just elements ->
+                let
+                    allPatternsVerified =
+                        elements
+                            |> List.Nonempty.all
+                                (\element ->
+                                    case element of
+                                        PLL.Sticker _ ->
+                                            True
+
+                                        PLL.Pattern pattern ->
+                                            isPatternPresent stickers pattern
+                                )
+
+                    -- The stickers we are okay having matches on
+                    excludedStickers =
+                        elements
+                            |> List.Nonempty.concatMap getElementStickers
+
+                    -- The colors no other stickers than the specified ones can match
+                    excludedColors =
+                        excludedStickers
+                            |> List.Nonempty.map (getStickerColor stickers)
+                            |> List.Nonempty.uniq
+
+                    -- The stickers that can't have matches
+                    includedStickers =
+                        allStickers
+                            |> List.Nonempty.toList
+                            |> List.filter
+                                (\x ->
+                                    not <| List.Nonempty.member x excludedStickers
+                                )
+
+                    -- The colors included in those
+                    includedColors =
+                        includedStickers
+                            |> List.map (getStickerColor stickers)
+                            |> List.Extra.unique
+
+                    noExcludedColorsAreMatched =
+                        includedColors
+                            |> List.all
+                                (\x ->
+                                    not <| List.Nonempty.member x excludedColors
+                                )
+
+                    allStickersHaveADistinctColor =
+                        List.length includedStickers == List.length includedColors
+                in
+                allPatternsVerified && noExcludedColorsAreMatched && allStickersHaveADistinctColor
+        ]
+
+
+isPatternPresent : RecognitionStickerColors -> PLL.RecognitionPattern -> Bool
+isPatternPresent colors pattern =
+    case pattern of
+        PLL.Bookends ->
+            colors.firstFromLeft == colors.firstFromRight
+
+        PLL.LeftHeadlights ->
+            colors.firstFromLeft == colors.thirdFromLeft
+
+        PLL.RightHeadlights ->
+            colors.firstFromRight == colors.thirdFromRight
+
+        PLL.LeftThreeBar ->
+            (colors.firstFromLeft == colors.secondFromLeft)
+                && (colors.secondFromLeft == colors.thirdFromLeft)
+
+        PLL.RightThreeBar ->
+            (colors.firstFromRight == colors.secondFromRight)
+                && (colors.secondFromRight == colors.thirdFromRight)
+
+        PLL.LeftInsideTwoBar ->
+            colors.secondFromLeft == colors.thirdFromLeft
+
+        PLL.RightInsideTwoBar ->
+            colors.secondFromRight == colors.thirdFromRight
+
+        PLL.LeftOutsideTwoBar ->
+            colors.firstFromLeft == colors.secondFromLeft
+
+        PLL.RightOutsideTwoBar ->
+            colors.firstFromRight == colors.secondFromRight
+
+        PLL.LeftFourChecker ->
+            (colors.firstFromLeft == colors.thirdFromLeft)
+                && (colors.secondFromLeft == colors.thirdFromRight)
+
+        PLL.RightFourChecker ->
+            (colors.firstFromRight == colors.thirdFromRight)
+                && (colors.secondFromRight == colors.thirdFromLeft)
+
+        PLL.InnerFourChecker ->
+            (colors.secondFromLeft == colors.thirdFromRight)
+                && (colors.thirdFromLeft == colors.secondFromRight)
+
+        PLL.LeftFiveChecker ->
+            (colors.firstFromLeft == colors.thirdFromLeft)
+                && (colors.secondFromLeft == colors.thirdFromRight)
+                && (colors.thirdFromLeft == colors.secondFromRight)
+
+        PLL.RightFiveChecker ->
+            (colors.firstFromRight == colors.thirdFromRight)
+                && (colors.secondFromRight == colors.thirdFromLeft)
+                && (colors.thirdFromRight == colors.secondFromLeft)
+
+        PLL.SixChecker ->
+            (colors.firstFromLeft == colors.thirdFromLeft)
+                && (colors.secondFromLeft == colors.thirdFromRight)
+                && (colors.thirdFromLeft == colors.secondFromRight)
+                && (colors.thirdFromRight == colors.firstFromRight)
+
+
+
+-- Visibility Helpers
 
 
 visibilityScore :
@@ -939,49 +1371,23 @@ finalFaceScore angle spec =
                 elseScore
 
 
-noMentionedPatternsIncludedInAbsentPatterns : PLL.RecognitionSpecification -> Bool
-noMentionedPatternsIncludedInAbsentPatterns spec =
-    let
-        absentPatterns =
-            spec.caseRecognition.absentPatterns
-                |> Maybe.map List.Nonempty.toList
-                |> Maybe.withDefault []
 
-        { caseRecognition } =
-            spec
-
-        otherPatternsCaseRecognition =
-            { caseRecognition | absentPatterns = Nothing }
-
-        otherPatterns =
-            extractAllPatterns { spec | caseRecognition = otherPatternsCaseRecognition }
-    in
-    List.all (\x -> not <| List.member x absentPatterns) otherPatterns
+-- Helpers for removing part from spec
 
 
-allMentionedPatternsListedInPatterns : PLL.RecognitionSpecification -> Bool
-allMentionedPatternsListedInPatterns spec =
-    let
-        patterns =
-            spec.caseRecognition.patterns
-                |> Maybe.map List.Nonempty.toList
-                |> Maybe.withDefault []
+numSpecKeys : Int
+numSpecKeys =
+    8
 
-        { caseRecognition } =
-            spec
 
-        otherPatternsCaseRecognition =
-            { caseRecognition | patterns = Nothing, absentPatterns = Nothing }
-
-        otherPatterns =
-            extractAllPatterns { spec | caseRecognition = otherPatternsCaseRecognition }
-    in
-    List.all (\x -> List.member x patterns) otherPatterns
+removePartKeyIndexRange : Fuzz.Fuzzer Int
+removePartKeyIndexRange =
+    Fuzz.intRange 0 (numSpecKeys - 1)
 
 
 removePartFromSpec : Int -> Int -> PLL.RecognitionSpecification -> Maybe ( PLL.RecognitionSpecification, String )
 removePartFromSpec keyIndex subIndex ({ caseRecognition } as spec) =
-    case modBy 9 keyIndex of
+    case modBy numSpecKeys keyIndex of
         0 ->
             caseRecognition.patterns
                 |> Maybe.map
@@ -1172,70 +1578,6 @@ removePartFromSpec keyIndex subIndex ({ caseRecognition } as spec) =
                 )
 
 
-removeItemFromMinLength2List :
-    Int
-    -> List ( a, a, List a )
-    -> ( List ( a, a, List a ), String )
-removeItemFromMinLength2List subIndex list =
-    let
-        length =
-            list
-                |> List.map (minLength2ToList >> List.length)
-                |> List.sum
-
-        targetSubIndex =
-            modBy length subIndex
-    in
-    list
-        |> List.map minLength2ToList
-        |> List.foldl
-            (\current ( accList, curSubIndex, removedItem ) ->
-                if curSubIndex > targetSubIndex then
-                    ( current :: accList, curSubIndex, removedItem )
-
-                else if curSubIndex + List.length current > targetSubIndex then
-                    ( List.Extra.removeAt
-                        (targetSubIndex - curSubIndex)
-                        current
-                        :: accList
-                    , curSubIndex + List.length current
-                    , List.Extra.getAt
-                        (targetSubIndex - curSubIndex)
-                        current
-                        |> Maybe.map Debug.toString
-                        |> Maybe.withDefault ""
-                    )
-
-                else
-                    ( current :: accList
-                    , curSubIndex + List.length current
-                    , removedItem
-                    )
-            )
-            ( [], 0, "" )
-        |> (\( a, _, b ) ->
-                ( a
-                    |> List.filterMap minLength2FromList
-                , b
-                )
-           )
-
-
-minLength2ToList : ( a, a, List a ) -> List a
-minLength2ToList ( first, second, tail ) =
-    first :: second :: tail
-
-
-minLength2FromList : List a -> Maybe ( a, a, List a )
-minLength2FromList list =
-    case list of
-        first :: second :: tail ->
-            Just ( first, second, tail )
-
-        _ ->
-            Nothing
-
-
 removeItemFromNonemptyListPair :
     Int
     -> List ( List.Nonempty.Nonempty a, List.Nonempty.Nonempty a )
@@ -1312,80 +1654,111 @@ removeItemFromNonemptyListPair subIndex list =
         |> (\( a, _, b ) -> ( a, b ))
 
 
-pllAlgorithmsFuzzer : Fuzz.Fuzzer PLL.Algorithms
-pllAlgorithmsFuzzer =
-    Fuzz.oneOf
-        [ Fuzz.constant PLL.referenceAlgorithms
-        , Fuzz.constant jpermsAlgorithms
-        ]
+removeItemFromMinLength2List :
+    Int
+    -> List ( a, a, List a )
+    -> ( List ( a, a, List a ), String )
+removeItemFromMinLength2List subIndex list =
+    let
+        length =
+            list
+                |> List.map (minLength2ToList >> List.length)
+                |> List.sum
+
+        targetSubIndex =
+            modBy length subIndex
+    in
+    list
+        |> List.map minLength2ToList
+        |> List.foldl
+            (\current ( accList, curSubIndex, removedItem ) ->
+                if curSubIndex > targetSubIndex then
+                    ( current :: accList, curSubIndex, removedItem )
+
+                else if curSubIndex + List.length current > targetSubIndex then
+                    ( List.Extra.removeAt
+                        (targetSubIndex - curSubIndex)
+                        current
+                        :: accList
+                    , curSubIndex + List.length current
+                    , List.Extra.getAt
+                        (targetSubIndex - curSubIndex)
+                        current
+                        |> Maybe.map Debug.toString
+                        |> Maybe.withDefault ""
+                    )
+
+                else
+                    ( current :: accList
+                    , curSubIndex + List.length current
+                    , removedItem
+                    )
+            )
+            ( [], 0, "" )
+        |> (\( a, _, b ) ->
+                ( a
+                    |> List.filterMap minLength2FromList
+                , b
+                )
+           )
 
 
-jpermsAlgorithms : PLL.Algorithms
-jpermsAlgorithms =
-    { ua =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "M2 U M U2 M' U M2"
-    , ub =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "M2 U' M U2 M' U' M2"
-    , h =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "M2 U M2 U2 M2 U M2"
-    , z =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "M U M2 U M2 U M U2 M2"
-    , aa =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "x L2 D2 (L' U' L) D2 (L' U L')"
-    , ab =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "x (L U' L) D2 (L' U L) D2 L2"
-    , e =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "x' (L' U L D') (L' U' L D) (L' U' L D') (L' U L D)"
-    , t =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R U R' U') R' F R2 U' R' U' (R U R') F'"
-    , f =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "R' U' F' (R U R' U') R' F R2 U' R' U' (R U R') U R"
-    , jb =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R U R' F') (R U R' U') R' F R2 U' R'"
-    , ja =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "x (R2 F R F') R U2 (r' U r) U2"
-    , ra =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R U' R' U') (R U R D) (R' U' R D') (R' U2 R')"
-    , rb =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "R2 F R (U R U' R') F' R U2 R' U2 R"
-    , y =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "F (R U' R' U') (R U R') F' (R U R' U') (R' F R F')"
-    , v =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "R U' (R U R') D R D' R (U' D) R2 U R2 D' R2"
-    , na =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R U R' U) (R U R' F' R U R' U' R' F R2 U' R') (U2 R U' R')"
-    , nb =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "r' D' F (r U' r') F' D (r2 U r' U') (r' F r F')"
-    , ga =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "R2 U R' U R' U' R U' R2 (U' D) (R' U R) D'"
-    , gb =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R' U' R) (U D') R2 U R' U R U' R U' R2 D"
-    , gc =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "R2 U' R U' R U R' U R2 (U D') (R U' R') D"
-    , gd =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R U R') (U' D) R2 U' R U' R' U R' U R2 D'"
-    }
+
+-- Spec utilities
+
+
+extractAllPatterns : PLL.RecognitionSpecification -> List PLL.RecognitionPattern
+extractAllPatterns spec =
+    List.Extra.unique <|
+        extractPatternsFromMaybePatterns spec.caseRecognition.patterns
+            ++ extractPatternsFromMaybePatterns spec.caseRecognition.absentPatterns
+            ++ List.concatMap extractPatternsFromTuple spec.caseRecognition.oppositelyColored
+            ++ List.concatMap extractPatternsFromTuple spec.caseRecognition.adjacentlyColored
+            ++ List.concatMap extractPatternsFromMinLength2List spec.caseRecognition.identicallyColored
+            ++ List.concatMap extractPatternsFromMinLength2List spec.caseRecognition.differentlyColored
+            ++ extractPatternsFromMaybeElements spec.caseRecognition.noOtherStickersMatchThanThese
+
+
+extractPatternsFromMaybePatterns : Maybe (List.Nonempty.Nonempty PLL.RecognitionPattern) -> List PLL.RecognitionPattern
+extractPatternsFromMaybePatterns maybeList =
+    maybeList
+        |> Maybe.map List.Nonempty.toList
+        |> Maybe.withDefault []
+
+
+extractPatternsFromTuple : ( List.Nonempty.Nonempty PLL.RecognitionElement, List.Nonempty.Nonempty PLL.RecognitionElement ) -> List PLL.RecognitionPattern
+extractPatternsFromTuple ( a, b ) =
+    (List.Nonempty.toList a ++ List.Nonempty.toList b)
+        |> List.filterMap getPattern
+
+
+extractPatternsFromMinLength2List : ( PLL.RecognitionElement, PLL.RecognitionElement, List PLL.RecognitionElement ) -> List PLL.RecognitionPattern
+extractPatternsFromMinLength2List list =
+    list
+        |> minLength2ToList
+        |> List.filterMap getPattern
+
+
+extractPatternsFromMaybeElements : Maybe (List.Nonempty.Nonempty PLL.RecognitionElement) -> List PLL.RecognitionPattern
+extractPatternsFromMaybeElements maybeList =
+    maybeList
+        |> Maybe.map List.Nonempty.toList
+        |> Maybe.withDefault []
+        |> List.filterMap getPattern
+
+
+getPattern : PLL.RecognitionElement -> Maybe PLL.RecognitionPattern
+getPattern element =
+    case element of
+        PLL.Pattern pattern ->
+            Just pattern
+
+        _ ->
+            Nothing
+
+
+
+-- Helpers for working with the stickers for recognition etc.
 
 
 type alias RecognitionStickerColors =
@@ -1428,67 +1801,6 @@ getRecognitionStickers algorithms recognitionAngle ( preAUF, pll ) =
                 , firstFromRight = rendering.ubr.r
                 }
            )
-
-
-isPatternPresent : RecognitionStickerColors -> PLL.RecognitionPattern -> Bool
-isPatternPresent colors pattern =
-    case pattern of
-        PLL.Bookends ->
-            colors.firstFromLeft == colors.firstFromRight
-
-        PLL.LeftHeadlights ->
-            colors.firstFromLeft == colors.thirdFromLeft
-
-        PLL.RightHeadlights ->
-            colors.firstFromRight == colors.thirdFromRight
-
-        PLL.LeftThreeBar ->
-            (colors.firstFromLeft == colors.secondFromLeft)
-                && (colors.secondFromLeft == colors.thirdFromLeft)
-
-        PLL.RightThreeBar ->
-            (colors.firstFromRight == colors.secondFromRight)
-                && (colors.secondFromRight == colors.thirdFromRight)
-
-        PLL.LeftInsideTwoBar ->
-            colors.secondFromLeft == colors.thirdFromLeft
-
-        PLL.RightInsideTwoBar ->
-            colors.secondFromRight == colors.thirdFromRight
-
-        PLL.LeftOutsideTwoBar ->
-            colors.firstFromLeft == colors.secondFromLeft
-
-        PLL.RightOutsideTwoBar ->
-            colors.firstFromRight == colors.secondFromRight
-
-        PLL.LeftFourChecker ->
-            (colors.firstFromLeft == colors.thirdFromLeft)
-                && (colors.secondFromLeft == colors.thirdFromRight)
-
-        PLL.RightFourChecker ->
-            (colors.firstFromRight == colors.thirdFromRight)
-                && (colors.secondFromRight == colors.thirdFromLeft)
-
-        PLL.InnerFourChecker ->
-            (colors.secondFromLeft == colors.thirdFromRight)
-                && (colors.thirdFromLeft == colors.secondFromRight)
-
-        PLL.LeftFiveChecker ->
-            (colors.firstFromLeft == colors.thirdFromLeft)
-                && (colors.secondFromLeft == colors.thirdFromRight)
-                && (colors.thirdFromLeft == colors.secondFromRight)
-
-        PLL.RightFiveChecker ->
-            (colors.firstFromRight == colors.thirdFromRight)
-                && (colors.secondFromRight == colors.thirdFromLeft)
-                && (colors.thirdFromRight == colors.secondFromLeft)
-
-        PLL.SixChecker ->
-            (colors.firstFromLeft == colors.thirdFromLeft)
-                && (colors.secondFromLeft == colors.thirdFromRight)
-                && (colors.thirdFromLeft == colors.secondFromRight)
-                && (colors.thirdFromRight == colors.firstFromRight)
 
 
 getElementStickers : PLL.RecognitionElement -> List.Nonempty.Nonempty PLL.Sticker
@@ -1628,212 +1940,6 @@ getStickerColor colors sticker =
             colors.firstFromRight
 
 
-verifySpecForStickers : RecognitionStickerColors -> PLL.RecognitionSpecification -> Bool
-verifySpecForStickers stickers spec =
-    List.all
-        identity
-        [ case spec.caseRecognition.patterns of
-            Nothing ->
-                True
-
-            Just patterns ->
-                patterns
-                    |> List.Nonempty.all (isPatternPresent stickers)
-        , if not spec.caseRecognition.noOtherBlocksPresent then
-            True
-
-          else
-            let
-                stickersThatArePartOfBlocks =
-                    [ ( PLL.FirstStickerFromLeft, stickers.firstFromLeft )
-                    , ( PLL.SecondStickerFromLeft, stickers.secondFromLeft )
-                    , ( PLL.ThirdStickerFromLeft, stickers.thirdFromLeft )
-                    , ( PLL.ThirdStickerFromRight, stickers.thirdFromRight )
-                    , ( PLL.SecondStickerFromRight, stickers.secondFromRight )
-                    , ( PLL.FirstStickerFromRight, stickers.firstFromRight )
-                    ]
-                        -- Get all pairs of neighbours
-                        |> List.foldl
-                            (\cur { prev, acc } ->
-                                case prev of
-                                    Nothing ->
-                                        { prev = Just cur, acc = acc }
-
-                                    Just prev_ ->
-                                        { prev = Just cur, acc = ( prev_, cur ) :: acc }
-                            )
-                            { prev = Nothing, acc = [] }
-                        |> .acc
-                        -- Keep all stickers that have an equal neighbour
-                        |> List.concatMap
-                            (\( a, b ) ->
-                                if Tuple.second a == Tuple.second b then
-                                    [ Tuple.first a, Tuple.first b ]
-
-                                else
-                                    []
-                            )
-                        |> List.Extra.unique
-
-                stickersThatAreInPatternBlocks =
-                    case spec.caseRecognition.patterns of
-                        Nothing ->
-                            []
-
-                        Just patterns ->
-                            patterns
-                                |> List.Nonempty.toList
-                                |> List.filter isBlockPattern
-                                |> List.map getPatternStickers
-                                |> List.concatMap List.Nonempty.toList
-            in
-            stickersThatArePartOfBlocks
-                |> List.filter
-                    (\x ->
-                        not <| List.member x stickersThatAreInPatternBlocks
-                    )
-                |> List.isEmpty
-        , case spec.caseRecognition.absentPatterns of
-            Nothing ->
-                True
-
-            Just absentPatterns ->
-                absentPatterns
-                    |> List.Nonempty.all (not << isPatternPresent stickers)
-        , spec.caseRecognition.oppositelyColored
-            |> List.all
-                (mapSameForBoth
-                    (List.Nonempty.concatMap getElementStickers
-                        >> List.Nonempty.map (getStickerColor stickers)
-                        >> List.Nonempty.uniq
-                    )
-                    >> (\x ->
-                            case x of
-                                -- They have to each group be the same color all stickers
-                                -- and for that color to be opposite to the one of the
-                                -- other group
-                                ( List.Nonempty.Nonempty firstColor [], List.Nonempty.Nonempty secondColor [] ) ->
-                                    areOppositeColors firstColor secondColor
-
-                                _ ->
-                                    False
-                       )
-                )
-        , spec.caseRecognition.adjacentlyColored
-            |> List.all
-                (mapSameForBoth
-                    (List.Nonempty.concatMap getElementStickers
-                        >> List.Nonempty.map (getStickerColor stickers)
-                        >> List.Nonempty.uniq
-                    )
-                    >> (\x ->
-                            case x of
-                                -- They have to each group be the same color all stickers
-                                -- and for that color to be adjacent to the one of the
-                                -- other group
-                                ( List.Nonempty.Nonempty firstColor [], List.Nonempty.Nonempty secondColor [] ) ->
-                                    areAdjacentColors firstColor secondColor
-
-                                _ ->
-                                    False
-                       )
-                )
-        , spec.caseRecognition.identicallyColored
-            |> List.all
-                (\( first, second, tail ) ->
-                    List.Nonempty.Nonempty first (second :: tail)
-                        |> List.Nonempty.concatMap getElementStickers
-                        |> List.Nonempty.map (getStickerColor stickers)
-                        |> List.Nonempty.uniq
-                        |> (List.Nonempty.length >> (==) 1)
-                )
-        , spec.caseRecognition.differentlyColored
-            |> List.all
-                (\( first, second, tail ) ->
-                    let
-                        list =
-                            List.Nonempty.Nonempty first (second :: tail)
-
-                        expectedDistinctColors =
-                            List.Nonempty.length list
-
-                        allGroupsAreSameColored =
-                            list
-                                |> List.Nonempty.map
-                                    (getElementStickers
-                                        >> List.Nonempty.map (getStickerColor stickers)
-                                        >> List.Nonempty.uniq
-                                        >> List.Nonempty.length
-                                    )
-                                |> List.Nonempty.all ((==) 1)
-
-                        numDistinctColors =
-                            list
-                                |> List.Nonempty.concatMap getElementStickers
-                                |> List.Nonempty.map (getStickerColor stickers)
-                                |> List.Nonempty.uniq
-                                |> List.Nonempty.length
-                    in
-                    allGroupsAreSameColored && numDistinctColors == expectedDistinctColors
-                )
-        , case spec.caseRecognition.noOtherStickersMatchThanThese of
-            Nothing ->
-                True
-
-            Just elements ->
-                let
-                    allPatternsVerified =
-                        elements
-                            |> List.Nonempty.all
-                                (\element ->
-                                    case element of
-                                        PLL.Sticker _ ->
-                                            True
-
-                                        PLL.Pattern pattern ->
-                                            isPatternPresent stickers pattern
-                                )
-
-                    -- The stickers we are okay having matches on
-                    excludedStickers =
-                        elements
-                            |> List.Nonempty.concatMap getElementStickers
-
-                    -- The colors no other stickers than the specified ones can match
-                    excludedColors =
-                        excludedStickers
-                            |> List.Nonempty.map (getStickerColor stickers)
-                            |> List.Nonempty.uniq
-
-                    -- The stickers that can't have matches
-                    includedStickers =
-                        allStickers
-                            |> List.Nonempty.toList
-                            |> List.filter
-                                (\x ->
-                                    not <| List.Nonempty.member x excludedStickers
-                                )
-
-                    -- The colors included in those
-                    includedColors =
-                        includedStickers
-                            |> List.map (getStickerColor stickers)
-                            |> List.Extra.unique
-
-                    noExcludedColorsAreMatched =
-                        includedColors
-                            |> List.all
-                                (\x ->
-                                    not <| List.Nonempty.member x excludedColors
-                                )
-
-                    allStickersHaveADistinctColor =
-                        List.length includedStickers == List.length includedColors
-                in
-                allPatternsVerified && noExcludedColorsAreMatched && allStickersHaveADistinctColor
-        ]
-
-
 isBlockPattern : PLL.RecognitionPattern -> Bool
 isBlockPattern pattern =
     case pattern of
@@ -1883,11 +1989,6 @@ isBlockPattern pattern =
             True
 
 
-mapSameForBoth : (a -> b) -> ( a, a ) -> ( b, b )
-mapSameForBoth f ( first, second ) =
-    ( f first, f second )
-
-
 allStickers : List.Nonempty.Nonempty PLL.Sticker
 allStickers =
     List.Nonempty.Nonempty
@@ -1898,6 +1999,10 @@ allStickers =
         , PLL.SecondStickerFromRight
         , PLL.FirstStickerFromRight
         ]
+
+
+
+-- Color utilities
 
 
 areOppositeColors : Cube.Advanced.Color -> Cube.Advanced.Color -> Bool
@@ -1927,110 +2032,107 @@ areOppositeColors a b =
 
 areAdjacentColors : Cube.Advanced.Color -> Cube.Advanced.Color -> Bool
 areAdjacentColors a b =
-    not <| areOppositeColors a b
+    (a /= b) && (not <| areOppositeColors a b)
 
 
-extractAllPatterns : PLL.RecognitionSpecification -> List PLL.RecognitionPattern
-extractAllPatterns spec =
-    List.Extra.unique <|
-        extractPatternsFromMaybePatterns spec.caseRecognition.patterns
-            ++ extractPatternsFromMaybePatterns spec.caseRecognition.absentPatterns
-            ++ List.concatMap extractPatternsFromTuple spec.caseRecognition.oppositelyColored
-            ++ List.concatMap extractPatternsFromTuple spec.caseRecognition.adjacentlyColored
-            ++ List.concatMap extractPatternsFromMinLength2List spec.caseRecognition.identicallyColored
-            ++ List.concatMap extractPatternsFromMinLength2List spec.caseRecognition.differentlyColored
-            ++ extractPatternsFromMaybeElements spec.caseRecognition.noOtherStickersMatchThanThese
+
+-- data structure simple utilities
 
 
-extractPatternsFromMaybePatterns : Maybe (List.Nonempty.Nonempty PLL.RecognitionPattern) -> List PLL.RecognitionPattern
-extractPatternsFromMaybePatterns maybeList =
-    maybeList
-        |> Maybe.map List.Nonempty.toList
-        |> Maybe.withDefault []
+minLength2ToList : ( a, a, List a ) -> List a
+minLength2ToList ( first, second, tail ) =
+    first :: second :: tail
 
 
-extractPatternsFromTuple : ( List.Nonempty.Nonempty PLL.RecognitionElement, List.Nonempty.Nonempty PLL.RecognitionElement ) -> List PLL.RecognitionPattern
-extractPatternsFromTuple ( a, b ) =
-    (List.Nonempty.toList a ++ List.Nonempty.toList b)
-        |> List.filterMap getPattern
+minLength2ToNonemptyList : ( a, a, List a ) -> List.Nonempty.Nonempty a
+minLength2ToNonemptyList ( first, second, tail ) =
+    List.Nonempty.Nonempty
+        first
+        (second :: tail)
 
 
-extractPatternsFromMinLength2List : ( PLL.RecognitionElement, PLL.RecognitionElement, List PLL.RecognitionElement ) -> List PLL.RecognitionPattern
-extractPatternsFromMinLength2List ( first, second, tail ) =
-    first
-        :: second
-        :: tail
-        |> List.filterMap getPattern
-
-
-extractPatternsFromMaybeElements : Maybe (List.Nonempty.Nonempty PLL.RecognitionElement) -> List PLL.RecognitionPattern
-extractPatternsFromMaybeElements maybeList =
-    maybeList
-        |> Maybe.map List.Nonempty.toList
-        |> Maybe.withDefault []
-        |> List.filterMap getPattern
-
-
-getPattern : PLL.RecognitionElement -> Maybe PLL.RecognitionPattern
-getPattern element =
-    case element of
-        PLL.Pattern pattern ->
-            Just pattern
+minLength2FromList : List a -> Maybe ( a, a, List a )
+minLength2FromList list =
+    case list of
+        first :: second :: tail ->
+            Just ( first, second, tail )
 
         _ ->
             Nothing
 
 
-expectEqualDisregardingAUF : Cube.Advanced.Rendering -> Algorithm.Algorithm -> Expect.Expectation
-expectEqualDisregardingAUF expectedRendering alg =
-    let
-        aufAlgorithms =
-            List.Nonempty.map AUF.toAlgorithm AUF.all
-
-        candidates =
-            List.Nonempty.Extra.lift2
-                (\preAUF postAUF ->
-                    Algorithm.append preAUF <|
-                        Algorithm.append alg <|
-                            postAUF
-                )
-                aufAlgorithms
-                aufAlgorithms
-                |> List.Nonempty.map ((\x -> Cube.applyAlgorithm x Cube.solved) >> Cube.Advanced.render)
-    in
-    List.filter ((==) expectedRendering) (List.Nonempty.toList candidates)
-        |> List.length
-        |> Expect.greaterThan 0
-        |> Expect.onFail
-            ("Algorithm with or without pre and post AUF did not produce the expected rendering. Closest diff was:"
-                ++ "\n\n"
-                ++ "(Actual != Expected)"
-                ++ "\n\n"
-                ++ getShortestDiff candidates expectedRendering
-            )
+mapSameForBoth : (a -> b) -> ( a, a ) -> ( b, b )
+mapSameForBoth f =
+    Tuple.mapBoth f f
 
 
-getShortestDiff : List.Nonempty.Nonempty Cube.Advanced.Rendering -> Cube.Advanced.Rendering -> String
-getShortestDiff candidates expected =
-    let
-        diffs =
-            List.Nonempty.map (\x -> TestHelpers.Cube.compareCubeRenderings x expected) candidates
-    in
-    List.Nonempty.foldl1 getShorterString diffs
+
+-- Hardcoded collections
 
 
-getShorterString : String -> String -> String
-getShorterString a b =
-    if String.length a < String.length b then
-        a
-
-    else
-        b
-
-
-pllFuzzer : Fuzz.Fuzzer PLL
-pllFuzzer =
-    PLL.all
-        |> List.Nonempty.map Fuzz.constant
-        |> List.Nonempty.toList
-        |> Fuzz.oneOf
+jpermsAlgorithms : PLL.Algorithms
+jpermsAlgorithms =
+    { ua =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M2 U M U2 M' U M2"
+    , ub =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M2 U' M U2 M' U' M2"
+    , h =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M2 U M2 U2 M2 U M2"
+    , z =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M U M2 U M2 U M U2 M2"
+    , aa =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x L2 D2 (L' U' L) D2 (L' U L')"
+    , ab =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x (L U' L) D2 (L' U L) D2 L2"
+    , e =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x' (L' U L D') (L' U' L D) (L' U' L D') (L' U L D)"
+    , t =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R' U') R' F R2 U' R' U' (R U R') F'"
+    , f =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R' U' F' (R U R' U') R' F R2 U' R' U' (R U R') U R"
+    , jb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R' F') (R U R' U') R' F R2 U' R'"
+    , ja =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x (R2 F R F') R U2 (r' U r) U2"
+    , ra =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U' R' U') (R U R D) (R' U' R D') (R' U2 R')"
+    , rb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R2 F R (U R U' R') F' R U2 R' U2 R"
+    , y =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "F (R U' R' U') (R U R') F' (R U R' U') (R' F R F')"
+    , v =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R U' (R U R') D R D' R (U' D) R2 U R2 D' R2"
+    , na =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R' U) (R U R' F' R U R' U' R' F R2 U' R') (U2 R U' R')"
+    , nb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "r' D' F (r U' r') F' D (r2 U r' U') (r' F r F')"
+    , ga =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R2 U R' U R' U' R U' R2 (U' D) (R' U R) D'"
+    , gb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R' U' R) (U D') R2 U R' U R U' R U' R2 D"
+    , gc =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R2 U' R U' R U R' U R2 (U D') (R U' R') D"
+    , gd =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R') (U' D) R2 U' R U' R' U R' U R2 D'"
+    }
