@@ -23,7 +23,7 @@ main =
                         , style "margin" "40px"
                         , style "font-size" "10px"
                         ]
-                        ([ div [ style "align-self" "center" ] [ text (PLL.getLetters pll ++ ": ") ]
+                        ([ div [ style "align-self" "center", style "margin-right" "7px" ] [ text (PLL.getLetters pll ++ ": ") ]
                          ]
                             ++ (AUF.all
                                     |> List.Nonempty.toList
@@ -34,35 +34,12 @@ main =
                                                 , style "display" "flex"
                                                 , style "flex-direction" "column"
                                                 ]
-                                                [ text <|
-                                                    explainPLLRecognitionPattern <|
-                                                        (Result.withDefault
-                                                            { caseRecognition =
-                                                                { patterns = Nothing
-                                                                , absentPatterns = Nothing
-                                                                , oppositelyColored = []
-                                                                , adjacentlyColored = []
-                                                                , identicallyColored = []
-                                                                , differentlyColored = []
-                                                                , noOtherStickersMatchThanThese = Nothing
-                                                                , noOtherBlocksPresent = False
-                                                                }
-                                                            , postAUFRecognition =
-                                                                List.Nonempty.singleton
-                                                                    { elementsWithOriginalFace =
-                                                                        List.Nonempty.singleton <|
-                                                                            ( PLL.Pattern PLL.SixChecker
-                                                                            , Cube.Advanced.UpOrDown Cube.Advanced.U
-                                                                            )
-                                                                    , finalFace = Cube.Advanced.UpOrDown Cube.Advanced.U
-                                                                    }
-                                                            }
-                                                         <|
-                                                            PLL.getUniqueTwoSidedRecognitionSpecification
-                                                                jpermsAlgorithms
-                                                                PLL.ufrRecognitionAngle
-                                                                ( Debug.log "preAUF" preAUF, Debug.log "pll" pll )
-                                                        )
+                                                [ Result.withDefault (text "Error occurred") <|
+                                                    Result.map (text << explainPLLRecognitionPattern) <|
+                                                        PLL.getUniqueTwoSidedRecognitionSpecification
+                                                            jpermsAlgorithms
+                                                            PLL.ufrRecognitionAngle
+                                                            ( preAUF, pll )
                                                 , Cube.view [ style "align-self" "center" ]
                                                     { pixelSize = 50
                                                     , displayAngle = Cube.ufrDisplayAngle
@@ -70,15 +47,13 @@ main =
                                                     }
                                                   <|
                                                     Cube.applyAlgorithm
-                                                        (log <|
-                                                            Algorithm.inverse <|
-                                                                Algorithm.append
-                                                                    (Cube.makeAlgorithmMaintainOrientation <|
-                                                                        Algorithm.append (AUF.toAlgorithm preAUF) <|
-                                                                            PLL.getAlgorithm jpermsAlgorithms pll
-                                                                    )
-                                                                <|
-                                                                    AUF.toAlgorithm preAUF
+                                                        (Algorithm.inverse <|
+                                                            Algorithm.append
+                                                                (Cube.makeAlgorithmMaintainOrientation <|
+                                                                    Algorithm.append (AUF.toAlgorithm preAUF) <|
+                                                                        PLL.getAlgorithm jpermsAlgorithms pll
+                                                                )
+                                                                (AUF.toAlgorithm preAUF)
                                                         )
                                                         Cube.solved
                                                 ]
@@ -87,83 +62,6 @@ main =
                         )
                 )
         )
-
-
-jpermsAlgorithms : PLL.Algorithms
-jpermsAlgorithms =
-    { ua =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "M2 U M U2 M' U M2"
-    , ub =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "M2 U' M U2 M' U' M2"
-    , h =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "M2 U M2 U2 M2 U M2"
-    , z =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "M U M2 U M2 U M U2 M2"
-    , aa =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "x L2 D2 (L' U' L) D2 (L' U L')"
-    , ab =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "x (L U' L) D2 (L' U L) D2 L2"
-    , e =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "x' (L' U L D') (L' U' L D) (L' U' L D') (L' U L D)"
-    , t =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R U R' U') R' F R2 U' R' U' (R U R') F'"
-    , f =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "R' U' F' (R U R' U') R' F R2 U' R' U' (R U R') U R"
-    , jb =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R U R' F') (R U R' U') R' F R2 U' R'"
-    , ja =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "x (R2 F R F') R U2 (r' U r) U2"
-    , ra =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R U' R' U') (R U R D) (R' U' R D') (R' U2 R')"
-    , rb =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "R2 F R (U R U' R') F' R U2 R' U2 R"
-    , y =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "F (R U' R' U') (R U R') F' (R U R' U') (R' F R F')"
-    , v =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "R U' (R U R') D R D' R (U' D) R2 U R2 D' R2"
-    , na =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R U R' U) (R U R' F' R U R' U' R' F R2 U' R') (U2 R U' R')"
-    , nb =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "r' D' F (r U' r') F' D (r2 U r' U') (r' F r F')"
-    , ga =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "R2 U R' U R' U' R U' R2 (U' D) (R' U R) D'"
-    , gb =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R' U' R) (U D') R2 U R' U R U' R U' R2 D"
-    , gc =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "R2 U' R U' R U R' U R2 (U D') (R U' R') D"
-    , gd =
-        Result.withDefault Algorithm.empty <|
-            Algorithm.fromString "(R U R') (U' D) R2 U' R U' R' U R' U R2 D'"
-    }
-
-
-log : Algorithm -> Algorithm
-log x =
-    let
-        _ =
-            Debug.log "algorithm" <| Algorithm.toString x
-    in
-    x
 
 
 explainPLLRecognitionPattern : PLL.RecognitionSpecification -> String
@@ -679,15 +577,10 @@ sortMinLength2ListWith comp ( first, second, tail ) =
 
         -- This will obviously never happen as we just created the list above with 2
         -- elements in it at the least. Just for the types and simpler code than
-        -- trying to handle the cases manually and moving things between the first
+        -- trying to sort more manually and moving things between the first
         -- spots and the tail etc.
         _ ->
             ( first, second, tail )
-
-
-algorithms : PLL.Algorithms
-algorithms =
-    PLL.referenceAlgorithms
 
 
 elementToString : { article : Article, forcePlural : Bool } -> PLL.RecognitionElement -> String
@@ -815,3 +708,71 @@ isPlural element =
 
                 _ ->
                     False
+
+
+jpermsAlgorithms : PLL.Algorithms
+jpermsAlgorithms =
+    { ua =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M2 U M U2 M' U M2"
+    , ub =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M2 U' M U2 M' U' M2"
+    , h =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M2 U M2 U2 M2 U M2"
+    , z =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "M U M2 U M2 U M U2 M2"
+    , aa =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x L2 D2 (L' U' L) D2 (L' U L')"
+    , ab =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x (L U' L) D2 (L' U L) D2 L2"
+    , e =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x' (L' U L D') (L' U' L D) (L' U' L D') (L' U L D)"
+    , t =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R' U') R' F R2 U' R' U' (R U R') F'"
+    , f =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R' U' F' (R U R' U') R' F R2 U' R' U' (R U R') U R"
+    , jb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R' F') (R U R' U') R' F R2 U' R'"
+    , ja =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "x (R2 F R F') R U2 (r' U r) U2"
+    , ra =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U' R' U') (R U R D) (R' U' R D') (R' U2 R')"
+    , rb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R2 F R (U R U' R') F' R U2 R' U2 R"
+    , y =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "F (R U' R' U') (R U R') F' (R U R' U') (R' F R F')"
+    , v =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R U' (R U R') D R D' R (U' D) R2 U R2 D' R2"
+    , na =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R' U) (R U R' F' R U R' U' R' F R2 U' R') (U2 R U' R')"
+    , nb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "r' D' F (r U' r') F' D (r2 U r' U') (r' F r F')"
+    , ga =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R2 U R' U R' U' R U' R2 (U' D) (R' U R) D'"
+    , gb =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R' U' R) (U D') R2 U R' U R U' R U' R2 D"
+    , gc =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "R2 U' R U' R U R' U R2 (U D') (R U' R') D"
+    , gd =
+        Result.withDefault Algorithm.empty <|
+            Algorithm.fromString "(R U R') (U' D) R2 U' R U' R' U R' U R2 D'"
+    }
