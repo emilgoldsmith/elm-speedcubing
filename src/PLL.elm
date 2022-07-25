@@ -1,8 +1,9 @@
 module PLL exposing
     ( PLL(..), all
     , getLetters, solvedBy, getAllEquivalentAUFs, getAllAUFEquivalencyClasses
+    , RecognitionSpecification, CaseRecognitionSpecification, RecognitionElement(..), RecognitionPattern(..), Sticker(..), getUniqueTwoSidedRecognitionSpecification
+    , RecognitionAngle, uflRecognitionAngle, ufrRecognitionAngle, RecognitionError(..)
     , Algorithms, getAlgorithm, referenceAlgorithms
-    , RecognitionAngle, RecognitionElement(..), RecognitionError(..), RecognitionPattern(..), RecognitionSpecification, Sticker(..), getUniqueTwoSidedRecognitionSpecification, uflRecognitionAngle, ufrRecognitionAngle
     )
 
 {-| Types and helper functions to work with the Permutate Last
@@ -19,6 +20,12 @@ for further information
 # Helpers
 
 @docs getLetters, solvedBy, getAllEquivalentAUFs, getAllAUFEquivalencyClasses
+
+
+# Two Sided Recognition
+
+@docs RecognitionSpecification, CaseRecognitionSpecification, RecognitionElement, RecognitionPattern, Sticker, getUniqueTwoSidedRecognitionSpecification
+@docs RecognitionAngle, uflRecognitionAngle, ufrRecognitionAngle, RecognitionError
 
 
 # Collections
@@ -971,6 +978,11 @@ referenceAlgorithms =
     }
 
 
+{-| Describes a unique way to recognize the pll case from just the two sides
+given by the RecognitionAngle.
+It also describes one or more possibilities for how to recognize which way to
+do the final AUF.
+-}
 type alias RecognitionSpecification =
     { caseRecognition : CaseRecognitionSpecification
     , postAUFRecognition :
@@ -985,6 +997,8 @@ type alias RecognitionSpecification =
     }
 
 
+{-| Describes a unique way to recognize the pll case from just the two sides given by the RecognitionAngle
+-}
 type alias CaseRecognitionSpecification =
     { patterns : Maybe (List.Nonempty.Nonempty RecognitionPattern)
     , absentPatterns : Maybe (List.Nonempty.Nonempty RecognitionPattern)
@@ -1010,6 +1024,9 @@ emptyCaseSpec =
     }
 
 
+{-| Either a type of pattern on the two sides or just a single sticker on
+the two sides.
+-}
 type RecognitionElement
     = Pattern RecognitionPattern
     | Sticker Sticker
@@ -1025,6 +1042,8 @@ isPattern element =
             False
 
 
+{-| All the possible patterns that we use to recognize the pll case.
+-}
 type RecognitionPattern
     = LeftHeadlights
     | RightHeadlights
@@ -1096,6 +1115,8 @@ allPatterns =
     Utils.Enumerator.from LeftHeadlights fromLeftHeadlights
 
 
+{-| The six visible stickers during two sided recognition.
+-}
 type Sticker
     = FirstStickerFromLeft
     | SecondStickerFromLeft
@@ -1220,25 +1241,37 @@ isPatternPresent colors pattern =
                 && (colors.thirdFromRight == colors.firstFromRight)
 
 
+{-| The angle the cube is being looked at while doing two sided recognition
+-}
 type RecognitionAngle
     = UFR
     | UFL
 
 
+{-| Describes looking at the cube so that the U F and R sides are visible
+-}
 ufrRecognitionAngle : RecognitionAngle
 ufrRecognitionAngle =
     UFR
 
 
+{-| Describes looking at the cube so that the U F and L sides are visible
+-}
 uflRecognitionAngle : RecognitionAngle
 uflRecognitionAngle =
     UFL
 
 
+{-| Occurs if incorrect pll algorithms are provided to
+getUniqueTwoSidedRecognitionSpecification
+-}
 type RecognitionError
     = IncorrectPLLAlgorithm PLL Algorithm
 
 
+{-| Gets a unique two sided recognition specification for the given pll algorithms,
+angle and case.
+-}
 getUniqueTwoSidedRecognitionSpecification :
     Algorithms
     -> RecognitionAngle
