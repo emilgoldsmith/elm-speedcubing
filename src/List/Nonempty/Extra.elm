@@ -1,4 +1,4 @@
-module List.Nonempty.Extra exposing (find, getAt, lift2, lift3, minimum, removeAt)
+module List.Nonempty.Extra exposing (appendListBehind, appendListInFront, find, getAt, lift2, lift3, minimum, removeAt)
 
 import List.Extra
 import List.Nonempty
@@ -59,3 +59,18 @@ getAt index list =
     list
         |> List.Nonempty.toList
         |> List.Extra.getAt index
+
+
+appendListBehind : List.Nonempty.Nonempty a -> List a -> List.Nonempty.Nonempty a
+appendListBehind (List.Nonempty.Nonempty x xs) list =
+    List.Nonempty.Nonempty x (xs ++ list)
+
+
+appendListInFront : List a -> List.Nonempty.Nonempty a -> List.Nonempty.Nonempty a
+appendListInFront list (List.Nonempty.Nonempty x xs) =
+    case list of
+        [] ->
+            List.Nonempty.Nonempty x xs
+
+        y :: ys ->
+            List.Nonempty.Nonempty y (ys ++ (x :: xs))

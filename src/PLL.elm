@@ -1,8 +1,8 @@
 module PLL exposing
     ( PLL(..), all
     , getLetters, solvedBy, getAllEquivalentAUFs, getAllAUFEquivalencyClasses
-    , RecognitionSpecification, CaseRecognitionSpecification, RecognitionElement(..), RecognitionPattern(..), Sticker(..), getUniqueTwoSidedRecognitionSpecification
-    , RecognitionAngle, uflRecognitionAngle, ufrRecognitionAngle, RecognitionError(..)
+    , RecognitionSpecification, CaseRecognitionSpecification, PostAUFRecognitionSpecification, RecognitionElement(..), RecognitionPattern(..), Sticker(..)
+    , getUniqueTwoSidedRecognitionSpecification, RecognitionAngle, uflRecognitionAngle, ufrRecognitionAngle, RecognitionError(..)
     , Algorithms, getAlgorithm, referenceAlgorithms
     )
 
@@ -24,8 +24,8 @@ for further information
 
 # Two Sided Recognition
 
-@docs RecognitionSpecification, CaseRecognitionSpecification, RecognitionElement, RecognitionPattern, Sticker, getUniqueTwoSidedRecognitionSpecification
-@docs RecognitionAngle, uflRecognitionAngle, ufrRecognitionAngle, RecognitionError
+@docs RecognitionSpecification, CaseRecognitionSpecification, PostAUFRecognitionSpecification, RecognitionElement, RecognitionPattern, Sticker
+@docs getUniqueTwoSidedRecognitionSpecification, RecognitionAngle, uflRecognitionAngle, ufrRecognitionAngle, RecognitionError
 
 
 # Collections
@@ -985,15 +985,7 @@ do the final AUF.
 -}
 type alias RecognitionSpecification =
     { caseRecognition : CaseRecognitionSpecification
-    , postAUFRecognition :
-        List.Nonempty.Nonempty
-            { elementsWithOriginalFace :
-                List.Nonempty.Nonempty
-                    ( RecognitionElement
-                    , Cube.Advanced.Face
-                    )
-            , finalFace : Cube.Advanced.Face
-            }
+    , postAUFRecognition : PostAUFRecognitionSpecification
     }
 
 
@@ -1022,6 +1014,19 @@ emptyCaseSpec =
     , noOtherStickersMatchThanThese = Nothing
     , noOtherBlocksPresent = False
     }
+
+
+{-| Describes one or more possibilities for how to recognize which way to do the final AUF
+-}
+type alias PostAUFRecognitionSpecification =
+    List.Nonempty.Nonempty
+        { elementsWithOriginalFace :
+            List.Nonempty.Nonempty
+                ( RecognitionElement
+                , Cube.Advanced.Face
+                )
+        , finalFace : Cube.Advanced.Face
+        }
 
 
 {-| Either a type of pattern on the two sides or just a single sticker on
@@ -1262,8 +1267,8 @@ uflRecognitionAngle =
     UFL
 
 
-{-| Occurs if incorrect pll algorithms are provided to
-getUniqueTwoSidedRecognitionSpecification
+{-| Occurs if the pll algorithm provided to
+getUniqueTwoSidedRecognitionSpecification for the case does not solve the case
 -}
 type RecognitionError
     = IncorrectPLLAlgorithm PLL Algorithm
@@ -1312,196 +1317,327 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
         |> Result.map
             (\caseSpec ->
                 { caseRecognition = caseSpec
-                , postAUFRecognition =
-                    let
-                        caseRendering =
-                            Cube.solved
-                                |> Cube.applyAlgorithm
-                                    (Algorithm.inverse <|
-                                        Cube.makeAlgorithmMaintainOrientation <|
-                                            Algorithm.append (AUF.toAlgorithm originalPreAUF) <|
-                                                getAlgorithm algorithms pll
-                                    )
-                                |> Cube.Advanced.render
-
-                        recognitionStickers =
-                            getRecognitionStickers algorithms recognitionAngle ( originalPreAUF, pll )
-
-                        allRelevantElements =
-                            allPatterns
-                                |> List.Nonempty.toList
-                                |> List.filter (isPatternPresent recognitionStickers)
-                                |> List.Nonempty.fromList
-                                |> Maybe.map
-                                    (List.Nonempty.map Pattern
-                                        >> List.Nonempty.append
-                                            (List.Nonempty.map Sticker allStickers)
-                                    )
-                                |> Maybe.withDefault (List.Nonempty.map Sticker allStickers)
-
-                        elementsWithTargets =
-                            allRelevantElements
-                                |> List.Nonempty.toList
-                                |> List.filterMap
-                                    (getOriginalAndTargetFace
-                                        caseRendering
-                                        recognitionAngle
-                                    )
-
-                        patternsThatStayInPlace =
-                            elementsWithTargets
-                                |> List.filterMap
-                                    (\{ element, originalFace, finalFace } ->
-                                        case element of
-                                            Sticker _ ->
-                                                Nothing
-
-                                            Pattern pattern ->
-                                                if originalFace == finalFace then
-                                                    Just
-                                                        { pattern = pattern
-                                                        , orignalFace = originalFace
-                                                        , finalFace = finalFace
-                                                        }
-
-                                                else
-                                                    Nothing
-                                    )
-                    in
-                    -- If a pattern stays in place we want the most visible of those
-                    -- as this is obviously the easiest to recognize post AUF with
-                    case
-                        List.head <|
-                            List.sortBy (.pattern >> howVisibleIsPattern) <|
-                                patternsThatStayInPlace
-                    of
-                        Just patternThatStaysInPlace ->
-                            List.Nonempty.singleton <|
-                                { elementsWithOriginalFace =
-                                    List.Nonempty.singleton
-                                        ( Pattern patternThatStaysInPlace.pattern
-                                        , patternThatStaysInPlace.orignalFace
-                                        )
-                                , finalFace = patternThatStaysInPlace.finalFace
-                                }
-
-                        Nothing ->
-                            let
-                                groupedElements =
-                                    elementsWithTargets
-                                        |> List.foldl
-                                            (\({ originalFace, finalFace } as cur) acc ->
-                                                if originalFace == finalFace then
-                                                    { acc
-                                                        | staysInPlace = cur :: acc.staysInPlace
-                                                    }
-
-                                                else if faceVisible recognitionAngle finalFace then
-                                                    { acc
-                                                        | switchesToOtherVisibleSide =
-                                                            cur :: acc.switchesToOtherVisibleSide
-                                                    }
-
-                                                else
-                                                    { acc
-                                                        | rest = cur :: acc.rest
-                                                    }
-                                            )
-                                            { staysInPlace = []
-                                            , switchesToOtherVisibleSide = []
-                                            , rest = []
-                                            }
-
-                                stickersAlsoGrouped =
-                                    { staysInPlace =
-                                        groupStickersByFinalFace groupedElements.staysInPlace
-                                    , switchesToOtherVisibleSide =
-                                        groupStickersByFinalFace
-                                            groupedElements.switchesToOtherVisibleSide
-                                    , rest = groupStickersByFinalFace groupedElements.rest
-                                    }
-
-                                sortedGroupedElements =
-                                    { staysInPlace =
-                                        List.sortBy
-                                            (.elementsWithOriginalFace
-                                                >> List.Nonempty.map Tuple.first
-                                                >> howVisibleIsElementGroup
-                                            )
-                                            stickersAlsoGrouped.staysInPlace
-                                    , switchesToOtherVisibleSide =
-                                        List.sortBy
-                                            (.elementsWithOriginalFace
-                                                >> List.Nonempty.map Tuple.first
-                                                >> howVisibleIsElementGroup
-                                            )
-                                            stickersAlsoGrouped.switchesToOtherVisibleSide
-                                    , rest =
-                                        List.sortBy
-                                            (.elementsWithOriginalFace
-                                                >> List.Nonempty.map Tuple.first
-                                                >> howVisibleIsElementGroup
-                                            )
-                                            stickersAlsoGrouped.rest
-                                    }
-
-                                finalList =
-                                    [ List.head sortedGroupedElements.staysInPlace
-                                    , List.head sortedGroupedElements.switchesToOtherVisibleSide
-                                    , List.head sortedGroupedElements.rest
-                                    ]
-                                        |> List.filterMap identity
-                                        -- The order here of the input list and of the fold direction are important.
-                                        -- We want to be iterating from the best target face (stays in place)
-                                        -- to the worst (rest)
-                                        |> List.foldl
-                                            (\next acc ->
-                                                let
-                                                    nextHasPattern =
-                                                        next.elementsWithOriginalFace
-                                                            |> List.Nonempty.any (Tuple.first >> isPattern)
-
-                                                    isMoreVisibleThanPreviousGroups =
-                                                        acc
-                                                            |> List.all
-                                                                (\previousGroup ->
-                                                                    nextHasPattern
-                                                                        && not
-                                                                            (previousGroup.elementsWithOriginalFace
-                                                                                |> List.Nonempty.any (Tuple.first >> isPattern)
-                                                                            )
-                                                                )
-                                                in
-                                                if isMoreVisibleThanPreviousGroups then
-                                                    next :: acc
-
-                                                else
-                                                    acc
-                                            )
-                                            []
-                                        -- Keep the order as the :: operator reverses it
-                                        |> List.reverse
-                            in
-                            finalList
-                                |> List.Nonempty.fromList
-                                |> Maybe.withDefault
-                                    -- This should never happen so make a nonsense case that should
-                                    -- definitely fail tests and obviously be wrong
-                                    (List.Nonempty.Nonempty
-                                        { elementsWithOriginalFace =
-                                            List.Nonempty.singleton
-                                                ( Pattern LeftThreeBar, Cube.Advanced.UpOrDown Cube.Advanced.U )
-                                        , finalFace = Cube.Advanced.FrontOrBack Cube.Advanced.F
-                                        }
-                                        [ { elementsWithOriginalFace =
-                                                List.Nonempty.singleton
-                                                    ( Pattern SixChecker, Cube.Advanced.UpOrDown Cube.Advanced.U )
-                                          , finalFace = Cube.Advanced.FrontOrBack Cube.Advanced.F
-                                          }
-                                        ]
-                                    )
+                , postAUFRecognition = getPostAUFRecognition algorithms recognitionAngle ( originalPreAUF, pll )
                 }
             )
+
+
+getPostAUFRecognition : Algorithms -> RecognitionAngle -> ( AUF, PLL ) -> PostAUFRecognitionSpecification
+getPostAUFRecognition algorithms recognitionAngle ( preAUF, pll ) =
+    let
+        recognitionStickers =
+            getRecognitionStickers algorithms recognitionAngle ( preAUF, pll )
+
+        allRelevantElements =
+            allPatterns
+                |> List.Nonempty.toList
+                |> List.filter (isPatternPresent recognitionStickers)
+                |> List.map Pattern
+                |> List.Nonempty.Extra.appendListBehind
+                    (List.Nonempty.map Sticker allStickers)
+
+        elementsWithTargets =
+            allRelevantElements
+                |> List.Nonempty.toList
+                |> List.filterMap
+                    (getOriginalAndTargetFace
+                        { noPostAUFRecognitionStickers = recognitionStickers }
+                        recognitionAngle
+                    )
+
+        patternsThatStayInPlace =
+            elementsWithTargets
+                |> List.filterMap
+                    (\{ element, originalFace, finalFace } ->
+                        case element of
+                            Sticker _ ->
+                                Nothing
+
+                            Pattern pattern ->
+                                if originalFace == finalFace then
+                                    Just
+                                        { pattern = pattern
+                                        , orignalFace = originalFace
+                                        , finalFace = finalFace
+                                        }
+
+                                else
+                                    Nothing
+                    )
+    in
+    -- If a pattern stays in place we want the most visible of those
+    -- as this is obviously the easiest to recognize post AUF with
+    case
+        List.head <|
+            List.sortBy (.pattern >> howVisibleIsPattern) <|
+                patternsThatStayInPlace
+    of
+        Just patternThatStaysInPlace ->
+            List.Nonempty.singleton <|
+                { elementsWithOriginalFace =
+                    List.Nonempty.singleton
+                        ( Pattern patternThatStaysInPlace.pattern
+                        , patternThatStaysInPlace.orignalFace
+                        )
+                , finalFace = patternThatStaysInPlace.finalFace
+                }
+
+        Nothing ->
+            let
+                groupedElements =
+                    elementsWithTargets
+                        |> List.foldl
+                            (\({ originalFace, finalFace } as cur) acc ->
+                                if originalFace == finalFace then
+                                    { acc
+                                        | staysInPlace = cur :: acc.staysInPlace
+                                    }
+
+                                else if faceVisible recognitionAngle finalFace then
+                                    { acc
+                                        | switchesToOtherVisibleSide =
+                                            cur :: acc.switchesToOtherVisibleSide
+                                    }
+
+                                else
+                                    { acc
+                                        | rest = cur :: acc.rest
+                                    }
+                            )
+                            { staysInPlace = []
+                            , switchesToOtherVisibleSide = []
+                            , rest = []
+                            }
+
+                stickersAlsoGrouped =
+                    { staysInPlace =
+                        groupStickersByFinalFace groupedElements.staysInPlace
+                    , switchesToOtherVisibleSide =
+                        groupStickersByFinalFace
+                            groupedElements.switchesToOtherVisibleSide
+                    , rest = groupStickersByFinalFace groupedElements.rest
+                    }
+
+                sortedGroupedElements =
+                    { staysInPlace =
+                        List.sortBy
+                            (.elementsWithOriginalFace
+                                >> List.Nonempty.map Tuple.first
+                                >> howVisibleIsElementGroup
+                            )
+                            stickersAlsoGrouped.staysInPlace
+                    , switchesToOtherVisibleSide =
+                        List.sortBy
+                            (.elementsWithOriginalFace
+                                >> List.Nonempty.map Tuple.first
+                                >> howVisibleIsElementGroup
+                            )
+                            stickersAlsoGrouped.switchesToOtherVisibleSide
+                    , rest =
+                        List.sortBy
+                            (.elementsWithOriginalFace
+                                >> List.Nonempty.map Tuple.first
+                                >> howVisibleIsElementGroup
+                            )
+                            stickersAlsoGrouped.rest
+                    }
+
+                finalList =
+                    [ List.head sortedGroupedElements.staysInPlace
+                    , List.head sortedGroupedElements.switchesToOtherVisibleSide
+                    , List.head sortedGroupedElements.rest
+                    ]
+                        |> List.filterMap identity
+                        -- The order here of the input list and of the fold direction are important.
+                        -- We want to be iterating from the best target face (stays in place)
+                        -- to the worst (rest)
+                        |> List.foldl
+                            (\next acc ->
+                                let
+                                    nextHasPattern =
+                                        next.elementsWithOriginalFace
+                                            |> List.Nonempty.any (Tuple.first >> isPattern)
+
+                                    isMoreVisibleThanPreviousGroups =
+                                        acc
+                                            |> List.all
+                                                (\previousGroup ->
+                                                    nextHasPattern
+                                                        && not
+                                                            (previousGroup.elementsWithOriginalFace
+                                                                |> List.Nonempty.any (Tuple.first >> isPattern)
+                                                            )
+                                                )
+                                in
+                                if isMoreVisibleThanPreviousGroups then
+                                    next :: acc
+
+                                else
+                                    acc
+                            )
+                            []
+                        -- Keep the order as the :: operator reverses it
+                        |> List.reverse
+            in
+            finalList
+                |> List.Nonempty.fromList
+                |> Maybe.withDefault
+                    -- This should never happen so make a nonsense case that should
+                    -- definitely fail tests and obviously be wrong
+                    (List.Nonempty.Nonempty
+                        { elementsWithOriginalFace =
+                            List.Nonempty.singleton
+                                ( Pattern LeftThreeBar, Cube.Advanced.UpOrDown Cube.Advanced.U )
+                        , finalFace = Cube.Advanced.FrontOrBack Cube.Advanced.F
+                        }
+                        [ { elementsWithOriginalFace =
+                                List.Nonempty.singleton
+                                    ( Pattern SixChecker, Cube.Advanced.UpOrDown Cube.Advanced.U )
+                          , finalFace = Cube.Advanced.FrontOrBack Cube.Advanced.F
+                          }
+                        ]
+                    )
+
+
+getOriginalAndTargetFace :
+    { noPostAUFRecognitionStickers : RecognitionStickerColors }
+    -> RecognitionAngle
+    -> RecognitionElement
+    -> Maybe { element : RecognitionElement, originalFace : Cube.Advanced.Face, finalFace : Cube.Advanced.Face }
+getOriginalAndTargetFace { noPostAUFRecognitionStickers } angle element =
+    let
+        maybePositionAndColor =
+            case element of
+                Sticker sticker ->
+                    case sticker of
+                        FirstStickerFromLeft ->
+                            Just { onLeftSide = True, color = noPostAUFRecognitionStickers.firstFromLeft }
+
+                        SecondStickerFromLeft ->
+                            Just { onLeftSide = True, color = noPostAUFRecognitionStickers.secondFromLeft }
+
+                        ThirdStickerFromLeft ->
+                            Just { onLeftSide = True, color = noPostAUFRecognitionStickers.thirdFromLeft }
+
+                        FirstStickerFromRight ->
+                            Just { onLeftSide = False, color = noPostAUFRecognitionStickers.firstFromRight }
+
+                        SecondStickerFromRight ->
+                            Just { onLeftSide = False, color = noPostAUFRecognitionStickers.secondFromRight }
+
+                        ThirdStickerFromRight ->
+                            Just { onLeftSide = False, color = noPostAUFRecognitionStickers.thirdFromRight }
+
+                Pattern pattern ->
+                    -- By choosing a representative sticker here we assume that
+                    -- the pattern given in the element is correctly present, and
+                    -- we filter out any patterns that are multicolored or
+                    -- spanning several faces, as they aren't as helpful for
+                    -- postAUF recognition and can just as well be identified
+                    -- just by single stickers. Within these parameters we can
+                    -- just use a single sticker and identify that stickers original
+                    -- and final face and it should apply for the whole pattern.
+                    case pattern of
+                        LeftFourChecker ->
+                            Nothing
+
+                        RightFourChecker ->
+                            Nothing
+
+                        InnerFourChecker ->
+                            Nothing
+
+                        LeftFiveChecker ->
+                            Nothing
+
+                        RightFiveChecker ->
+                            Nothing
+
+                        SixChecker ->
+                            Nothing
+
+                        Bookends ->
+                            Nothing
+
+                        LeftHeadlights ->
+                            Just { onLeftSide = True, color = noPostAUFRecognitionStickers.firstFromLeft }
+
+                        RightHeadlights ->
+                            Just { onLeftSide = False, color = noPostAUFRecognitionStickers.firstFromRight }
+
+                        LeftThreeBar ->
+                            Just { onLeftSide = True, color = noPostAUFRecognitionStickers.firstFromLeft }
+
+                        RightThreeBar ->
+                            Just { onLeftSide = False, color = noPostAUFRecognitionStickers.firstFromRight }
+
+                        LeftInsideTwoBar ->
+                            Just { onLeftSide = True, color = noPostAUFRecognitionStickers.secondFromLeft }
+
+                        RightInsideTwoBar ->
+                            Just { onLeftSide = False, color = noPostAUFRecognitionStickers.secondFromRight }
+
+                        LeftOutsideTwoBar ->
+                            Just { onLeftSide = True, color = noPostAUFRecognitionStickers.firstFromLeft }
+
+                        RightOutsideTwoBar ->
+                            Just { onLeftSide = False, color = noPostAUFRecognitionStickers.firstFromRight }
+    in
+    maybePositionAndColor
+        |> Maybe.map
+            (\{ onLeftSide, color } ->
+                case angle of
+                    UFR ->
+                        if onLeftSide then
+                            ( Cube.Advanced.FrontOrBack Cube.Advanced.F, color )
+
+                        else
+                            ( Cube.Advanced.LeftOrRight Cube.Advanced.R, color )
+
+                    UFL ->
+                        if onLeftSide then
+                            ( Cube.Advanced.LeftOrRight Cube.Advanced.L, color )
+
+                        else
+                            ( Cube.Advanced.FrontOrBack Cube.Advanced.F, color )
+            )
+        |> Maybe.andThen
+            (\( originalFace, color ) ->
+                Cube.Advanced.colorToFaceItBelongsTo color
+                    |> Maybe.map
+                        (\finalFace ->
+                            { element = element
+                            , originalFace = originalFace
+                            , finalFace = finalFace
+                            }
+                        )
+            )
+
+
+faceVisible : RecognitionAngle -> Cube.Advanced.Face -> Bool
+faceVisible angle face =
+    case angle of
+        UFR ->
+            case face of
+                Cube.Advanced.FrontOrBack Cube.Advanced.F ->
+                    True
+
+                Cube.Advanced.LeftOrRight Cube.Advanced.R ->
+                    True
+
+                _ ->
+                    False
+
+        UFL ->
+            case face of
+                Cube.Advanced.FrontOrBack Cube.Advanced.F ->
+                    True
+
+                Cube.Advanced.LeftOrRight Cube.Advanced.L ->
+                    True
+
+                _ ->
+                    False
 
 
 groupStickersByFinalFace :
@@ -1607,32 +1743,6 @@ groupStickersByFinalFace list =
            )
 
 
-faceVisible : RecognitionAngle -> Cube.Advanced.Face -> Bool
-faceVisible angle face =
-    case angle of
-        UFR ->
-            case face of
-                Cube.Advanced.FrontOrBack Cube.Advanced.F ->
-                    True
-
-                Cube.Advanced.LeftOrRight Cube.Advanced.R ->
-                    True
-
-                _ ->
-                    False
-
-        UFL ->
-            case face of
-                Cube.Advanced.FrontOrBack Cube.Advanced.F ->
-                    True
-
-                Cube.Advanced.LeftOrRight Cube.Advanced.L ->
-                    True
-
-                _ ->
-                    False
-
-
 {-| Lower is more visible
 -}
 howVisibleIsElementGroup : List.Nonempty.Nonempty RecognitionElement -> Float
@@ -1643,8 +1753,8 @@ howVisibleIsElementGroup elements =
                 case element of
                     Sticker _ ->
                         -- Just an excessively high value as stickers should
-                        -- all be worth the same and be sorted after patterns
-                        -- , also sorted after patterns even
+                        -- all be worth the same and be sorted after patterns,
+                        -- also sorted after patterns even
                         -- when several of them later are grouped together
                         -- which makes them more visible
                         1000
@@ -1653,7 +1763,7 @@ howVisibleIsElementGroup elements =
                         howVisibleIsPattern pattern
             )
         |> List.Nonempty.Extra.minimum
-        -- Sort groups earlier if there are for example more stickers with
+        -- Value groups more if there are for example more stickers with
         -- same color
         |> (\x -> x / (toFloat <| List.Nonempty.length elements))
 
@@ -1709,154 +1819,6 @@ howVisibleIsPattern pattern =
 
         InnerFourChecker ->
             7
-
-
-getOriginalAndTargetFace :
-    Cube.Advanced.Rendering
-    -> RecognitionAngle
-    -> RecognitionElement
-    -> Maybe { element : RecognitionElement, originalFace : Cube.Advanced.Face, finalFace : Cube.Advanced.Face }
-getOriginalAndTargetFace noPostAUFCaseRendering angle element =
-    let
-        representativeSticker =
-            case element of
-                Sticker sticker ->
-                    Just sticker
-
-                Pattern pattern ->
-                    -- By choosing a representative sticker here we assume that
-                    -- the pattern given in the element is correctly present, and
-                    -- we filter out any patterns that are multicolored or
-                    -- spanning several faces, as they aren't as helpful for
-                    -- postAUF recognition and can just as well be identified
-                    -- just by single stickers. Within these parameters we can
-                    -- just use a single sticker and identify that stickers original
-                    -- and final face and it should apply for the whole pattern.
-                    case pattern of
-                        LeftFourChecker ->
-                            Nothing
-
-                        RightFourChecker ->
-                            Nothing
-
-                        InnerFourChecker ->
-                            Nothing
-
-                        LeftFiveChecker ->
-                            Nothing
-
-                        RightFiveChecker ->
-                            Nothing
-
-                        SixChecker ->
-                            Nothing
-
-                        Bookends ->
-                            Nothing
-
-                        LeftHeadlights ->
-                            Just FirstStickerFromLeft
-
-                        RightHeadlights ->
-                            Just FirstStickerFromRight
-
-                        LeftThreeBar ->
-                            Just FirstStickerFromLeft
-
-                        RightThreeBar ->
-                            Just FirstStickerFromRight
-
-                        LeftInsideTwoBar ->
-                            Just SecondStickerFromLeft
-
-                        RightInsideTwoBar ->
-                            Just SecondStickerFromRight
-
-                        LeftOutsideTwoBar ->
-                            Just FirstStickerFromLeft
-
-                        RightOutsideTwoBar ->
-                            Just FirstStickerFromRight
-    in
-    representativeSticker
-        |> Maybe.map
-            (\sticker ->
-                case angle of
-                    UFR ->
-                        case sticker of
-                            FirstStickerFromLeft ->
-                                ( Cube.Advanced.FrontOrBack Cube.Advanced.F
-                                , noPostAUFCaseRendering.ufl.f
-                                )
-
-                            SecondStickerFromLeft ->
-                                ( Cube.Advanced.FrontOrBack Cube.Advanced.F
-                                , noPostAUFCaseRendering.uf.f
-                                )
-
-                            ThirdStickerFromLeft ->
-                                ( Cube.Advanced.FrontOrBack Cube.Advanced.F
-                                , noPostAUFCaseRendering.ufr.f
-                                )
-
-                            ThirdStickerFromRight ->
-                                ( Cube.Advanced.LeftOrRight Cube.Advanced.R
-                                , noPostAUFCaseRendering.ufr.r
-                                )
-
-                            SecondStickerFromRight ->
-                                ( Cube.Advanced.LeftOrRight Cube.Advanced.R
-                                , noPostAUFCaseRendering.ur.r
-                                )
-
-                            FirstStickerFromRight ->
-                                ( Cube.Advanced.LeftOrRight Cube.Advanced.R
-                                , noPostAUFCaseRendering.ubr.r
-                                )
-
-                    UFL ->
-                        case sticker of
-                            FirstStickerFromLeft ->
-                                ( Cube.Advanced.LeftOrRight Cube.Advanced.L
-                                , noPostAUFCaseRendering.ubl.l
-                                )
-
-                            SecondStickerFromLeft ->
-                                ( Cube.Advanced.LeftOrRight Cube.Advanced.L
-                                , noPostAUFCaseRendering.ul.l
-                                )
-
-                            ThirdStickerFromLeft ->
-                                ( Cube.Advanced.LeftOrRight Cube.Advanced.L
-                                , noPostAUFCaseRendering.ufl.l
-                                )
-
-                            ThirdStickerFromRight ->
-                                ( Cube.Advanced.FrontOrBack Cube.Advanced.F
-                                , noPostAUFCaseRendering.ufl.f
-                                )
-
-                            SecondStickerFromRight ->
-                                ( Cube.Advanced.FrontOrBack Cube.Advanced.F
-                                , noPostAUFCaseRendering.uf.f
-                                )
-
-                            FirstStickerFromRight ->
-                                ( Cube.Advanced.FrontOrBack Cube.Advanced.F
-                                , noPostAUFCaseRendering.ufr.f
-                                )
-            )
-        |> Maybe.andThen
-            (\( originalFace, color ) ->
-                Cube.Advanced.colorToFaceItBelongsTo color
-                    |> Maybe.map
-                        (\finalFace ->
-                            { element = element
-                            , originalFace = originalFace
-                            , finalFace = finalFace
-                            }
-                        )
-            )
 
 
 getUfrReferenceAlgorithmCaseSpec : AUF -> PLL -> CaseRecognitionSpecification
