@@ -4,11 +4,10 @@ module Cube.Advanced exposing
     , applyAlgorithm
     , CubeTheme, Rgb255Color, defaultTheme, DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
     , Rendering, CubieRendering, Color(..), render
-    , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
+    , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, colorToFaceItBelongsTo, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
     , addAUFsToAlgorithm, detectAUFs
     , canBeSolvedBySingleUTurn
-    , colorToFaceItBelongsTo
     )
 
 {-|
@@ -31,7 +30,7 @@ module Cube.Advanced exposing
 
 # Displayers
 
-@docs CubeTheme, Rgb255Color, defaultTheme, DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, displayAngles, view, debugViewAllowingVisualTesting
+@docs CubeTheme, Rgb255Color, defaultTheme, DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
 
 
 # Rendering
@@ -41,7 +40,7 @@ module Cube.Advanced exposing
 
 ## Rendering Helpers
 
-@docs Face, UOrD, LOrR, FOrB, uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation, getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
+@docs Face, UOrD, LOrR, FOrB, uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, colorToFaceItBelongsTo, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation, getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
 
 
 # Algorithm Helpers
