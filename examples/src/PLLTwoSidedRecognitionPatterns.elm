@@ -44,6 +44,8 @@ main =
                                                     { pixelSize = 50
                                                     , displayAngle = Cube.ufrDisplayAngle
                                                     , annotateFaces = True
+
+                                                    -- ADD-THEME-HERE-IF-CONVERTING-TO-ADVANCED-VIEW
                                                     }
                                                   <|
                                                     Cube.applyAlgorithm
