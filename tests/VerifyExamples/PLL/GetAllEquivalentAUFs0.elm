@@ -20,11 +20,11 @@ import AUF
 
 spec0 : Test.Test
 spec0 =
-    Test.test "#getAllEquivalentAUFs: \n\n    getAllEquivalentAUFs ( AUF.None, PLL.H, AUF.None )\n        |> equalNonEmptyListMembers\n            (List.Nonempty.Nonempty\n                ( AUF.None, AUF.None )\n                [ ( AUF.Clockwise, AUF.CounterClockwise )\n                , ( AUF.Halfway, AUF.Halfway )\n                , ( AUF.CounterClockwise, AUF.Clockwise )\n                ]\n            )\n    --> Expect.pass" <|
+    Test.test "#getAllEquivalentAUFs: \n\n    getAllEquivalentAUFs ( AUF.None, H, AUF.None )\n        |> equalNonEmptyListMembers\n            (List.Nonempty.Nonempty\n                ( AUF.None, AUF.None )\n                [ ( AUF.Clockwise, AUF.CounterClockwise )\n                , ( AUF.Halfway, AUF.Halfway )\n                , ( AUF.CounterClockwise, AUF.Clockwise )\n                ]\n            )\n    --> Expect.pass" <|
         \() ->
             Expect.equal
                 (
-                getAllEquivalentAUFs ( AUF.None, PLL.H, AUF.None )
+                getAllEquivalentAUFs ( AUF.None, H, AUF.None )
                     |> equalNonEmptyListMembers
                         (List.Nonempty.Nonempty
                             ( AUF.None, AUF.None )
