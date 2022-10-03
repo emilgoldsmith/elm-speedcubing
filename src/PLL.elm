@@ -1153,11 +1153,13 @@ type alias RecognitionStickerColors =
     }
 
 
-getRecognitionStickers : Algorithms -> RecognitionAngle -> ( AUF, PLL ) -> RecognitionStickerColors
-getRecognitionStickers algorithms recognitionAngle ( preAUF, pll ) =
+getRecognitionStickers :
+    { pllAlgorithmUsed : Algorithm, recognitionAngle : RecognitionAngle, preAUF : AUF, pll : PLL }
+    -> RecognitionStickerColors
+getRecognitionStickers params =
     let
         rotationToGetCorrectRecognitionAngle =
-            if recognitionAngle == ufrRecognitionAngle then
+            if params.recognitionAngle == ufrRecognitionAngle then
                 Algorithm.empty
 
             else
@@ -1169,8 +1171,7 @@ getRecognitionStickers algorithms recognitionAngle ( preAUF, pll ) =
         |> Cube.applyAlgorithm
             (Algorithm.inverse <|
                 Cube.makeAlgorithmMaintainOrientation <|
-                    Algorithm.append (AUF.toAlgorithm preAUF) <|
-                        getAlgorithm algorithms pll
+                    Algorithm.append (AUF.toAlgorithm params.preAUF) params.pllAlgorithmUsed
             )
         |> Cube.applyAlgorithm rotationToGetCorrectRecognitionAngle
         |> Cube.Advanced.render
@@ -1274,27 +1275,24 @@ type RecognitionError
     = IncorrectPLLAlgorithm PLL Algorithm
 
 
-{-| Gets a unique two sided recognition specification for the given pll algorithms,
-angle and case.
+{-| Gets a two sided recognition specification that uniquely identifies the pll case and preAUF
 -}
 getUniqueTwoSidedRecognitionSpecification :
-    Algorithms
-    -> RecognitionAngle
-    -> ( AUF, PLL )
+    { pllAlgorithmUsed : Algorithm, recognitionAngle : RecognitionAngle, preAUF : AUF, pll : PLL }
     -> Result RecognitionError RecognitionSpecification
-getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( originalPreAUF, pll ) =
+getUniqueTwoSidedRecognitionSpecification params =
     let
         toAddForReferenceAlgorithm =
             Cube.detectAUFs
-                { toDetectFor = getAlgorithm referenceAlgorithms pll
-                , toMatchTo = getAlgorithm algorithms pll
+                { toDetectFor = getAlgorithm referenceAlgorithms params.pll
+                , toMatchTo = params.pllAlgorithmUsed
                 }
                 |> Maybe.map Tuple.first
                 |> Result.fromMaybe
-                    (IncorrectPLLAlgorithm pll (getAlgorithm algorithms pll))
+                    (IncorrectPLLAlgorithm params.pll params.pllAlgorithmUsed)
 
         toAddForUFRAngle =
-            case recognitionAngle of
+            case params.recognitionAngle of
                 UFR ->
                     AUF.None
 
@@ -1304,29 +1302,31 @@ getUniqueTwoSidedRecognitionSpecification algorithms recognitionAngle ( original
         ufrReferenceAlgorithmPreAUFResult =
             toAddForReferenceAlgorithm
                 |> Result.map (AUF.add toAddForUFRAngle)
-                |> Result.map (AUF.add originalPreAUF)
+                |> Result.map (AUF.add params.preAUF)
 
         caseSpecResult =
             ufrReferenceAlgorithmPreAUFResult
                 |> Result.map
                     (\ufrReferenceAlgorithmPreAUF ->
-                        getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF pll
+                        getUfrReferenceAlgorithmCaseSpec ufrReferenceAlgorithmPreAUF params.pll
                     )
     in
     caseSpecResult
         |> Result.map
             (\caseSpec ->
                 { caseRecognition = caseSpec
-                , postAUFRecognition = getPostAUFRecognition algorithms recognitionAngle ( originalPreAUF, pll )
+                , postAUFRecognition = getPostAUFRecognition params
                 }
             )
 
 
-getPostAUFRecognition : Algorithms -> RecognitionAngle -> ( AUF, PLL ) -> PostAUFRecognitionSpecification
-getPostAUFRecognition algorithms recognitionAngle ( preAUF, pll ) =
+getPostAUFRecognition :
+    { pllAlgorithmUsed : Algorithm, recognitionAngle : RecognitionAngle, preAUF : AUF, pll : PLL }
+    -> PostAUFRecognitionSpecification
+getPostAUFRecognition params =
     let
         recognitionStickers =
-            getRecognitionStickers algorithms recognitionAngle ( preAUF, pll )
+            getRecognitionStickers params
 
         allRelevantElements =
             allPatterns
@@ -1342,7 +1342,7 @@ getPostAUFRecognition algorithms recognitionAngle ( preAUF, pll ) =
                 |> List.filterMap
                     (getOriginalAndTargetFace
                         { noPostAUFRecognitionStickers = recognitionStickers }
-                        recognitionAngle
+                        params.recognitionAngle
                     )
 
         patternsThatStayInPlace =
@@ -1393,7 +1393,7 @@ getPostAUFRecognition algorithms recognitionAngle ( preAUF, pll ) =
                                         | staysInPlace = cur :: acc.staysInPlace
                                     }
 
-                                else if faceVisible recognitionAngle finalFace then
+                                else if faceVisible params.recognitionAngle finalFace then
                                     { acc
                                         | switchesToOtherVisibleSide =
                                             cur :: acc.switchesToOtherVisibleSide
