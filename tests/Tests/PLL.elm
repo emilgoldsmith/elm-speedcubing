@@ -1838,7 +1838,7 @@ type alias RecognitionStickerColors =
 
 
 getRecognitionStickers :
-    { pllAlgorithmUsed : Algorithm, recognitionAngle : PLL.RecognitionAngle, preAUF : AUF, pll : PLL }
+    { a | pllAlgorithmUsed : Algorithm, recognitionAngle : PLL.RecognitionAngle, preAUF : AUF }
     -> RecognitionStickerColors
 getRecognitionStickers params =
     let
