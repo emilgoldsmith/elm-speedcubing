@@ -45,15 +45,20 @@ pllWithCorrectAlgorithmFuzzer =
     Fuzz.map2
         (\pll index ->
             ( pll
-            , Dict.get (PLL.getLetters pll) pllAlgorithms
-                |> Maybe.withDefault []
-                |> Array.fromList
-                |> (\array -> Array.get (modBy (Array.length array) index) array)
-                |> Maybe.withDefault Algorithm.empty
+            , getAlgorithmForPLL index pll
             )
         )
         pllFuzzer
         (Fuzz.intRange 0 100000)
+
+
+getAlgorithmForPLL : Int -> PLL -> Algorithm
+getAlgorithmForPLL index pll =
+    Dict.get (PLL.getLetters pll) pllAlgorithms
+        |> Maybe.withDefault [ Algorithm.empty ]
+        |> Array.fromList
+        |> (\array -> Array.get (modBy (Array.length array) index) array)
+        |> Maybe.withDefault Algorithm.empty
 
 
 
@@ -661,15 +666,15 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                     ++ Debug.toString stickers
                                 )
         , fuzz3
-            pllWithCorrectAlgorithmFuzzer
+            (Fuzz.tuple ( pllFuzzer, Fuzz.intRange 0 100000 ))
             aufFuzzer
             recognitionAngleFuzzer
             "check that no other cases except for symmetric ones match this spec; that it's therefore uniquely determinable by this description"
           <|
-            \( pll, algorithm ) preAUF recognitionAngle ->
+            \( pll, algorithmIndex ) preAUF recognitionAngle ->
                 case
                     PLL.getUniqueTwoSidedRecognitionSpecification
-                        { pllAlgorithmUsed = algorithm
+                        { pllAlgorithmUsed = getAlgorithmForPLL algorithmIndex pll
                         , pll = pll
                         , preAUF = preAUF
                         , recognitionAngle = recognitionAngle
@@ -680,11 +685,12 @@ getUniqueTwoSidedRecognitionSpecificationTests =
 
                     Ok spec ->
                         getOtherNonSymmetricMatchingCases
-                            { pllAlgorithmUsed = algorithm
+                            { pllAlgorithmUsed = getAlgorithmForPLL algorithmIndex pll
                             , pll = pll
                             , preAUF = preAUF
                             , recognitionAngle = recognitionAngle
                             }
+                            algorithmIndex
                             spec
                             |> Expect.equalLists []
         , fuzz3
@@ -938,15 +944,15 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                 )
                             |> Expect.equalLists []
         , fuzz3
-            pllWithCorrectAlgorithmFuzzer
+            (Fuzz.tuple (pllFuzzer, Fuzz.intRange 0 10000))
             (Fuzz.tuple ( aufFuzzer, recognitionAngleFuzzer ))
             (Fuzz.tuple ( removePartKeyIndexRange, Fuzz.intRange 0 Random.maxInt ))
             "spec cannot have any part removed and still uniquely identify the case"
           <|
-            \( pll, algorithm ) ( preAUF, recognitionAngle ) ( keyIndex, subIndex ) ->
+            \( pll, algorithmIndex ) ( preAUF, recognitionAngle ) ( keyIndex, subIndex ) ->
                 case
                     PLL.getUniqueTwoSidedRecognitionSpecification
-                        { pllAlgorithmUsed = algorithm
+                        { pllAlgorithmUsed = getAlgorithmForPLL algorithmIndex pll
                         , pll = pll
                         , preAUF = preAUF
                         , recognitionAngle = recognitionAngle
@@ -967,7 +973,7 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                             && noMentionedPatternsIncludedInAbsentPatterns specWithPartRemoved
                                             && verifySpecForStickers
                                                 (getRecognitionStickers
-                                                    { pllAlgorithmUsed = algorithm
+                                                    { pllAlgorithmUsed = getAlgorithmForPLL algorithmIndex pll
                                                     , pll = pll
                                                     , preAUF = preAUF
                                                     , recognitionAngle = recognitionAngle
@@ -982,11 +988,12 @@ getUniqueTwoSidedRecognitionSpecificationTests =
 
                                 else
                                     getOtherNonSymmetricMatchingCases
-                                        { pllAlgorithmUsed = algorithm
+                                        { pllAlgorithmUsed = getAlgorithmForPLL algorithmIndex pll
                                         , pll = pll
                                         , preAUF = preAUF
                                         , recognitionAngle = recognitionAngle
                                         }
+                                        algorithmIndex
                                         specWithPartRemoved
                                         |> Expect.notEqual []
                                         |> Expect.onFail
@@ -1044,9 +1051,10 @@ allMentionedPatternsListedInPatterns spec =
 
 getOtherNonSymmetricMatchingCases :
     { pllAlgorithmUsed : Algorithm, recognitionAngle : PLL.RecognitionAngle, preAUF : AUF, pll : PLL }
+    -> Int
     -> PLL.RecognitionSpecification
     -> List ( AUF, PLL )
-getOtherNonSymmetricMatchingCases params spec =
+getOtherNonSymmetricMatchingCases params algorithmIndex spec =
     let
         equivalentPreAUFs =
             PLL.getAllEquivalentAUFs ( params.preAUF, params.pll, AUF.None )
@@ -1070,6 +1078,7 @@ getOtherNonSymmetricMatchingCases params spec =
                         { params
                             | pll = pll
                             , preAUF = preAUF
+                            , pllAlgorithmUsed = getAlgorithmForPLL algorithmIndex pll
                         }
                     )
                     spec

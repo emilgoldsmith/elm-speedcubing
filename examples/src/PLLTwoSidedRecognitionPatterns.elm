@@ -37,9 +37,11 @@ main =
                                                 [ Result.withDefault (text "Error occurred") <|
                                                     Result.map (text << explainPLLRecognitionPattern) <|
                                                         PLL.getUniqueTwoSidedRecognitionSpecification
-                                                            jpermsAlgorithms
-                                                            PLL.ufrRecognitionAngle
-                                                            ( preAUF, pll )
+                                                            { pllAlgorithmUsed = PLL.getAlgorithm jpermsAlgorithms pll
+                                                            , recognitionAngle = PLL.ufrRecognitionAngle
+                                                            , preAUF = preAUF
+                                                            , pll = pll
+                                                            }
                                                 , Cube.view [ style "align-self" "center" ]
                                                     { pixelSize = 50
                                                     , displayAngle = Cube.ufrDisplayAngle
