@@ -1144,12 +1144,12 @@ allStickers =
 
 
 type alias RecognitionStickerColors =
-    { firstFromLeft : Cube.Advanced.Color
-    , secondFromLeft : Cube.Advanced.Color
-    , thirdFromLeft : Cube.Advanced.Color
-    , firstFromRight : Cube.Advanced.Color
-    , secondFromRight : Cube.Advanced.Color
-    , thirdFromRight : Cube.Advanced.Color
+    { firstFromLeft : Cube.Advanced.CubeColor
+    , secondFromLeft : Cube.Advanced.CubeColor
+    , thirdFromLeft : Cube.Advanced.CubeColor
+    , firstFromRight : Cube.Advanced.CubeColor
+    , secondFromRight : Cube.Advanced.CubeColor
+    , thirdFromRight : Cube.Advanced.CubeColor
     }
 
 

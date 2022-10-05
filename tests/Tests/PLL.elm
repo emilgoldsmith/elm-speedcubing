@@ -4,7 +4,7 @@ import AUF exposing (AUF)
 import Algorithm exposing (Algorithm)
 import Array
 import Cube
-import Cube.Advanced exposing (Color(..))
+import Cube.Advanced exposing (CubeColor(..))
 import Dict exposing (Dict)
 import Expect
 import Expect.Extra
@@ -1828,12 +1828,12 @@ getPattern element =
 
 
 type alias RecognitionStickerColors =
-    { firstFromLeft : Cube.Advanced.Color
-    , secondFromLeft : Cube.Advanced.Color
-    , thirdFromLeft : Cube.Advanced.Color
-    , firstFromRight : Cube.Advanced.Color
-    , secondFromRight : Cube.Advanced.Color
-    , thirdFromRight : Cube.Advanced.Color
+    { firstFromLeft : Cube.Advanced.CubeColor
+    , secondFromLeft : Cube.Advanced.CubeColor
+    , thirdFromLeft : Cube.Advanced.CubeColor
+    , firstFromRight : Cube.Advanced.CubeColor
+    , secondFromRight : Cube.Advanced.CubeColor
+    , thirdFromRight : Cube.Advanced.CubeColor
     }
 
 
@@ -1985,7 +1985,7 @@ getPatternStickers pattern =
                 ]
 
 
-getStickerColor : RecognitionStickerColors -> PLL.Sticker -> Cube.Advanced.Color
+getStickerColor : RecognitionStickerColors -> PLL.Sticker -> Cube.Advanced.CubeColor
 getStickerColor colors sticker =
     case sticker of
         PLL.FirstStickerFromLeft ->
@@ -2072,7 +2072,7 @@ allStickers =
 -- Color utilities
 
 
-areOppositeColors : Cube.Advanced.Color -> Cube.Advanced.Color -> Bool
+areOppositeColors : Cube.Advanced.CubeColor -> Cube.Advanced.CubeColor -> Bool
 areOppositeColors a b =
     case ( a, b ) of
         ( Cube.Advanced.UpColor, Cube.Advanced.DownColor ) ->
@@ -2097,7 +2097,7 @@ areOppositeColors a b =
             False
 
 
-areAdjacentColors : Cube.Advanced.Color -> Cube.Advanced.Color -> Bool
+areAdjacentColors : Cube.Advanced.CubeColor -> Cube.Advanced.CubeColor -> Bool
 areAdjacentColors a b =
     (a /= b) && (not <| areOppositeColors a b)
 

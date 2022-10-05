@@ -2,8 +2,8 @@ module Cube.Advanced exposing
     ( Cube
     , solved
     , applyAlgorithm
-    , CubeTheme, Rgb255Color, defaultTheme, DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
-    , Rendering, CubieRendering, Color(..), render
+    , CubeTheme, defaultTheme, DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
+    , Rendering, CubieRendering, CubeColor(..), render
     , Face(..), UOrD(..), LOrR(..), FOrB(..), uFace, dFace, rFace, lFace, fFace, bFace, faceToColor, colorToFaceItBelongsTo, setColor, faces, CornerLocation, getCorner, setCorner, cornerLocations, EdgeLocation(..), getEdge, setEdge, edgeLocations, CenterLocation, getCenter, setCenter, centerLocations
     , algorithmResultsAreEquivalent, algorithmResultsAreEquivalentIndependentOfFinalRotation, makeAlgorithmMaintainOrientation
     , addAUFsToAlgorithm, detectAUFs
@@ -30,12 +30,12 @@ module Cube.Advanced exposing
 
 # Displayers
 
-@docs CubeTheme, Rgb255Color, defaultTheme, DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
+@docs CubeTheme, defaultTheme, DisplayAngle, ufrDisplayAngle, ublDisplayAngle, dblDisplayAngle, view, debugViewAllowingVisualTesting
 
 
 # Rendering
 
-@docs Rendering, CubieRendering, Color, render
+@docs Rendering, CubieRendering, CubeColor, render
 
 
 ## Rendering Helpers
@@ -61,6 +61,7 @@ module Cube.Advanced exposing
 
 import AUF exposing (AUF)
 import Algorithm exposing (Algorithm)
+import Color exposing (Color)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Lazy
@@ -827,12 +828,12 @@ Note that we describe all sides of all cubies in this model, even the ones that 
 outwards.
 -}
 type alias CubieRendering =
-    { u : Color
-    , d : Color
-    , f : Color
-    , b : Color
-    , l : Color
-    , r : Color
+    { u : CubeColor
+    , d : CubeColor
+    , f : CubeColor
+    , b : CubeColor
+    , l : CubeColor
+    , r : CubeColor
     }
 
 
@@ -842,7 +843,7 @@ standard scrambling orientation of the 3x3 cube UpColor is white and
 RightColor is red. PlasticColor means it is a part of the cubie not facing
 outwards
 -}
-type Color
+type CubeColor
     = UpColor
     | DownColor
     | FrontColor
@@ -940,7 +941,7 @@ renderCorner cube location =
         |> setColor (getCounterClockwiseFace location) (getCornerColorOnCounterClockwiseFace corner)
 
 
-getCornerColorOnReferenceFace : OrientedCorner -> Color
+getCornerColorOnReferenceFace : OrientedCorner -> CubeColor
 getCornerColorOnReferenceFace (OrientedCorner corner orientation) =
     let
         getFace =
@@ -957,7 +958,7 @@ getCornerColorOnReferenceFace (OrientedCorner corner orientation) =
     corner |> getSolvedCornerLocation |> getFace |> faceToColor
 
 
-getCornerColorOnClockwiseFace : OrientedCorner -> Color
+getCornerColorOnClockwiseFace : OrientedCorner -> CubeColor
 getCornerColorOnClockwiseFace (OrientedCorner corner orientation) =
     let
         getFace =
@@ -974,7 +975,7 @@ getCornerColorOnClockwiseFace (OrientedCorner corner orientation) =
     corner |> getSolvedCornerLocation |> getFace |> faceToColor
 
 
-getCornerColorOnCounterClockwiseFace : OrientedCorner -> Color
+getCornerColorOnCounterClockwiseFace : OrientedCorner -> CubeColor
 getCornerColorOnCounterClockwiseFace (OrientedCorner corner orientation) =
     let
         getFace =
@@ -1091,7 +1092,7 @@ getOtherFace location =
             LeftOrRight lOrR
 
 
-getEdgeColorOnReferenceFace : OrientedEdge -> Color
+getEdgeColorOnReferenceFace : OrientedEdge -> CubeColor
 getEdgeColorOnReferenceFace (OrientedEdge edge orientation) =
     let
         getFace =
@@ -1105,7 +1106,7 @@ getEdgeColorOnReferenceFace (OrientedEdge edge orientation) =
     edge |> getSolvedEdgeLocation |> getFace |> faceToColor
 
 
-getEdgeColorOnOtherFace : OrientedEdge -> Color
+getEdgeColorOnOtherFace : OrientedEdge -> CubeColor
 getEdgeColorOnOtherFace (OrientedEdge edge orientation) =
     let
         getFace =
@@ -1138,7 +1139,7 @@ getCentersColoredFace (CenterLocation face) =
     face
 
 
-getCentersColor : Center -> Color
+getCentersColor : Center -> CubeColor
 getCentersColor =
     getSolvedCenterLocation >> getCentersColoredFace >> faceToColor
 
@@ -1465,7 +1466,7 @@ getSolvedCenterLocation center =
 
 {-| Set the given color on the given face of the given cubie rendering
 -}
-setColor : Face -> Color -> CubieRendering -> CubieRendering
+setColor : Face -> CubeColor -> CubieRendering -> CubieRendering
 setColor face color cubie =
     case face of
         UpOrDown U ->
@@ -1489,7 +1490,7 @@ setColor face color cubie =
 
 {-| Get the color corresponding to the given face
 -}
-faceToColor : Face -> Color
+faceToColor : Face -> CubeColor
 faceToColor face =
     case face of
         UpOrDown U ->
@@ -1513,7 +1514,7 @@ faceToColor face =
 
 {-| Get the color corresponding to the given face
 -}
-colorToFaceItBelongsTo : Color -> Maybe Face
+colorToFaceItBelongsTo : CubeColor -> Maybe Face
 colorToFaceItBelongsTo color =
     case color of
         PlasticColor ->
@@ -1754,7 +1755,7 @@ makeAlgorithmMaintainOrientation algorithm =
     Algorithm.append algorithmWithUFixed additionThatFixesF
 
 
-findFaceWithCenterColor : Color -> Cube -> Face
+findFaceWithCenterColor : CubeColor -> Cube -> Face
 findFaceWithCenterColor color cube =
     faces
         |> List.Nonempty.toList
@@ -1766,7 +1767,7 @@ findFaceWithCenterColor color cube =
         |> Maybe.withDefault (UpOrDown U)
 
 
-centerColorOnFace : Face -> Cube -> Color
+centerColorOnFace : Face -> Cube -> CubeColor
 centerColorOnFace face (Cube _ _ centerPositions) =
     getCentersColor <|
         case face of
@@ -2138,24 +2139,21 @@ getRotations displayAngle =
 
 
 {-| The color scheme of the cube, and also color of the "plastic"
-and the face annotations (U, F, B etc. on the respective sides) text color
+and the face annotations (U, F, B etc. on the respective sides) text color.
+
+Note that we use the color type from [avh4/elm-color](https://package.elm-lang.org/packages/avh4/elm-color/latest/)
+
 -}
 type alias CubeTheme =
-    { up : Rgb255Color
-    , down : Rgb255Color
-    , right : Rgb255Color
-    , left : Rgb255Color
-    , front : Rgb255Color
-    , back : Rgb255Color
-    , plastic : Rgb255Color
-    , annotations : Rgb255Color
+    { up : Color
+    , down : Color
+    , right : Color
+    , left : Color
+    , front : Color
+    , back : Color
+    , plastic : Color
+    , annotations : Color
     }
-
-
-{-| Just a name for a color tuple for better readability
--}
-type alias Rgb255Color =
-    ( Int, Int, Int )
 
 
 {-| For ease of use here is a pretty standard color scheme for a cube
@@ -2173,39 +2171,39 @@ defaultTheme =
     }
 
 
-white : Rgb255Color
+white : Color
 white =
-    ( 200, 200, 200 )
+    Color.rgb255 200 200 200
 
 
-red : Rgb255Color
+red : Color
 red =
-    ( 255, 0, 0 )
+    Color.rgb255 255 0 0
 
 
-blue : Rgb255Color
+blue : Color
 blue =
-    ( 0, 0, 255 )
+    Color.rgb255 0 0 255
 
 
-orange : Rgb255Color
+orange : Color
 orange =
-    ( 245, 121, 0 )
+    Color.rgb255 245 121 0
 
 
-green : Rgb255Color
+green : Color
 green =
-    ( 0, 255, 0 )
+    Color.rgb255 0 255 0
 
 
-yellow : Rgb255Color
+yellow : Color
 yellow =
-    ( 237, 212, 0 )
+    Color.rgb255 237 212 0
 
 
-black : Rgb255Color
+black : Color
 black =
-    ( 0, 0, 0 )
+    Color.rgb255 0 0 0
 
 
 
@@ -2407,12 +2405,12 @@ cubieMesh theme { colors, center } =
 
 type alias CubieData =
     { colors :
-        { up : Rgb255Color
-        , down : Rgb255Color
-        , front : Rgb255Color
-        , back : Rgb255Color
-        , left : Rgb255Color
-        , right : Rgb255Color
+        { up : Color
+        , down : Color
+        , front : Color
+        , back : Color
+        , left : Color
+        , right : Color
         }
     , center : Vec3
     }
@@ -2437,12 +2435,12 @@ cubieRenderingToRgbColors :
     CubeTheme
     -> CubieRendering
     ->
-        { up : Rgb255Color
-        , down : Rgb255Color
-        , front : Rgb255Color
-        , back : Rgb255Color
-        , left : Rgb255Color
-        , right : Rgb255Color
+        { up : Color
+        , down : Color
+        , front : Color
+        , back : Color
+        , left : Color
+        , right : Color
         }
 cubieRenderingToRgbColors theme rendering =
     { up = rendering.u |> getRgb255Color theme
@@ -2532,7 +2530,7 @@ type alias MeshLetterParams =
         Float
     , centerPosition : Vec3
     , rotate : Mat4 -> Mat4
-    , color : Rgb255Color
+    , color : Color
     , granularity : Float
     }
 
@@ -2811,7 +2809,7 @@ meshLetter { centerPosition, height, rotate, color, granularity } { boundingWidt
         |> WebGL.triangles
 
 
-segmentToTriangles : { strokeWidth : Float, color : Rgb255Color, granularity : Float } -> LetterSegment -> List ( Vertex, Vertex, Vertex )
+segmentToTriangles : { strokeWidth : Float, color : Color, granularity : Float } -> LetterSegment -> List ( Vertex, Vertex, Vertex )
 segmentToTriangles { strokeWidth, color, granularity } segment =
     case segment of
         Line { from, to } ->
@@ -2841,7 +2839,7 @@ tupleToVector ( x, y ) =
     Vec2.vec2 x y
 
 
-getRgb255Color : CubeTheme -> Color -> Rgb255Color
+getRgb255Color : CubeTheme -> CubeColor -> Color
 getRgb255Color theme color =
     case color of
         UpColor ->
@@ -2866,9 +2864,13 @@ getRgb255Color theme color =
             theme.plastic
 
 
-rgb255ColorToColorVector : Rgb255Color -> Vec3
-rgb255ColorToColorVector ( x, y, z ) =
-    Vec3.vec3 (toFloat x / 255) (toFloat y / 255) (toFloat z / 255)
+colorToVector : Color -> Vec3
+colorToVector color =
+    let
+        rgb =
+            Color.toRgba color
+    in
+    Vec3.vec3 rgb.red rgb.green rgb.blue
 
 
 {-| We only use ints for now so it makes some things a bit easier
@@ -3131,8 +3133,8 @@ getCenterCoordinates location =
 
 square :
     { center : Vec3
-    , innerColor : Rgb255Color
-    , borderColor : Rgb255Color
+    , innerColor : Color
+    , borderColor : Color
     , orthogonalPlaneDirection1 : Vec3
     , orthogonalPlaneDirection2 : Vec3
     , totalWidthAndHeight : Float
@@ -3211,7 +3213,7 @@ square { center, innerColor, orthogonalPlaneDirection1, orthogonalPlaneDirection
     ]
 
 
-triangleLine : { from : Vec2, to : Vec2, zCoordinate : Float, width : Float, color : Rgb255Color } -> List ( Vertex, Vertex, Vertex )
+triangleLine : { from : Vec2, to : Vec2, zCoordinate : Float, width : Float, color : Color } -> List ( Vertex, Vertex, Vertex )
 triangleLine { from, to, width, color, zCoordinate } =
     let
         diff =
@@ -3240,7 +3242,7 @@ triangleLine { from, to, width, color, zCoordinate } =
         |> twoDTrianglesToColored3d { zCoordinate = zCoordinate, color = color }
 
 
-twoDTrianglesToColored3d : { zCoordinate : Float, color : Rgb255Color } -> List ( Vec2, Vec2, Vec2 ) -> List ( Vertex, Vertex, Vertex )
+twoDTrianglesToColored3d : { zCoordinate : Float, color : Color } -> List ( Vec2, Vec2, Vec2 ) -> List ( Vertex, Vertex, Vertex )
 twoDTrianglesToColored3d { zCoordinate, color } triangles =
     triangles
         |> List.map (mapTriple <| twoDTo3d zCoordinate)
@@ -3262,7 +3264,7 @@ halfEllipse :
     , endX : Float
     , granularity : Float
     , strokeWidth : Float
-    , color : Rgb255Color
+    , color : Color
     }
     -> List ( Vertex, Vertex, Vertex )
 halfEllipse params =
@@ -3302,7 +3304,7 @@ halfEllipse params =
 
 
 halfEllipseHelper :
-    { width : Float, height : Float, granularity : Float, strokeWidth : Float, color : Rgb255Color }
+    { width : Float, height : Float, granularity : Float, strokeWidth : Float, color : Color }
     ->
         { x : Float
         , triangles : List (List ( Vertex, Vertex, Vertex ))
@@ -3432,7 +3434,7 @@ getPositiveEllipseCoordinatesFromX { rx, ry } x =
         }
 
 
-addBeginningEllipseLine : { startX : Float, startY : Float, width : Float, color : Rgb255Color } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
+addBeginningEllipseLine : { startX : Float, startY : Float, width : Float, color : Color } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
 addBeginningEllipseLine { startX, startY, width, color } vertices =
     case vertices of
         first :: second :: _ ->
@@ -3456,7 +3458,7 @@ addBeginningEllipseLine { startX, startY, width, color } vertices =
             vertices
 
 
-addEndingEllipseLine : { startX : Float, startY : Float, width : Float, color : Rgb255Color } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
+addEndingEllipseLine : { startX : Float, startY : Float, width : Float, color : Color } -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
 addEndingEllipseLine params vertices =
     vertices
         |> negateAllXCoordinates
@@ -3481,9 +3483,9 @@ mapPosition fn original =
     { original | position = fn original.position }
 
 
-positionToVertex : { color : Rgb255Color } -> Vec3 -> Vertex
+positionToVertex : { color : Color } -> Vec3 -> Vertex
 positionToVertex { color } position =
-    { position = position, color = rgb255ColorToColorVector color, transformation = Mat4.identity }
+    { position = position, color = colorToVector color, transformation = Mat4.identity }
 
 
 mapTriple : (a -> b) -> ( a, a, a ) -> ( b, b, b )

@@ -1,7 +1,7 @@
 module TestHelpers.Cube exposing (compareCubeRenderings, cubeFuzzer, plainCubie, solvedCubeRendering)
 
 import Cube
-import Cube.Advanced exposing (Color(..))
+import Cube.Advanced exposing (CubeColor(..))
 import Fuzz
 
 
@@ -65,7 +65,7 @@ compareCubieRenderings prefix a b =
         Just <| prefix ++ "{ " ++ String.join ", " diffs ++ " }"
 
 
-compareCubieFaces : String -> Cube.Advanced.Color -> Cube.Advanced.Color -> Maybe String
+compareCubieFaces : String -> Cube.Advanced.CubeColor -> Cube.Advanced.CubeColor -> Maybe String
 compareCubieFaces prefix a b =
     if a == b then
         Nothing

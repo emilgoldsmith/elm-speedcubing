@@ -3,7 +3,7 @@ module Tests.Cube exposing (addAUFsToAlgorithmTests, algorithmResultsAreEquivale
 import AUF
 import Algorithm exposing (Algorithm)
 import Cube
-import Cube.Advanced exposing (Color(..))
+import Cube.Advanced exposing (CubeColor(..))
 import Expect
 import Expect.Extra
 import Fuzz
@@ -875,7 +875,7 @@ type Slice
     | E
 
 
-cycleColorsFromSolvedCubeOnSlices : List Slice -> List Color -> Cube.Advanced.Rendering
+cycleColorsFromSolvedCubeOnSlices : List Slice -> List CubeColor -> Cube.Advanced.Rendering
 cycleColorsFromSolvedCubeOnSlices slices colors =
     List.foldl
         (\slice rendering ->
@@ -992,7 +992,7 @@ cycleColorsFromSolvedCubeOnSlices slices colors =
         slices
 
 
-cycleCubieRendering : List Color -> Cube.Advanced.CubieRendering -> Cube.Advanced.CubieRendering
+cycleCubieRendering : List CubeColor -> Cube.Advanced.CubieRendering -> Cube.Advanced.CubieRendering
 cycleCubieRendering colors cubie =
     { u = cycleColor colors cubie.u
     , d = cycleColor colors cubie.d
@@ -1003,7 +1003,7 @@ cycleCubieRendering colors cubie =
     }
 
 
-cycleColor : List Color -> Color -> Color
+cycleColor : List CubeColor -> CubeColor -> CubeColor
 cycleColor cycle color =
     let
         afterAndBefore =
