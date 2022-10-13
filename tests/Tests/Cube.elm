@@ -398,7 +398,8 @@ makeAlgorithmMaintainOrientationTests =
                 Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation
                     algorithm
                     (Cube.makeAlgorithmMaintainOrientation algorithm)
-                    |> Expect.true "should produce same result independent of orientation"
+                    |> Expect.equal True
+                    |> Expect.onFail "should produce same result independent of orientation"
         ]
 
 
@@ -410,13 +411,15 @@ algorithmResultsAreEquivalentTests =
                 Cube.algorithmResultsAreEquivalent
                     (Algorithm.fromTurnList [ turn1, turn2 ])
                     (Algorithm.fromTurnList [ turn2, turn1 ])
-                    |> Expect.true "Algorithms should produce the same result"
+                    |> Expect.equal True
+                    |> Expect.onFail "Algorithms should produce the same result"
         , fuzz nonCommutativePairsFuzzer "non commutative pairs are not equivalent algorithms in any order" <|
             \( turn1, turn2 ) ->
                 Cube.algorithmResultsAreEquivalent
                     (Algorithm.fromTurnList [ turn1, turn2 ])
                     (Algorithm.fromTurnList [ turn2, turn1 ])
-                    |> Expect.false "Algorithms should not produce the same result"
+                    |> Expect.equal False
+                    |> Expect.onFail "Algorithms should not produce the same result"
         ]
 
 
@@ -428,20 +431,22 @@ algorithmResultsAreEquivalentIndependentOfFinalRotationTests =
                 Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation
                     (Algorithm.fromTurnList [ turn1, turn2 ] |> Algorithm.reverseAppend rotation1)
                     (Algorithm.fromTurnList [ turn2, turn1 ] |> Algorithm.reverseAppend rotation2)
-                    |> Expect.true "Algorithms should produce the same result"
+                    |> Expect.equal True
+                    |> Expect.onFail "Algorithms should produce the same result"
         , fuzz nonCommutativePairsExcludingRotationsFuzzer "non commutative pairs are not equivalent algorithms in any order" <|
             \( turn1, turn2 ) ->
                 Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation
                     (Algorithm.fromTurnList [ turn1, turn2 ])
                     (Algorithm.fromTurnList [ turn2, turn1 ])
-                    |> Expect.false "Algorithms should not produce the same result"
+                    |> Expect.equal False
+                    |> Expect.onFail "Algorithms should not produce the same result"
         ]
 
 
 addAUFsToAlgorithmTests : Test
 addAUFsToAlgorithmTests =
     describe "addAUFsToAlgorithm"
-        [ fuzz2 Tests.Algorithm.algorithmFuzzer (Fuzz.tuple ( aufFuzzer, aufFuzzer )) "adds the aufs on each side of the algorithm simply when algorithm maintains orientation" <|
+        [ fuzz2 Tests.Algorithm.algorithmFuzzer (Fuzz.pair aufFuzzer aufFuzzer) "adds the aufs on each side of the algorithm simply when algorithm maintains orientation" <|
             \possiblyOrientingAlgorithm (( preAUF, postAUF ) as aufs) ->
                 let
                     nonOrientingAlgorithm =
@@ -454,7 +459,7 @@ addAUFsToAlgorithmTests =
                             ++ (Algorithm.toTurnList << AUF.toAlgorithm) postAUF
                             |> Algorithm.fromTurnList
                         )
-        , fuzz2 Tests.Algorithm.algorithmFuzzer (Fuzz.tuple ( aufFuzzer, aufFuzzer )) "always adds AUFs to the original U face independent of final rotation" <|
+        , fuzz2 Tests.Algorithm.algorithmFuzzer (Fuzz.pair aufFuzzer aufFuzzer) "always adds AUFs to the original U face independent of final rotation" <|
             \algorithm aufs ->
                 let
                     expectedEquivalency =
@@ -464,7 +469,8 @@ addAUFsToAlgorithmTests =
                 in
                 Cube.addAUFsToAlgorithm aufs algorithm
                     |> Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation expectedEquivalency
-                    |> Expect.true "should be equivalent to an algorithm that maintained orientation"
+                    |> Expect.equal True
+                    |> Expect.onFail "should be equivalent to an algorithm that maintained orientation"
         ]
 
 
@@ -472,12 +478,13 @@ detectAUFsTests : Test
 detectAUFsTests =
     describe "detectAUFs"
         [ fuzzWith
-            { runs = 5 }
-            (Fuzz.tuple3
-                ( algorithmFuzzer
-                , algorithmFuzzer
-                , Fuzz.tuple ( aufFuzzer, aufFuzzer )
-                )
+            { runs = 5
+            , distribution = noDistribution
+            }
+            (Fuzz.triple
+                algorithmFuzzer
+                algorithmFuzzer
+                (Fuzz.pair aufFuzzer aufFuzzer)
             )
             "correctly detects aufs on the same algorithm with an identity sequence appended to it"
           <|
@@ -503,10 +510,13 @@ detectAUFsTests =
                 in
                 resultingAlgorithm
                     |> Maybe.map (Cube.algorithmResultsAreEquivalentIndependentOfFinalRotation algorithmToMatch)
-                    |> Maybe.map (Expect.true "The algorithm built using detect should be equivalent to the one we're matching")
+                    |> Maybe.map (Expect.equal True)
+                    |> Maybe.map (Expect.onFail "The algorithm built using detect should be equivalent to the one we're matching")
                     |> Maybe.withDefault (Expect.fail "No possible AUFs detected when some should have been found")
         , fuzzWith
-            { runs = 5 }
+            { runs = 5
+            , distribution = noDistribution
+            }
             algorithmFuzzer
             "no matches are found for algorithms that are not equivalent no matter the AUF between them"
           <|
@@ -544,15 +554,18 @@ testHelperTests =
             [ test "up or down group is disjoint with front or back group" <|
                 \_ ->
                     listsDisjoint upOrDownParallelGroup frontOrBackParallelGroup
-                        |> Expect.true "Expected groups to be disjoint"
+                        |> Expect.equal True
+                        |> Expect.onFail "Expected groups to be disjoint"
             , test "up or down group is disjoint with left or right group" <|
                 \_ ->
                     listsDisjoint upOrDownParallelGroup leftOrRightParallelGroup
-                        |> Expect.true "Expected groups to be disjoint"
+                        |> Expect.equal True
+                        |> Expect.onFail "Expected groups to be disjoint"
             , test "front or back group is disjoint with left or right group" <|
                 \_ ->
                     listsDisjoint frontOrBackParallelGroup leftOrRightParallelGroup
-                        |> Expect.true "Expected groups to be disjoint"
+                        |> Expect.equal True
+                        |> Expect.onFail "Expected groups to be disjoint"
             , test "three parallel groups have same length as all turns" <|
                 \_ ->
                     [ upOrDownParallelGroup, frontOrBackParallelGroup, leftOrRightParallelGroup ]

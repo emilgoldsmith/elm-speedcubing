@@ -158,7 +158,8 @@ addTests =
                             (AUF.toAlgorithm first)
                             (AUF.toAlgorithm second)
                         )
-                    |> Expect.true "result wasn't equivalent to the aufs applied consecutively"
+                    |> Expect.equal True
+                    |> Expect.onFail "result wasn't equivalent to the aufs applied consecutively"
         ]
 
 

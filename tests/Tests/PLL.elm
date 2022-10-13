@@ -400,9 +400,10 @@ solvedByTests =
         [ test "obviously wrong case fails check" <|
             \_ ->
                 PLL.solvedBy Algorithm.empty PLL.Aa
-                    |> Expect.false "Aa PLL was deemed solved by an empty algorithm"
+                    |> Expect.equal False
+                    |> Expect.onFail "Aa PLL was deemed solved by an empty algorithm"
         , fuzz3
-            (Fuzz.tuple ( aufFuzzer, aufFuzzer ))
+            (Fuzz.pair aufFuzzer aufFuzzer)
             rotationFuzzer
             pllFuzzer
             "pll is solved by its reference algorithm no matter what auf combination or rotation applied to it"
@@ -420,7 +421,8 @@ solvedByTests =
                 PLL.solvedBy
                     withAUFsAndRotation
                     pll
-                    |> Expect.true
+                    |> Expect.equal True
+                    |> Expect.onFail
                         ("PLL "
                             ++ PLL.getLetters pll
                             ++ " was not solved by its reference algorithm with pre AUF "
@@ -509,7 +511,8 @@ getAllEquivalentAUFsTests =
                                         ( preAUF, postAUF )
                                         (PLL.getAlgorithm PLL.referenceAlgorithms pll)
                                     )
-                                    |> Expect.true
+                                    |> Expect.equal True
+                                    |> Expect.onFail
                                         ("Not equivalent to ("
                                             ++ AUF.toString (Tuple.first equivalentPair)
                                             ++ ", "
@@ -520,8 +523,8 @@ getAllEquivalentAUFsTests =
                         Expect.pass
         , fuzz3
             pllFuzzer
-            (Fuzz.tuple ( Tests.AUF.aufFuzzer, Tests.AUF.aufFuzzer ))
-            (Fuzz.tuple ( Tests.AUF.aufFuzzer, Tests.AUF.aufFuzzer ))
+            (Fuzz.pair Tests.AUF.aufFuzzer Tests.AUF.aufFuzzer)
+            (Fuzz.pair Tests.AUF.aufFuzzer Tests.AUF.aufFuzzer)
             "auf pairs are included in the equivalent AUFs exactly if they are equivalent"
           <|
             \pll firstPair secondPair ->
@@ -577,7 +580,8 @@ getAllAUFEquivalencyClassesTests =
                                 |> Expect.Extra.equalNonEmptyListMembers equivalencyClass
                                 |> (==) Expect.pass
                         )
-                    |> Expect.true "There were no equivalency classes found that match the expected class"
+                    |> Expect.equal True
+                    |> Expect.onFail "There were no equivalency classes found that match the expected class"
         ]
 
 
@@ -604,7 +608,8 @@ getUniqueTwoSidedRecognitionSpecificationTests =
 
                     Ok spec ->
                         allMentionedPatternsListedInPatterns spec
-                            |> Expect.true ("There was a pattern mentioned not included in patterns. The spec was: " ++ Debug.toString spec)
+                            |> Expect.equal True
+                            |> Expect.onFail ("There was a pattern mentioned not included in patterns. The spec was: " ++ Debug.toString spec)
         , fuzz3
             pllWithCorrectAlgorithmFuzzer
             aufFuzzer
@@ -625,7 +630,8 @@ getUniqueTwoSidedRecognitionSpecificationTests =
 
                     Ok spec ->
                         noMentionedPatternsIncludedInAbsentPatterns spec
-                            |> Expect.true ("There was a pattern mentioned that was also included in absent patterns. The spec was: " ++ Debug.toString spec)
+                            |> Expect.equal True
+                            |> Expect.onFail ("There was a pattern mentioned that was also included in absent patterns. The spec was: " ++ Debug.toString spec)
 
         -- This one also ensures that it's internally coherent as otherwise
         -- it wouldn't describe the case correctly if for example a sticker
@@ -659,14 +665,15 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                     }
                         in
                         verifySpecForStickers stickers spec
-                            |> Expect.true
+                            |> Expect.equal True
+                            |> Expect.onFail
                                 ("the spec didn't correctly describe the stickers. The spec was:\n"
                                     ++ Debug.toString spec
                                     ++ "\nThe stickers were:\n"
                                     ++ Debug.toString stickers
                                 )
         , fuzz3
-            (Fuzz.tuple ( pllFuzzer, Fuzz.intRange 0 100000 ))
+            (Fuzz.pair pllFuzzer (Fuzz.intRange 0 100000))
             aufFuzzer
             recognitionAngleFuzzer
             "check that no other cases except for symmetric ones match this spec; that it's therefore uniquely determinable by this description"
@@ -944,9 +951,9 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                 )
                             |> Expect.equalLists []
         , fuzz3
-            (Fuzz.tuple (pllFuzzer, Fuzz.intRange 0 10000))
-            (Fuzz.tuple ( aufFuzzer, recognitionAngleFuzzer ))
-            (Fuzz.tuple ( removePartKeyIndexRange, Fuzz.intRange 0 Random.maxInt ))
+            (Fuzz.pair pllFuzzer (Fuzz.intRange 0 10000))
+            (Fuzz.pair aufFuzzer recognitionAngleFuzzer)
+            (Fuzz.pair removePartKeyIndexRange (Fuzz.intRange 0 Random.maxInt))
             "spec cannot have any part removed and still uniquely identify the case"
           <|
             \( pll, algorithmIndex ) ( preAUF, recognitionAngle ) ( keyIndex, subIndex ) ->

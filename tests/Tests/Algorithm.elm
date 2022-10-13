@@ -599,7 +599,8 @@ allCubeAnglesTests =
                     |> Maybe.map
                         (\( a, b ) ->
                             Cube.algorithmResultsAreEquivalent a b
-                                |> Expect.false "two cube angles were equivalent"
+                                |> Expect.equal False
+                                |> Expect.onFail "two cube angles were equivalent"
                         )
                     |> Maybe.withDefault (Expect.fail "two members fuzzer failed")
         ]

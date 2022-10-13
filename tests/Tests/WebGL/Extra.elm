@@ -12,11 +12,13 @@ suite =
         [ test "our hardcoded default options match the WebGL libraries default options" <|
             \_ ->
                 matchesDefaultOptions WebGL.Extra.toHtmlDefaultOptions
-                    |> Expect.true "output of toHtml with empty lists is the same as output of toHtmlWith with given options"
+                    |> Expect.equal True
+                    |> Expect.onFail "output of toHtml with empty lists is the same as output of toHtmlWith with given options"
         , test "making sure it's not evergreen by asserting that an empty option list doesn't match the default options" <|
             \_ ->
                 matchesDefaultOptions []
-                    |> Expect.false "empty option list shouldn't match the default options"
+                    |> Expect.equal False
+                    |> Expect.onFail "empty option list shouldn't match the default options"
         ]
 
 

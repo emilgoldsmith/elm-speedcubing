@@ -24,7 +24,8 @@ canBeSolvedBySingleUTurnTests =
                             ]
                         )
                     |> Cube.Advanced.canBeSolvedBySingleUTurn
-                    |> Expect.true "it couldn't be solved by a single U turn"
+                    |> Expect.equal True
+                    |> Expect.onFail "it couldn't be solved by a single U turn"
         , test "returns false for a single non-U turn applied to a cube" <|
             \_ ->
                 Cube.solved
@@ -34,7 +35,8 @@ canBeSolvedBySingleUTurnTests =
                             ]
                         )
                     |> Cube.Advanced.canBeSolvedBySingleUTurn
-                    |> Expect.false "an F turn was able to be solved by a single U turn"
+                    |> Expect.equal False
+                    |> Expect.onFail "an F turn was able to be solved by a single U turn"
         , test "returns false for several moves that don't cancel with each other" <|
             \_ ->
                 Cube.solved
@@ -45,5 +47,6 @@ canBeSolvedBySingleUTurnTests =
                             ]
                         )
                     |> Cube.Advanced.canBeSolvedBySingleUTurn
-                    |> Expect.false "UR was able to be solved by a single U turn"
+                    |> Expect.equal False
+                    |> Expect.onFail "UR was able to be solved by a single U turn"
         ]
