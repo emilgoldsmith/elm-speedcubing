@@ -1,6 +1,3 @@
-# The `unsafe-html-cube-devcontainer` is built in the
-# initializeCommand for the devcontainer from base.dockerfile
-# which is located in the .devcontainer directory
 FROM emilgoldsmith/unsafe-dev-container:node-16-latest
 
 ENV ELM_VERSION=0.19.1
