@@ -3,7 +3,7 @@ module PLL exposing
     , getLetters, solvedBy, getAllEquivalentAUFs, getAllAUFEquivalencyClasses
     , RecognitionSpecification, CaseRecognitionSpecification, PostAUFRecognitionSpecification, RecognitionElement(..), RecognitionPattern(..), Sticker(..)
     , getUniqueTwoSidedRecognitionSpecification, RecognitionAngle, uflRecognitionAngle, ufrRecognitionAngle, RecognitionError(..)
-    , getSymmetry, PLLWithSymmetryInfo(..), FullySymmetricPLL(..), HalfSymmetricPLL(..), NPermSymmetricPLL(..), NonSymmetricPLL(..)
+    , getSymmetry, PLLWithSymmetryInfo(..), FullySymmetricPLL(..), HalfSymmetricPLL(..), NPermSymmetricPLL(..), NonSymmetricPLL(..), pllWithSymmetryInfoToPLL, fullySymmetricPLLToPLL, halfSymmetricPLLToPLL, nPermSymmetricPLLToPLL, nonSymmetricPLLToPLL
     , Algorithms, getAlgorithm, referenceAlgorithms
     )
 
@@ -31,7 +31,7 @@ for further information
 
 # Symmetry
 
-@docs getSymmetry, PLLWithSymmetryInfo, FullySymmetricPLL, HalfSymmetricPLL, NPermSymmetricPLL, NonSymmetricPLL
+@docs getSymmetry, PLLWithSymmetryInfo, FullySymmetricPLL, HalfSymmetricPLL, NPermSymmetricPLL, NonSymmetricPLL, pllWithSymmetryInfoToPLL, fullySymmetricPLLToPLL, halfSymmetricPLLToPLL, nPermSymmetricPLLToPLL, nonSymmetricPLLToPLL
 
 
 # Collections
@@ -420,6 +420,15 @@ type FullySymmetricPLL
     = FullSymH
 
 
+{-| Convert a fully symmetrical PLL with symmetry info to a normal PLL type
+-}
+fullySymmetricPLLToPLL : FullySymmetricPLL -> PLL
+fullySymmetricPLLToPLL fullSym =
+    case fullSym of
+        FullSymH ->
+            H
+
+
 {-| A half symmetric PLL which has the same AUF properties as a fully symmetric PLL
 but only opposing faces can be solved with the same PLL algorithm, so AUF transformations
 can also only happen by adding or subtracting U2s to the AUFs
@@ -427,6 +436,18 @@ can also only happen by adding or subtracting U2s to the AUFs
 type HalfSymmetricPLL
     = HalfSymZ
     | HalfSymE
+
+
+{-| Convert a half symmetrical PLL with symmetry info to a normal PLL type
+-}
+halfSymmetricPLLToPLL : HalfSymmetricPLL -> PLL
+halfSymmetricPLLToPLL halfSym =
+    case halfSym of
+        HalfSymZ ->
+            Z
+
+        HalfSymE ->
+            E
 
 
 {-| An N-Perm symmetric PLL (which only includes the N-Perms) can like fully symmetric PLLs
@@ -438,6 +459,18 @@ be equivalent to (no-auf, pll-alg, no-auf)
 type NPermSymmetricPLL
     = NPermSymNa
     | NPermSymNb
+
+
+{-| Convert an N-perm symmetrical PLL with symmetry info to a normal PLL type
+-}
+nPermSymmetricPLLToPLL : NPermSymmetricPLL -> PLL
+nPermSymmetricPLLToPLL nPermSym =
+    case nPermSym of
+        NPermSymNa ->
+            Na
+
+        NPermSymNb ->
+            Nb
 
 
 {-| A non-symmetric PLL. Any given PLL algorithm can only solve this case from a single angle
@@ -460,6 +493,78 @@ type NonSymmetricPLL
     | NotSymT
     | NotSymV
     | NotSymY
+
+
+{-| Convert a non-symmetrical PLL with symmetry info to a normal PLL type
+-}
+nonSymmetricPLLToPLL : NonSymmetricPLL -> PLL
+nonSymmetricPLLToPLL nonSym =
+    case nonSym of
+        NotSymUa ->
+            Ua
+
+        NotSymUb ->
+            Ub
+
+        NotSymAa ->
+            Aa
+
+        NotSymAb ->
+            Ab
+
+        NotSymF ->
+            F
+
+        NotSymGa ->
+            Ga
+
+        NotSymGb ->
+            Gb
+
+        NotSymGc ->
+            Gc
+
+        NotSymGd ->
+            Gd
+
+        NotSymJa ->
+            Ja
+
+        NotSymJb ->
+            Jb
+
+        NotSymRa ->
+            Ra
+
+        NotSymRb ->
+            Rb
+
+        NotSymT ->
+            T
+
+        NotSymV ->
+            V
+
+        NotSymY ->
+            Y
+
+
+{-| Convert a PLL with symmetry info to a normal PLL type
+-}
+pllWithSymmetryInfoToPLL : PLLWithSymmetryInfo -> PLL
+pllWithSymmetryInfoToPLL pllWithSym =
+    case pllWithSym of
+        FullySymmetric fullSym ->
+            fullySymmetricPLLToPLL fullSym
+
+        HalfSymmetric halfSym ->
+            halfSymmetricPLLToPLL halfSym
+
+        NPermSymmetric nPermSym ->
+            nPermSymmetricPLLToPLL nPermSym
+
+        NotSymmetric nonSym ->
+            nonSymmetricPLLToPLL nonSym
 
 
 {-| Get the type of symmetry this PLL case displays

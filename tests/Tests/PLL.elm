@@ -1,4 +1,4 @@
-module Tests.PLL exposing (getAlgorithmTests, getAllAUFEquivalencyClassesTests, getAllEquivalentAUFsTests, getUniqueTwoSidedRecognitionSpecificationTests, referenceAlgTests, solvedByTests)
+module Tests.PLL exposing (getAlgorithmTests, getAllAUFEquivalencyClassesTests, getAllEquivalentAUFsTests, getUniqueTwoSidedRecognitionSpecificationTests, referenceAlgTests, solvedByTests, symmetryTests)
 
 import AUF exposing (AUF)
 import Algorithm exposing (Algorithm)
@@ -1009,6 +1009,18 @@ getUniqueTwoSidedRecognitionSpecificationTests =
                                                 ++ ". The spec after removing was: "
                                                 ++ Debug.toString specWithPartRemoved
                                             )
+        ]
+
+
+symmetryTests : Test
+symmetryTests =
+    describe "Symmetry stuff"
+        [ fuzz pllFuzzer "pll extraction is consistent with symmetry detection" <|
+            \pll ->
+                pll
+                    |> PLL.getSymmetry
+                    |> PLL.pllWithSymmetryInfoToPLL
+                    |> Expect.equal pll
         ]
 
 
