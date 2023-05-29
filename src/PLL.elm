@@ -3,7 +3,7 @@ module PLL exposing
     , getLetters, solvedBy, getAllEquivalentAUFs, getAllAUFEquivalencyClasses
     , RecognitionSpecification, CaseRecognitionSpecification, PostAUFRecognitionSpecification, RecognitionElement(..), RecognitionPattern(..), Sticker(..)
     , getUniqueTwoSidedRecognitionSpecification, RecognitionAngle, uflRecognitionAngle, ufrRecognitionAngle, RecognitionError(..)
-    , getSymmetry, PLLsBySymmetry(..), FullySymmetricPLL(..), HalfSymmetricPLL(..), NPermSymmetricPLL(..), NonSymmetricPLL(..)
+    , getSymmetry, PLLWithSymmetryInfo(..), FullySymmetricPLL(..), HalfSymmetricPLL(..), NPermSymmetricPLL(..), NonSymmetricPLL(..)
     , Algorithms, getAlgorithm, referenceAlgorithms
     )
 
@@ -31,7 +31,7 @@ for further information
 
 # Symmetry
 
-@docs getSymmetry, PLLsBySymmetry, FullySymmetricPLL, HalfSymmetricPLL, NPermSymmetricPLL, NonSymmetricPLL
+@docs getSymmetry, PLLWithSymmetryInfo, FullySymmetricPLL, HalfSymmetricPLL, NPermSymmetricPLL, NonSymmetricPLL
 
 
 # Collections
@@ -402,51 +402,34 @@ getAllAUFEquivalencyClasses pll =
             )
 
 
-{-| A classification of PLLs by they symmetry patterns.
-
-1.  Fully symmetric PLLs where you can use the same algorithm to solve
-    them from any angle and doing a preAUF and a postAUF are equivalent, so
-    for example (U, pll-alg, U) is equivalent to (no-auf, pll-alg, U2)
-
-2.  Half symmetric PLLs which have the same AUF properties but only opposing faces
-    can be solved with the same PLL algorithm, so AUF transformations can also only happen
-    by adding or subtracting U2s to the AUFs
-
-3.  N-Perm Symmetric PLLs (which only include the N-Perms) can like fully symmetric PLLs
-    be solved with the same algorithm from any angle, but here a transformation through pre-AUF
-    causes the inverse transformation for the post-AUF. It is best explained with an example: With
-    the same example of (U, pll-alg, U) from the fully symmetric case, with an N-perm it would now
-    be equivalent to (no-auf, pll-alg, no-auf)
-
-4.  Non-symmetric PLLs. Any given PLL algorithm can only solve this case from a single angle
-    and therefore no AUF transformations make sense in this case either
-
+{-| A PLL with the classification of it by the symmetry patterns of the case.
+The descriptions of the different classes of symmetries can be found below
 -}
-type PLLsBySymmetry
+type PLLWithSymmetryInfo
     = FullySymmetric FullySymmetricPLL
     | HalfSymmetric HalfSymmetricPLL
     | NPermSymmetric NPermSymmetricPLL
     | NotSymmetric NonSymmetricPLL
 
 
-{-| Fully symmetric PLLs where you can use the same algorithm to solve
-them from any angle and doing a preAUF and a postAUF are equivalent, so
-for example (U, pll-alg, U) is equivalent to (no-auf, pll-alg, U2)
+{-| A fully symmetric PLL where you can use the same algorithm to solve
+it from any angle and doing a preAUF and a postAUF are equivalent.
+For example (U, pll-alg, U) is equivalent to (no-auf, pll-alg, U2)
 -}
 type FullySymmetricPLL
     = FullSymH
 
 
-{-| Half symmetric PLLs which have the same AUF properties but only opposing faces
-can be solved with the same PLL algorithm, so AUF transformations can also only happen
-by adding or subtracting U2s to the AUFs
+{-| A half symmetric PLL which has the same AUF properties as a fully symmetric PLL
+but only opposing faces can be solved with the same PLL algorithm, so AUF transformations
+can also only happen by adding or subtracting U2s to the AUFs
 -}
 type HalfSymmetricPLL
     = HalfSymZ
     | HalfSymE
 
 
-{-| N-Perm Symmetric PLLs (which only include the N-Perms) can like fully symmetric PLLs
+{-| An N-Perm symmetric PLL (which only includes the N-Perms) can like fully symmetric PLLs
 be solved with the same algorithm from any angle, but here a transformation through pre-AUF
 causes the inverse transformation for the post-AUF. It is best explained with an example: With
 the same example of (U, pll-alg, U) from the fully symmetric case, with an N-perm it would now
@@ -457,7 +440,7 @@ type NPermSymmetricPLL
     | NPermSymNb
 
 
-{-| Non-symmetric PLLs. Any given PLL algorithm can only solve this case from a single angle
+{-| A non-symmetric PLL. Any given PLL algorithm can only solve this case from a single angle
 and therefore no AUF transformations make sense in this case either
 -}
 type NonSymmetricPLL
@@ -481,7 +464,7 @@ type NonSymmetricPLL
 
 {-| Get the type of symmetry this PLL case displays
 -}
-getSymmetry : PLL -> PLLsBySymmetry
+getSymmetry : PLL -> PLLWithSymmetryInfo
 getSymmetry pll =
     case pll of
         H ->
