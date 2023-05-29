@@ -3,6 +3,7 @@ module PLL exposing
     , getLetters, solvedBy, getAllEquivalentAUFs, getAllAUFEquivalencyClasses
     , RecognitionSpecification, CaseRecognitionSpecification, PostAUFRecognitionSpecification, RecognitionElement(..), RecognitionPattern(..), Sticker(..)
     , getUniqueTwoSidedRecognitionSpecification, RecognitionAngle, uflRecognitionAngle, ufrRecognitionAngle, RecognitionError(..)
+    , getSymmetry, PLLsBySymmetry(..), FullySymmetricPLL(..), HalfSymmetricPLL(..), NPermSymmetricPLL(..), NonSymmetricPLL(..)
     , Algorithms, getAlgorithm, referenceAlgorithms
     )
 
@@ -26,6 +27,11 @@ for further information
 
 @docs RecognitionSpecification, CaseRecognitionSpecification, PostAUFRecognitionSpecification, RecognitionElement, RecognitionPattern, Sticker
 @docs getUniqueTwoSidedRecognitionSpecification, RecognitionAngle, uflRecognitionAngle, ufrRecognitionAngle, RecognitionError
+
+
+# Symmetry
+
+@docs getSymmetry, PLLsBySymmetry, FullySymmetricPLL, HalfSymmetricPLL, NPermSymmetricPLL, NonSymmetricPLL
 
 
 # Collections
@@ -280,16 +286,16 @@ solvedBy algorithm pll =
             -- PLLs that can be executed from several different angles
             -- so we just need to make sure we've covered "all bases"
             case getSymmetry pll of
-                NotSymmetric ->
+                NotSymmetric _ ->
                     AUF.all
 
-                HalfSymmetric ->
+                HalfSymmetric _ ->
                     List.Nonempty.Nonempty AUF.None [ AUF.Clockwise ]
 
-                NPermSymmetric ->
+                NPermSymmetric _ ->
                     List.Nonempty.singleton AUF.None
 
-                FullySymmetric ->
+                FullySymmetric _ ->
                     List.Nonempty.singleton AUF.None
 
         -- We reimplement some algorithm equivalency algorithms here to save on some recomputation
@@ -338,22 +344,22 @@ AUFs for the given PLL
 getAllEquivalentAUFs : ( AUF, PLL, AUF ) -> List.Nonempty.Nonempty ( AUF, AUF )
 getAllEquivalentAUFs ( preAUF, pll, postAUF ) =
     case getSymmetry pll of
-        NotSymmetric ->
+        NotSymmetric _ ->
             List.Nonempty.singleton ( preAUF, postAUF )
 
-        HalfSymmetric ->
+        HalfSymmetric _ ->
             List.Nonempty.Nonempty
                 ( preAUF, postAUF )
                 [ ( AUF.add preAUF AUF.Halfway, AUF.add postAUF AUF.Halfway ) ]
 
-        NPermSymmetric ->
+        NPermSymmetric _ ->
             AUF.all
                 |> List.Nonempty.map
                     (\toAdd ->
                         ( AUF.add preAUF toAdd, AUF.add postAUF toAdd )
                     )
 
-        FullySymmetric ->
+        FullySymmetric _ ->
             AUF.all
                 |> List.Nonempty.map
                     (\toAdd ->
@@ -396,78 +402,150 @@ getAllAUFEquivalencyClasses pll =
             )
 
 
-type PLLSymmetry
-    = NotSymmetric
-    | HalfSymmetric
-    | NPermSymmetric
-    | FullySymmetric
+{-| A classification of PLLs by they symmetry patterns.
+
+1.  Fully symmetric PLLs where you can use the same algorithm to solve
+    them from any angle and doing a preAUF and a postAUF are equivalent, so
+    for example (U, pll-alg, U) is equivalent to (no-auf, pll-alg, U2)
+
+2.  Half symmetric PLLs which have the same AUF properties but only opposing faces
+    can be solved with the same PLL algorithm, so AUF transformations can also only happen
+    by adding or subtracting U2s to the AUFs
+
+3.  N-Perm Symmetric PLLs (which only include the N-Perms) can like fully symmetric PLLs
+    be solved with the same algorithm from any angle, but here a transformation through pre-AUF
+    causes the inverse transformation for the post-AUF. It is best explained with an example: With
+    the same example of (U, pll-alg, U) from the fully symmetric case, with an N-perm it would now
+    be equivalent to (no-auf, pll-alg, no-auf)
+
+4.  Non-symmetric PLLs. Any given PLL algorithm can only solve this case from a single angle
+    and therefore no AUF transformations make sense in this case either
+
+-}
+type PLLsBySymmetry
+    = FullySymmetric FullySymmetricPLL
+    | HalfSymmetric HalfSymmetricPLL
+    | NPermSymmetric NPermSymmetricPLL
+    | NotSymmetric NonSymmetricPLL
 
 
-getSymmetry : PLL -> PLLSymmetry
+{-| Fully symmetric PLLs where you can use the same algorithm to solve
+them from any angle and doing a preAUF and a postAUF are equivalent, so
+for example (U, pll-alg, U) is equivalent to (no-auf, pll-alg, U2)
+-}
+type FullySymmetricPLL
+    = FullSymH
+
+
+{-| Half symmetric PLLs which have the same AUF properties but only opposing faces
+can be solved with the same PLL algorithm, so AUF transformations can also only happen
+by adding or subtracting U2s to the AUFs
+-}
+type HalfSymmetricPLL
+    = HalfSymZ
+    | HalfSymE
+
+
+{-| N-Perm Symmetric PLLs (which only include the N-Perms) can like fully symmetric PLLs
+be solved with the same algorithm from any angle, but here a transformation through pre-AUF
+causes the inverse transformation for the post-AUF. It is best explained with an example: With
+the same example of (U, pll-alg, U) from the fully symmetric case, with an N-perm it would now
+be equivalent to (no-auf, pll-alg, no-auf)
+-}
+type NPermSymmetricPLL
+    = NPermSymNa
+    | NPermSymNb
+
+
+{-| Non-symmetric PLLs. Any given PLL algorithm can only solve this case from a single angle
+and therefore no AUF transformations make sense in this case either
+-}
+type NonSymmetricPLL
+    = NotSymUa
+    | NotSymUb
+    | NotSymAa
+    | NotSymAb
+    | NotSymF
+    | NotSymGa
+    | NotSymGb
+    | NotSymGc
+    | NotSymGd
+    | NotSymJa
+    | NotSymJb
+    | NotSymRa
+    | NotSymRb
+    | NotSymT
+    | NotSymV
+    | NotSymY
+
+
+{-| Get the type of symmetry this PLL case displays
+-}
+getSymmetry : PLL -> PLLsBySymmetry
 getSymmetry pll =
     case pll of
         H ->
-            FullySymmetric
+            FullySymmetric FullSymH
 
         Ua ->
-            NotSymmetric
+            NotSymmetric NotSymUa
 
         Ub ->
-            NotSymmetric
+            NotSymmetric NotSymUb
 
         Z ->
-            HalfSymmetric
+            HalfSymmetric HalfSymZ
 
         Aa ->
-            NotSymmetric
+            NotSymmetric NotSymAa
 
         Ab ->
-            NotSymmetric
+            NotSymmetric NotSymAb
 
         E ->
-            HalfSymmetric
+            HalfSymmetric HalfSymE
 
         F ->
-            NotSymmetric
+            NotSymmetric NotSymF
 
         Ga ->
-            NotSymmetric
+            NotSymmetric NotSymGa
 
         Gb ->
-            NotSymmetric
+            NotSymmetric NotSymGb
 
         Gc ->
-            NotSymmetric
+            NotSymmetric NotSymGc
 
         Gd ->
-            NotSymmetric
+            NotSymmetric NotSymGd
 
         Ja ->
-            NotSymmetric
+            NotSymmetric NotSymJa
 
         Jb ->
-            NotSymmetric
+            NotSymmetric NotSymJb
 
         Na ->
-            NPermSymmetric
+            NPermSymmetric NPermSymNa
 
         Nb ->
-            NPermSymmetric
+            NPermSymmetric NPermSymNb
 
         Ra ->
-            NotSymmetric
+            NotSymmetric NotSymRa
 
         Rb ->
-            NotSymmetric
+            NotSymmetric NotSymRb
 
         T ->
-            NotSymmetric
+            NotSymmetric NotSymT
 
         V ->
-            NotSymmetric
+            NotSymmetric NotSymV
 
         Y ->
-            NotSymmetric
+            NotSymmetric NotSymY
 
 
 
