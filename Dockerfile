@@ -1,4 +1,4 @@
-FROM emilgoldsmith/unsafe-dev-container:node-16-latest
+FROM emilgoldsmith/unsafe-dev-container:node-18-latest
 
 ENV ELM_VERSION=0.19.1
 ENV ELM_TEST_VERSION 0.19.1-revision7
